@@ -1,0 +1,14 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+
+# Local database and instance folder
+instance/
+raffle.db
+
+# Environment variables (secrets)
+.env
+.env.txt
