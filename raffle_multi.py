@@ -1,21 +1,23 @@
-from flask import Flask, render_template_string, request, redirect, url_for, session, flash, abort
-import os, random
-from datetime import datetime
+import os
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import UniqueConstraint
 
 app = Flask(__name__)
-
-# ---- Secrets & DB config ----
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
 
+# ---- Database config (Postgres if DATABASE_URL set, else SQLite in ./instance) ----
 DB_URL = os.getenv("DATABASE_URL")
+
 if DB_URL:
+    # Render/Heroku may give postgres://; SQLAlchemy expects postgresql://
     DB_URL = DB_URL.replace("postgres://", "postgresql://")
     app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
 else:
-    # Render-friendly writable path
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////data/raffle.db"
+    # Ensure instance/ exists and use a file we control
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    INSTANCE_PATH = os.path.join(BASE_DIR, "instance")
+    os.makedirs(INSTANCE_PATH, exist_ok=True)  # <-- create folder if missing
+    sqlite_path = os.path.join(INSTANCE_PATH, "raffle.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
