@@ -114,7 +114,7 @@ def home():
     <p class="muted">Choose a raffle page:</p>
     <div class="grid">
       {% for c in charities %}
-        <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}"><strong>{{ c.name }}</strong> — /{{ c.slug }}</a>
+        <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}"><strong>{{ c.name }}</strong></a>
       {% else %}
         <p class="muted">No charities yet. Use <a href="{{ url_for('admin_charities') }}">Add Charity</a>.</p>
       {% endfor %}
