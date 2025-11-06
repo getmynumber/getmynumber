@@ -1,0 +1,9 @@
+flask
+gunicorn
+flask_sqlalchemy
+flask_wtf
+flask_login
+email_validator
+flask_limiter
+python-dotenv
+psycopg2-binary
