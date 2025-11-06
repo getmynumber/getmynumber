@@ -100,7 +100,10 @@ LAYOUT = """
 """
 
 def render(body, **ctx):
-    return render_template_string(LAYOUT, body=body, **ctx)
+    # First render the inner body template with context...
+    inner = render_template_string(body, **ctx)
+    # ...then render the outer layout and inject the result.
+    return render_template_string(LAYOUT, body=inner, **ctx)
 
 # ---- Routes ----
 @app.route("/")
