@@ -2,8 +2,10 @@ from flask import Flask, render_template_string, request, redirect, url_for, ses
 import os, random
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, inspect, text
 from datetime import datetime, timedelta
+import csv, io
+from flask import send_file
 
 app = Flask(__name__)
 # expire admin sessions after 30 minutes
@@ -44,8 +46,10 @@ class Entry(db.Model):
     phone = db.Column(db.String(40))
     number = db.Column(db.Integer, nullable=False)                    # unique per charity
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    __table_args__ = (UniqueConstraint("charity_id", "number", name="uq_charity_number"),)
+    paid = db.Column(db.Boolean, nullable=False, default=False)
+    paid_at = db.Column(db.DateTime, nullable=True)	
 
+    __table_args__ = (UniqueConstraint("charity_id", "number", name="uq_charity_number"),)
     charity = db.relationship("Charity", backref="entries")
 
 # ---- Helpers ----
@@ -184,6 +188,98 @@ def success(slug):
     """
     return render(body, charity=charity, num=num, name=name, title=charity.name)
 
+@app.route("/admin/charity/<slug>/entries")
+def admin_charity_entries(slug):
+    # require login
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    flt = request.args.get("filter")
+    q = Entry.query.filter_by(charity_id=charity.id)
+    if flt == "paid":
+    	q = q.filter(Entry.paid.is_(True))
+    elif flt == "unpaid":
+    	q = q.filter(Entry.paid.is_(False))
+    entries = q.order_by(Entry.id.desc()).all()
+
+
+    body = """
+    <h2>Entries — {{ charity.name }}</h2>
+    <p class="muted">Total: {{ entries|length }}</p>
+    <p><a class="pill" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
+       <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a></p>
+    <p>
+  	<a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug) }}">All</a>
+  	<a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid') }}">Unpaid</a>
+  	<a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid') }}">Paid</a>
+  	<a class="pill" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
+  	<a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
+    </p>
+    <table>
+  <thead>
+    <tr>
+      <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Number</th>
+      <th>Created</th><th>Paid</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+      <tr>
+        <td>{{ e.id }}</td>
+        <td>{{ e.name }}</td>
+        <td>{{ e.email }}</td>
+        <td>{{ e.phone }}</td>
+        <td><strong>#{{ e.number }}</strong></td>
+        <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
+        <td>
+          {{ "Yes" if e.paid else "No" }}
+          {% if e.paid_at %}<span class="muted">({{ e.paid_at.strftime("%Y-%m-%d %H:%M") }})</span>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
+            <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+    """
+    return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}")
+
+
+@app.route("/admin/charity/<slug>/entries.csv")
+def admin_charity_entries_csv(slug):
+    # require login
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+    entries = (Entry.query
+               .filter_by(charity_id=charity.id)
+               .order_by(Entry.id.asc())
+               .all())
+
+    output = io.StringIO()
+    w = csv.writer(output)
+    w.writerow(["id","name","email","phone","number","created_at","paid","paid_at","charity_slug","charity_name"])
+    for e in entries:
+    w.writerow([
+        e.id, e.name, e.email, e.phone, e.number,
+        e.created_at.isoformat() if e.created_at else "",
+        1 if e.paid else 0,
+        e.paid_at.isoformat() if e.paid_at else "",
+        charity.slug, charity.name
+    ])
+
+    data = output.getvalue().encode("utf-8")
+    return send_file(
+        io.BytesIO(data),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=f"{charity.slug}_entries.csv"
+    )
+
 # ---- Simple “Add Charity” page (password from env) ----
 @app.route("/admin/charities", methods=["GET","POST"])
 def admin_charities():
@@ -270,7 +366,11 @@ def admin_charities():
               <td>{{ c.name }}</td>
               <td>{{ c.max_number }}</td>
               <td>{{ remaining[c.id] }}</td>
-              <td><a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}">Open</a></td>
+              <td>
+ 		<a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}">Open</a>
+  		<a class="pill" href="{{ url_for('edit_charity', slug=c.slug) }}">Edit</a>
+  		<a class="pill" href="{{ url_for('admin_charity_entries', slug=c.slug) }}">Entries</a>
+	      </td>
             </tr>
           {% endfor %}
         </tbody>
@@ -278,6 +378,50 @@ def admin_charities():
     {% endif %}
     """
     return render(body, ok=ok, msg=msg, charities=charities, remaining=remaining, title="Manage Charities")
+
+@app.route("/admin/charity/<slug>", methods=["GET", "POST"])
+def edit_charity(slug):
+    # Require login
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+    msg = None
+
+    if request.method == "POST":
+        charity.name = request.form.get("name", charity.name).strip()
+        charity.donation_url = request.form.get("donation_url", charity.donation_url).strip()
+        try:
+            charity.max_number = int(request.form.get("max_number", charity.max_number))
+        except ValueError:
+            msg = "Invalid number format."
+        else:
+            db.session.commit()
+            msg = "Charity updated successfully."
+
+    body = """
+    <h2>Edit Charity</h2>
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
+    <form method="post">
+      <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
+      <label>Donation URL <input type="url" name="donation_url" value="{{ charity.donation_url }}" required></label>
+      <label>Max number <input type="number" name="max_number" value="{{ charity.max_number }}" min="1"></label>
+      <div style="margin-top:8px"><button>Save Changes</button></div>
+    </form>
+    <p><a href="{{ url_for('admin_charities') }}" class="pill">← Back to Manage Charities</a></p>
+    """
+    return render(body, charity=charity, msg=msg, title=f"Edit {charity.name}")
+
+@app.route("/admin/entry/<int:entry_id>/toggle-paid", methods=["POST"])
+def toggle_paid(entry_id):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+    e = Entry.query.get_or_404(entry_id)
+    e.paid = not e.paid
+    e.paid_at = datetime.utcnow() if e.paid else None
+    db.session.commit()
+    next_url = request.args.get("next") or url_for("admin_charity_entries", slug=e.charity.slug)
+    return redirect(next_url)
 
 # ---- Auto-init DB + seed The Kehilla on first boot ----
 with app.app_context():
@@ -291,6 +435,20 @@ with app.app_context():
         ))
         db.session.commit()
         print("Seeded default charity: /thekehilla")
+
+# --- lightweight auto-migration for new columns in existing SQLite DBs ---
+with app.app_context():
+    try:
+        insp = inspect(db.engine)
+        cols = {c['name'] for c in insp.get_columns('entry')}
+        with db.engine.begin() as conn:
+            if 'paid' not in cols:
+                conn.execute(text("ALTER TABLE entry ADD COLUMN paid BOOLEAN DEFAULT 0"))
+            if 'paid_at' not in cols:
+                conn.execute(text("ALTER TABLE entry ADD COLUMN paid_at DATETIME"))
+    except Exception as e:
+        print("Auto-migration check failed:", e)
+
 
 # ---- Local dev runner ----
 if __name__ == "__main__":
