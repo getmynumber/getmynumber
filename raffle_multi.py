@@ -3,8 +3,11 @@ import os, random
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
+# expire admin sessions after 30 minutes
+app.permanent_session_lifetime = timedelta(minutes=30)
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
 
 # ---- Database config (Postgres if DATABASE_URL set, else SQLite in ./instance) ----
@@ -184,23 +187,40 @@ def success(slug):
 # ---- Simple “Add Charity” page (password from env) ----
 @app.route("/admin/charities", methods=["GET","POST"])
 def admin_charities():
-    admin_pw = os.getenv("ADMIN_PASSWORD", "")
+    admin_user = os.getenv("ADMIN_USERNAME", "admin")
+    admin_pw   = os.getenv("ADMIN_PASSWORD", "")
     ok = session.get("admin_ok", False)
+    last_login = session.get("admin_login_time")
     msg = None
+
+    # Enforce timeout (30 mins)
+    if last_login:
+        try:
+            if datetime.utcnow() - datetime.fromisoformat(last_login) > app.permanent_session_lifetime:
+                session.clear()
+                ok = False
+                flash("Session expired. Please log in again.")
+        except Exception:
+            session.clear()
+            ok = False
 
     if request.method == "POST":
         if not ok:
-            # First submit should carry the password
-            if request.form.get("password","") == admin_pw and admin_pw:
+            # LOGIN SUBMIT
+            if (request.form.get("username") == admin_user and
+                request.form.get("password") == admin_pw and admin_pw):
+                session.permanent = True
                 session["admin_ok"] = True
+                session["admin_login_time"] = datetime.utcnow().isoformat()
                 ok = True
+                flash("Logged in successfully.")
             else:
-                msg = "Invalid password."
-        elif ok:
-            # Add a charity
+                msg = "Invalid username or password."
+        else:
+            # ADD / SAVE CHARITY SUBMIT
             slug = request.form.get("slug","").strip().lower()
             name = request.form.get("name","").strip()
-            url = request.form.get("donation_url","").strip()
+            url  = request.form.get("donation_url","").strip()
             maxn = int(request.form.get("max_number","500") or 500)
             if not slug or not name or not url:
                 msg = "All fields are required."
@@ -214,16 +234,26 @@ def admin_charities():
 
     charities = Charity.query.order_by(Charity.name.asc()).all()
     remaining = {c.id: len(available_numbers(c)) for c in charities}
+
+    # HTML
     body = """
     <h2>Manage Charities</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
+
     {% if not ok %}
+      <!-- LOGIN FORM (this is Step 3) -->
       <form method="post">
-        <label>Admin password <input type="password" name="password" required></label>
+        <label>Username <input type="text" name="username" required></label>
+        <label>Password <input type="password" name="password" required></label>
         <div style="margin-top:8px"><button>Enter</button></div>
       </form>
-      <p class="muted">Set ADMIN_PASSWORD in your environment (Render → Environment).</p>
+      <p class="muted">Set ADMIN_USERNAME and ADMIN_PASSWORD in Render → Environment.</p>
+
     {% else %}
+      <div style="margin-bottom:10px">
+        <a class="pill" href="{{ url_for('admin_logout') }}">Log out</a>
+      </div>
+
       <form method="post" style="margin-bottom:12px">
         <label>Slug <input type="text" name="slug" placeholder="thekehilla" required></label>
         <label>Name <input type="text" name="name" placeholder="The Kehilla" required></label>
@@ -231,6 +261,7 @@ def admin_charities():
         <label>Max number <input type="number" name="max_number" value="500" min="1"></label>
         <div style="margin-top:8px"><button>Add / Save</button></div>
       </form>
+
       <table>
         <thead><tr><th>Slug</th><th>Name</th><th>Max</th><th>Remaining</th><th>Open</th></tr></thead>
         <tbody>
@@ -265,3 +296,10 @@ with app.app_context():
 # ---- Local dev runner ----
 if __name__ == "__main__":
     app.run(debug=True)
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.clear()
+    flash("Logged out.")
+    return redirect(url_for("admin_charities"))
+
