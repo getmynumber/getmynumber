@@ -424,6 +424,23 @@ def toggle_paid(entry_id):
     next_url = request.args.get("next") or url_for("admin_charity_entries", slug=e.charity.slug)
     return redirect(next_url)
 
+@app.route("/admin/migrate")
+def admin_migrate():
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+    try:
+        with db.engine.begin() as conn:
+            # add columns if they don't exist (SQLite ignores DEFAULT for existing rows)
+            conn.exec_driver_sql("ALTER TABLE entry ADD COLUMN paid BOOLEAN DEFAULT 0")
+    except Exception as e:
+        print("paid column:", e)
+    try:
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE entry ADD COLUMN paid_at DATETIME")
+    except Exception as e:
+        print("paid_at column:", e)
+    return "Migration attempted. Go back to Entries and refresh."
+
 # ---- Auto-init DB + seed The Kehilla on first boot ----
 with app.app_context():
     db.create_all()
