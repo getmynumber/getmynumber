@@ -247,7 +247,6 @@ def admin_charities():
         <label>Password <input type="password" name="password" required></label>
         <div style="margin-top:8px"><button>Enter</button></div>
       </form>
-      <p class="muted">Set ADMIN_USERNAME and ADMIN_PASSWORD in Render → Environment.</p>
 
     {% else %}
       <div style="margin-bottom:10px">
