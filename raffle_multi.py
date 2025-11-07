@@ -1,9 +1,11 @@
-# raffle_multi.py — multi-charity raffle (single file)
+
+# raffle_multi.py — multi-charity raffle (single file, polished UI)
 # Features:
-# - Public: per-charity raffle pages (/thekehilla)
-# - Admin: login/logout, add/edit charities, entries log (filters), CSV export, bulk actions, per-charity users
-# - Partner: login/logout, entries list with add/edit/delete/mark-paid, bulk actions (limited to own charity)
-# - DB: SQLite under ./instance/raffle.db by default (Postgres via DATABASE_URL)
+# - Public: per-charity raffle pages (/thekehilla) with progress bar & polished design
+# - Admin: login/logout, add/edit charities, entries log (filters), CSV export, bulk actions
+# - Admin: per-charity partner users management
+# - Partner: login/logout, entries list with add/edit/delete/mark-paid, bulk actions (only own charity)
+# - DB: SQLite under ./instance/raffle.db by default (or Postgres via DATABASE_URL)
 # - Auto-init & light auto-migration for paid/paid_at
 # - Clean inline templating with nested render()
 
@@ -79,49 +81,108 @@ class CharityUser(db.Model):
         return check_password_hash(self.password_hash, pw)
 
 # -----------------------------------------------------------------------------
-# Layout + render helper
+# Layout + render helper (polished UI)
 # -----------------------------------------------------------------------------
 LAYOUT = """
 <!doctype html>
 <html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title or "Get My Number" }}</title>
+<meta name="color-scheme" content="dark light">
 <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#0c0f14;color:#e8eef5}
-  .wrap{max-width:980px;margin:0 auto;padding:24px}
-  .card{background:#141a22;border:1px solid #1e2937;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
-  a{color:#9fd0ff;text-decoration:none}
-  input,button{font:inherit}
-  input[type=text],input[type=email],input[type=tel],input[type=number],input[type=url],input[type=password]{width:100%;padding:12px;border-radius:10px;border:1px solid #2b3a4d;background:#0c121a;color:#e8eef5}
-  button{background:#4f8cff;border:none;color:#fff;padding:12px 16px;border-radius:10px;cursor:pointer;font-weight:600}
-  .muted{color:#9fb0c3}
-  .pill{display:inline-block;border:1px solid #2b3a4d;border-radius:999px;padding:6px 10px;color:#cde3ff;margin-right:6px;margin-bottom:6px}
-  table{width:100%;border-collapse:collapse;margin-top:12px}
-  th,td{border-bottom:1px solid #1f2a3a;padding:8px;text-align:left;vertical-align:top}
+  :root{
+    --bg:#0b0f14; --bg-soft:#0f1520; --card:#121924; --card-2:#0f1722;
+    --text:#e9f0f7; --muted:#a8b6c7; --brand:#5aa8ff; --brand-2:#7cd2ff;
+    --ok:#3ad19f; --warn:#ffd29f; --danger:#ff7a7a; --border:#223146;
+    --shadow:0 10px 30px rgba(0,0,0,.35); --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:
+    radial-gradient(1200px 800px at 10% -10%, #122034, transparent),
+    radial-gradient(900px 700px at 110% 10%, #101a28, transparent), var(--bg);
+    color:var(--text)}
+  a{color:var(--brand);text-decoration:none}
+  .wrap{max-width:1100px;margin:0 auto;padding:28px}
+  .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .logo{display:flex;gap:10px;align-items:center;color:var(--text);text-decoration:none}
+  .logo-badge{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#05111e;font-weight:900}
+  .nav-links a{color:var(--muted);padding:8px 10px;border:1px solid transparent;border-radius:999px}
+  .nav-links a:hover{border-color:var(--border);color:var(--text)}
+  .card{background:linear-gradient(180deg,var(--card),var(--card-2));border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
+  .hero h1{margin:0 0 6px 0;font-size:28px}
+  .hero p{margin:0;color:var(--muted)}
+  .stack{display:flex;gap:10px;flex-wrap:wrap}
+  .pill,button.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--border);color:var(--text);background:transparent;cursor:pointer}
+  button.btn{background:linear-gradient(135deg,var(--brand),var(--brand-2));border:none;color:#05111e;font-weight:700}
+  button.btn.secondary{background:transparent;border:1px solid var(--border);color:var(--text)}
+  button.btn:disabled{opacity:.6;cursor:not-allowed}
+  .grid{display:grid;gap:12px}
+  @media(min-width:720px){ .grid-2{grid-template-columns:1fr 1fr} }
+  input[type=text],input[type=email],input[type=tel],input[type=number],input[type=url],input[type=password]{
+    width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--border);
+    background:#0c141f;color:var(--text);outline:none
+  }
+  label{display:grid;gap:6px;margin-bottom:10px;color:var(--muted);font-size:14px}
+  .muted{color:var(--muted)}
+  .sep{height:10px}
+  table{width:100%;border-collapse:collapse;margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  thead th{background:#0f1722;color:var(--muted);font-weight:600}
+  th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+  tr:hover td{background:#0e1520}
+  .badge{display:inline-block;padding:4px 8px;border-radius:10px;border:1px solid var(--border);color:#cfe6ff}
+  .badge.ok{background:rgba(58,209,159,.12);border-color:#214e3f;color:#7ef2c8}
+  .badge.warn{background:rgba(255,210,159,.12);border-color:#5c4930;color:#ffd7aa}
+  .progress{height:10px;background:#0a131d;border:1px solid var(--border);border-radius:999px;overflow:hidden}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2))}
+  .footer{color:var(--muted);text-align:center;margin-top:16px;font-size:13px}
   .row{display:flex;gap:10px;flex-wrap:wrap}
 </style>
-</head><body>
+<script>
+  // Prevent double-submits on forms with data-safe-submit
+  document.addEventListener('DOMContentLoaded', ()=>{
+    document.querySelectorAll('form[data-safe-submit]').forEach(f=>{
+      f.addEventListener('submit', ()=>{
+        const btn = f.querySelector('button[type="submit"]');
+        if(btn){ btn.disabled = true; btn.textContent = 'Working…'; }
+      });
+    });
+  });
+</script>
+</head>
+<body>
   <div class="wrap">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div><a href="{{ url_for('home') }}" style="color:#e8eef5;text-decoration:none"><strong>Get My Number</strong></a></div>
-      <div class="row">
+    <nav class="nav">
+      <a class="logo" href="{{ url_for('home') }}">
+        <span class="logo-badge">#</span>
+        <strong>Get My Number</strong>
+      </a>
+      <div class="nav-links">
         <a href="{{ url_for('admin_charities') }}">Admin</a>
         <a href="{{ url_for('partner_login') }}">Partner</a>
       </div>
-    </div>
-    <div class="card">
+    </nav>
+
+    <section class="card">
       {% with messages = get_flashed_messages() %}
-        {% if messages %}{% for m in messages %}<div style="margin-bottom:8px;color:#ffd29f">{{ m }}</div>{% endfor %}{% endif %}
+        {% if messages %}
+          <div class="stack" style="margin-bottom:10px">
+            {% for m in messages %}<span class="badge warn">{{ m }}</span>{% endfor %}
+          </div>
+        {% endif %}
       {% endwith %}
       {{ body|safe }}
-    </div>
+    </section>
+
+    <p class="footer">© {{ datetime.utcnow().year }} Get My Number • Secure raffle donations</p>
   </div>
 </body></html>
 """
 
 def render(body, **ctx):
-    inner = render_template_string(body, request=request, **ctx)
-    return render_template_string(LAYOUT, body=inner, request=request, **ctx)
+    """Render inner body first, then inject into the main layout."""
+    inner = render_template_string(body, request=request, datetime=datetime, **ctx)
+    return render_template_string(LAYOUT, body=inner, request=request, datetime=datetime, **ctx)
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -168,6 +229,7 @@ def home():
 @app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
     charity = get_charity_or_404(slug)
+
     if request.method == "POST":
         name = request.form.get("name","").strip()
         email = request.form.get("email","").strip()
@@ -187,19 +249,53 @@ def charity_page(slug):
                 except IntegrityError:
                     db.session.rollback()
                     flash("That number was just taken—please try again.")
+
+    total = charity.max_number
     remaining = len(available_numbers(charity))
+    taken = total - remaining
+    pct = int((taken / total) * 100) if total else 0
+
     body = """
-    <h2>{{ charity.name }} — Raffle</h2>
-    <p class="muted">Numbers are unique between 1 and {{ charity.max_number }}. Remaining: <span class="pill">{{ remaining }}</span></p>
-    <form method="post">
-      <label>Name <input type="text" name="name" required></label>
-      <label>Email <input type="email" name="email" required></label>
-      <label>Phone <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx"></label>
-      <div style="margin-top:12px"><button type="submit">Get my number</button></div>
-    </form>
-    <p class="muted" style="margin-top:10px">After you get your number, we’ll send you to the donation page to complete the gift.</p>
+    <div class="hero">
+      <h1>{{ charity.name }}</h1>
+      <p>Numbers are unique between 1 and {{ total }}.</p>
+      <div class="sep"></div>
+      <div class="grid grid-2">
+        <div>
+          <div class="row">
+            <span class="badge ok">Available: {{ remaining }}</span>
+            <span class="badge">Taken: {{ taken }}</span>
+          </div>
+          <div class="sep"></div>
+          <div class="progress" aria-label="progress">
+            <i style="width: {{ pct }}%"></i>
+          </div>
+          <p class="muted" style="margin-top:6px">{{ pct }}% filled</p>
+        </div>
+        <form method="post" data-safe-submit>
+          <label>
+            Full name
+            <input type="text" name="name" required placeholder="e.g. Sarah Cohen">
+          </label>
+          <label>
+            Email
+            <input type="email" name="email" required placeholder="name@example.com">
+          </label>
+          <label>
+            Phone (optional)
+            <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx">
+          </label>
+          <div class="row" style="margin-top:8px">
+            <button class="btn" type="submit">Get my number</button>
+            <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
+          </div>
+        </form>
+      </div>
+      <div class="sep"></div>
+      <p class="muted">You’ll get a random number still available. Your donation equals your number.</p>
+    </div>
     """
-    return render(body, charity=charity, remaining=remaining, title=charity.name)
+    return render(body, charity=charity, total=total, remaining=remaining, taken=taken, pct=pct, title=charity.name)
 
 @app.route("/<slug>/success")
 def success(slug):
@@ -207,13 +303,17 @@ def success(slug):
     if session.get("last_slug") != charity.slug or "last_num" not in session:
         return redirect(url_for("charity_page", slug=charity.slug))
     num = session.get("last_num"); name = session.get("last_name", "Friend")
+
     body = """
-    <h2>Thank you{{ ", %s" % name if name else "" }}!</h2>
-    <p>Your raffle number for <strong>{{ charity.name }}</strong> is <strong>#{{ num }}</strong>.
-       Please donate <strong>£{{ num }}</strong> to complete your entry.</p>
-    <div class="row">
-      <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Go to Donation Page</a>
-      <button class="pill" onclick="navigator.clipboard.writeText('{{ num }}').then(()=>alert('Amount copied!'))">Copy amount ({{ num }})</button>
+    <div class="hero">
+      <h1>Thank you{{ ", %s" % name if name else "" }} 🎉</h1>
+      <p>Your raffle number for <strong>{{ charity.name }}</strong> is:</p>
+      <h2 style="margin:10px 0;"><span class="badge" style="font-size:22px">#{{ num }}</span></h2>
+      <p class="muted">Please donate <strong>£{{ num }}</strong> to complete your entry.</p>
+      <div class="row" style="margin-top:12px">
+        <a class="btn" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Go to donation page</a>
+        <button class="pill" onclick="navigator.clipboard.writeText('{{ num }}').then(()=>alert('Amount copied to clipboard'))">Copy amount ({{ num }})</button>
+      </div>
     </div>
     """
     return render(body, charity=charity, num=num, name=name, title=charity.name)
@@ -271,7 +371,7 @@ def admin_charities():
       <form method="post">
         <label>Username <input type="text" name="username" required></label>
         <label>Password <input type="password" name="password" required></label>
-        <div style="margin-top:8px"><button>Enter</button></div>
+        <div style="margin-top:8px"><button class="btn">Enter</button></div>
       </form>
     {% else %}
       <div class="row" style="margin-bottom:10px">
@@ -282,7 +382,7 @@ def admin_charities():
         <label>Name <input type="text" name="name" placeholder="The Kehilla" required></label>
         <label>Donation URL <input type="url" name="donation_url" placeholder="https://www.charityextra.com/charity/kehilla" required></label>
         <label>Max number <input type="number" name="max_number" value="500" min="1"></label>
-        <div style="margin-top:8px"><button>Add / Save</button></div>
+        <div style="margin-top:8px"><button class="btn">Add / Save</button></div>
       </form>
       <table>
         <thead><tr><th>Slug</th><th>Name</th><th>Max</th><th>Remaining</th><th>Actions</th></tr></thead>
@@ -327,11 +427,11 @@ def edit_charity(slug):
     body = """
     <h2>Edit Charity</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-    <form method="post">
+    <form method="post" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
       <label>Donation URL <input type="url" name="donation_url" value="{{ charity.donation_url }}" required></label>
       <label>Max number <input type="number" name="max_number" value="{{ charity.max_number }}" min="1"></label>
-      <div style="margin-top:8px"><button>Save Changes</button></div>
+      <div style="margin-top:8px"><button class="btn">Save Changes</button></div>
     </form>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
     """
@@ -473,10 +573,10 @@ def admin_charity_users(slug):
     body = """
     <h2>Users — {{ charity.name }}</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-    <form method="post" style="margin-bottom:12px">
+    <form method="post" style="margin-bottom:12px" data-safe-submit>
       <label>Username <input type="text" name="username" required></label>
       <label>Password <input type="password" name="password" required></label>
-      <div style="margin-top:8px"><button>Create User</button></div>
+      <div style="margin-top:8px"><button class="btn">Create User</button></div>
     </form>
     <table>
       <thead><tr><th>Username</th><th>Actions</th></tr></thead>
@@ -533,11 +633,11 @@ def partner_login():
     body = """
     <h2>Partner Login</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-    <form method="post">
+    <form method="post" data-safe-submit>
       <label>Charity slug <input type="text" name="slug" placeholder="thekehilla" required></label>
       <label>Username <input type="text" name="username" required></label>
       <label>Password <input type="password" name="password" required></label>
-      <div style="margin-top:8px"><button>Login</button></div>
+      <div style="margin-top:8px"><button class="btn">Login</button></div>
     </form>
     <p class="muted"><a href="{{ url_for('home') }}">Back to home</a></p>
     """
@@ -645,12 +745,12 @@ def partner_new_entry(slug):
     body = """
     <h2>Add Entry — {{ charity.name }}</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-    <form method="post">
+    <form method="post" data-safe-submit>
       <label>Name <input type="text" name="name" required></label>
       <label>Email <input type="email" name="email" required></label>
       <label>Phone <input type="tel" name="phone"></label>
       <label>Number (leave blank to auto-assign) <input type="number" name="number" min="1" max="{{ charity.max_number }}"></label>
-      <div style="margin-top:8px"><button>Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
+      <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
     return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}")
@@ -685,12 +785,12 @@ def partner_edit_entry(slug, entry_id):
     body = """
     <h2>Edit Entry — {{ charity.name }}</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-    <form method="post">
+    <form method="post" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ e.name }}" required></label>
       <label>Email <input type="email" name="email" value="{{ e.email }}" required></label>
       <label>Phone <input type="tel" name="phone" value="{{ e.phone or '' }}"></label>
       <label>Number <input type="number" name="number" value="{{ e.number }}" min="1" max="{{ charity.max_number }}"></label>
-      <div style="margin-top:8px"><button>Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
+      <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
     return render(body, charity=charity, e=e, msg=msg, title=f"Edit Entry – {charity.name}")
