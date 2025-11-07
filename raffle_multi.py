@@ -41,14 +41,7 @@ db = SQLAlchemy(app)
 # Embedded logo only for /thekehilla.
 # Replace this with your actual bitmap data URI when ready, e.g.:
 # KEHILLA_LOGO_DATA_URI = "data:image/png;base64,AAAA...."
-KEHILLA_LOGO_DATA_URI = (
-    "data:image/svg+xml;utf8,"
-    "<svg xmlns='http://www.w3.org/2000/svg' width='180' height='60'>"
-    "<rect width='100%' height='100%' rx='12' fill='%231aa5a5'/>"
-    "<text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' "
-    "font-family='Arial,Helvetica,sans-serif' font-size='18' fill='white'>THE KEHILLA</text>"
-    "</svg>"
-)
+KEHILLA_LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAA8CAIAAABATAfQAAASAElEQVR42uYVwY7aMBCFv1WgQqv5S2oQm2k3Yg2qEoZKk8o0tJ8fA2y5Xz4b2H2M8S8V0Qm9oLk0e1Q6Q3mA3v1gWl/0wF4y/7xM1tXqv1A0d3WlqH5w1k5s4y7mG3w5g2L+FQ9/0Xk2m3J9y0mQx1m5o1xXWm8g6Lz2gqf3C9m4g2zJ6h4oQ8C7D8A9aH8b1t6+2k3H3G3pD8lqJt9J3m9Ztq9nJ8WcKpKJ8uHqVgqgVQdJ1S6qk9bP/4v7b1r2qvZ5u1cOQ4Q+0fW2On8wBzvQh7G9hXG2f8oBqv5z4z3rQk3J8+ZrX4eCq9b1e1m1kz0gE8f4F1iGd7qj4i5p8Hq6m8lJQ9v2v1k3t2H4oWw3O1r0b2M3s3o6zYzMq8k6rZ3vU4wJ0c7Tt2G2I6N0rW8eUuT5x1bQ3H8k4YcQwF3S2j6v7bHk2yA7h3dVq0a2m4JrU7Qm9vE6b7k8GQm9V3p1J9JkO8S5dYq8d0m5r8d7w6o2Qk3m6i7u0q2V8k6b5yYl4mVq4tG2oV9qf4yGq8b3u7mH9Qk9wF6H8oH0UOq3pM3g8mTz2Rr8Ww5Rr8oKk7cU+fKJrX2Qf9ZgB5x3l4r5F6mJb9mUo8iQm8Q5n+z7rGk4Rt9m5iWk4pJ5v1oU7P5K6wZq5t8oX0m8f7P6m7k7a1o8U8Sg3gk1"
 
 # ====== MODELS ================================================================
 
