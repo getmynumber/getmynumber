@@ -264,13 +264,14 @@ def admin_charity_entries_csv(slug):
     w = csv.writer(output)
     w.writerow(["id","name","email","phone","number","created_at","paid","paid_at","charity_slug","charity_name"])
     for e in entries:
-    w.writerow([
-        e.id, e.name, e.email, e.phone, e.number,
-        e.created_at.isoformat() if e.created_at else "",
-        1 if e.paid else 0,
-        e.paid_at.isoformat() if e.paid_at else "",
-        charity.slug, charity.name
-    ])
+    	w.writerow([
+        	e.id, e.name, e.email, e.phone, e.number,
+        	e.created_at.isoformat() if e.created_at else "",
+        	1 if e.paid else 0,
+        	e.paid_at.isoformat() if e.paid_at else "",
+        	charity.slug, charity.name
+        ])
+
 
     data = output.getvalue().encode("utf-8")
     return send_file(
