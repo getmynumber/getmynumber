@@ -1,12 +1,11 @@
-# raffle_multi.py  —  single-file Flask app for multi-charity raffle
+# raffle_multi.py — multi-charity raffle (single file)
 # Features:
-# - Multi-charity public pages (/thekehilla, etc.)
-# - Admin: login with username/password, add/edit charities, entries log, CSV export, mark paid
-# - Admin: manage per-charity partner users
-# - Partner: login per charity, view/add/edit/delete entries, mark paid
-# - DB: SQLite in ./instance/raffle.db by default (or Postgres via DATABASE_URL)
-# - Auto-create tables and light auto-migration for new columns
-# - Clean inline templates with nested render()
+# - Public: per-charity raffle pages (/thekehilla)
+# - Admin: login/logout, add/edit charities, entries log (filters), CSV export, bulk actions, per-charity users
+# - Partner: login/logout, entries list with add/edit/delete/mark-paid, bulk actions (limited to own charity)
+# - DB: SQLite under ./instance/raffle.db by default (Postgres via DATABASE_URL)
+# - Auto-init & light auto-migration for paid/paid_at
+# - Clean inline templating with nested render()
 
 from flask import (
     Flask, render_template_string, request, redirect,
@@ -23,16 +22,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # App & config
 # -----------------------------------------------------------------------------
 app = Flask(__name__)
-
-# Secret key for sessions (set FLASK_SECRET_KEY in environment for production)
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
-# Expire admin/partner sessions after 30 minutes
 app.permanent_session_lifetime = timedelta(minutes=30)
 
-# Database config: Postgres if DATABASE_URL is set, otherwise SQLite under ./instance
 DB_URL = os.getenv("DATABASE_URL")
 if DB_URL:
-    # Normalize prefix for SQLAlchemy
     DB_URL = DB_URL.replace("postgres://", "postgresql://")
     app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
 else:
@@ -43,7 +37,6 @@ else:
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 db = SQLAlchemy(app)
 
 # -----------------------------------------------------------------------------
@@ -64,8 +57,6 @@ class Entry(db.Model):
     phone = db.Column(db.String(40))
     number = db.Column(db.Integer, nullable=False)                    # unique per charity
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Payment status
     paid = db.Column(db.Boolean, nullable=False, default=False)
     paid_at = db.Column(db.DateTime, nullable=True)
 
@@ -73,14 +64,12 @@ class Entry(db.Model):
     charity = db.relationship("Charity", backref="entries")
 
 class CharityUser(db.Model):
-    """Partner user belonging to a single charity."""
     id = db.Column(db.Integer, primary_key=True)
     charity_id = db.Column(db.Integer, db.ForeignKey("charity.id"), nullable=False, index=True)
     username = db.Column(db.String(120), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     __table_args__ = (UniqueConstraint("charity_id", "username", name="uq_charityuser_char_user"),)
-
     charity = db.relationship("Charity", backref="users")
 
     def set_password(self, pw: str):
@@ -90,7 +79,7 @@ class CharityUser(db.Model):
         return check_password_hash(self.password_hash, pw)
 
 # -----------------------------------------------------------------------------
-# Template layout + rendering helper (nested rendering)
+# Layout + render helper
 # -----------------------------------------------------------------------------
 LAYOUT = """
 <!doctype html>
@@ -103,16 +92,13 @@ LAYOUT = """
   .card{background:#141a22;border:1px solid #1e2937;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
   a{color:#9fd0ff;text-decoration:none}
   input,button{font:inherit}
-  input[type=text],input[type=email],input[type=tel],input[type=number],input[type=url],input[type=password]{
-    width:100%;padding:12px;border-radius:10px;border:1px solid #2b3a4d;background:#0c121a;color:#e8eef5}
+  input[type=text],input[type=email],input[type=tel],input[type=number],input[type=url],input[type=password]{width:100%;padding:12px;border-radius:10px;border:1px solid #2b3a4d;background:#0c121a;color:#e8eef5}
   button{background:#4f8cff;border:none;color:#fff;padding:12px 16px;border-radius:10px;cursor:pointer;font-weight:600}
   .muted{color:#9fb0c3}
   .pill{display:inline-block;border:1px solid #2b3a4d;border-radius:999px;padding:6px 10px;color:#cde3ff;margin-right:6px;margin-bottom:6px}
   table{width:100%;border-collapse:collapse;margin-top:12px}
   th,td{border-bottom:1px solid #1f2a3a;padding:8px;text-align:left;vertical-align:top}
-  .grid{display:grid;gap:8px}
   .row{display:flex;gap:10px;flex-wrap:wrap}
-  .space{height:8px}
 </style>
 </head><body>
   <div class="wrap">
@@ -134,7 +120,6 @@ LAYOUT = """
 """
 
 def render(body, **ctx):
-    """Render inner body first, then inject into the main layout."""
     inner = render_template_string(body, request=request, **ctx)
     return render_template_string(LAYOUT, body=inner, request=request, **ctx)
 
@@ -143,8 +128,7 @@ def render(body, **ctx):
 # -----------------------------------------------------------------------------
 def get_charity_or_404(slug: str) -> Charity:
     c = Charity.query.filter_by(slug=slug.lower().strip()).first()
-    if not c:
-        abort(404)
+    if not c: abort(404)
     return c
 
 def available_numbers(c: Charity):
@@ -153,23 +137,17 @@ def available_numbers(c: Charity):
 
 def assign_number(c: Charity):
     avail = available_numbers(c)
-    if not avail:
-        return None
-    return random.choice(avail)
+    return random.choice(avail) if avail else None
 
 def partner_guard(slug):
-    """Ensure a partner is logged in for this slug; return charity or None."""
-    if not session.get("partner_ok"):
-        return None
-    if session.get("partner_slug") != slug:
-        return None
+    if not session.get("partner_ok"): return None
+    if session.get("partner_slug") != slug: return None
     c = Charity.query.filter_by(slug=slug).first()
-    if not c or session.get("partner_charity_id") != c.id:
-        return None
+    if not c or session.get("partner_charity_id") != c.id: return None
     return c
 
 # -----------------------------------------------------------------------------
-# Public routes
+# Public
 # -----------------------------------------------------------------------------
 @app.route("/")
 def home():
@@ -177,7 +155,7 @@ def home():
     body = """
     <h2>Pick a charity</h2>
     <p class="muted">Choose a raffle page:</p>
-    <div class="grid">
+    <div>
       {% for c in charities %}
         <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}"><strong>{{ c.name }}</strong></a>
       {% else %}
@@ -187,7 +165,7 @@ def home():
     """
     return render(body, charities=charities, title="Get My Number")
 
-@app.route("/<slug>", methods=["GET", "POST"])
+@app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
     charity = get_charity_or_404(slug)
     if request.method == "POST":
@@ -203,11 +181,8 @@ def charity_page(slug):
             else:
                 try:
                     entry = Entry(charity_id=charity.id, name=name, email=email, phone=phone, number=num)
-                    db.session.add(entry)
-                    db.session.commit()
-                    session["last_num"] = num
-                    session["last_name"] = name
-                    session["last_slug"] = charity.slug
+                    db.session.add(entry); db.session.commit()
+                    session["last_num"] = num; session["last_name"] = name; session["last_slug"] = charity.slug
                     return redirect(url_for("success", slug=charity.slug))
                 except IntegrityError:
                     db.session.rollback()
@@ -231,8 +206,7 @@ def success(slug):
     charity = get_charity_or_404(slug)
     if session.get("last_slug") != charity.slug or "last_num" not in session:
         return redirect(url_for("charity_page", slug=charity.slug))
-    num = session.get("last_num")
-    name = session.get("last_name", "Friend")
+    num = session.get("last_num"); name = session.get("last_name", "Friend")
     body = """
     <h2>Thank you{{ ", %s" % name if name else "" }}!</h2>
     <p>Your raffle number for <strong>{{ charity.name }}</strong> is <strong>#{{ num }}</strong>.
@@ -241,12 +215,11 @@ def success(slug):
       <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Go to Donation Page</a>
       <button class="pill" onclick="navigator.clipboard.writeText('{{ num }}').then(()=>alert('Amount copied!'))">Copy amount ({{ num }})</button>
     </div>
-    <p class="muted">On the donation page, enter the amount shown above.</p>
     """
     return render(body, charity=charity, num=num, name=name, title=charity.name)
 
 # -----------------------------------------------------------------------------
-# Admin: login/logout + manage charities
+# Admin: login/logout & manage charities
 # -----------------------------------------------------------------------------
 @app.route("/admin/charities", methods=["GET","POST"])
 def admin_charities():
@@ -256,46 +229,36 @@ def admin_charities():
     last_login = session.get("admin_login_time")
     msg = None
 
-    # Enforce timeout
     if last_login:
         try:
             if datetime.utcnow() - datetime.fromisoformat(last_login) > app.permanent_session_lifetime:
-                session.clear()
-                ok = False
-                flash("Session expired. Please log in again.")
+                session.clear(); ok = False; flash("Session expired. Please log in again.")
         except Exception:
-            session.clear()
-            ok = False
+            session.clear(); ok = False
 
     if request.method == "POST":
         if not ok:
-            # LOGIN SUBMIT
             if (request.form.get("username") == admin_user and
                 request.form.get("password") == admin_pw and admin_pw):
                 session.permanent = True
                 session["admin_ok"] = True
                 session["admin_login_time"] = datetime.utcnow().isoformat()
-                ok = True
-                flash("Logged in successfully.")
+                ok = True; flash("Logged in successfully.")
             else:
                 msg = "Invalid username or password."
         else:
-            # ADD / SAVE CHARITY SUBMIT
             slug = request.form.get("slug","").strip().lower()
             name = request.form.get("name","").strip()
             url  = request.form.get("donation_url","").strip()
-            try:
-                maxn = int(request.form.get("max_number","500") or 500)
-            except ValueError:
-                maxn = 500
+            try: maxn = int(request.form.get("max_number","500") or 500)
+            except ValueError: maxn = 500
             if not slug or not name or not url:
                 msg = "All fields are required."
             elif Charity.query.filter_by(slug=slug).first():
                 msg = "Slug already exists."
             else:
                 c = Charity(slug=slug, name=name, donation_url=url, max_number=maxn)
-                db.session.add(c)
-                db.session.commit()
+                db.session.add(c); db.session.commit()
                 msg = f"Saved. Public page: /{slug}"
 
     charities = Charity.query.order_by(Charity.name.asc()).all()
@@ -304,7 +267,6 @@ def admin_charities():
     body = """
     <h2>Manage Charities</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-
     {% if not ok %}
       <form method="post">
         <label>Username <input type="text" name="username" required></label>
@@ -315,7 +277,6 @@ def admin_charities():
       <div class="row" style="margin-bottom:10px">
         <a class="pill" href="{{ url_for('admin_logout') }}">Log out</a>
       </div>
-
       <form method="post" style="margin-bottom:12px">
         <label>Slug <input type="text" name="slug" placeholder="thekehilla" required></label>
         <label>Name <input type="text" name="name" placeholder="The Kehilla" required></label>
@@ -323,7 +284,6 @@ def admin_charities():
         <label>Max number <input type="number" name="max_number" value="500" min="1"></label>
         <div style="margin-top:8px"><button>Add / Save</button></div>
       </form>
-
       <table>
         <thead><tr><th>Slug</th><th>Name</th><th>Max</th><th>Remaining</th><th>Actions</th></tr></thead>
         <tbody>
@@ -349,28 +309,21 @@ def admin_charities():
 
 @app.route("/admin/logout")
 def admin_logout():
-    session.clear()
-    flash("Logged out.")
+    session.clear(); flash("Logged out.")
     return redirect(url_for("admin_charities"))
 
-@app.route("/admin/charity/<slug>", methods=["GET", "POST"])
+@app.route("/admin/charity/<slug>", methods=["GET","POST"])
 def edit_charity(slug):
-    if not session.get("admin_ok"):
-        return redirect(url_for("admin_charities"))
+    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     msg = None
-
     if request.method == "POST":
         charity.name = request.form.get("name", charity.name).strip()
         charity.donation_url = request.form.get("donation_url", charity.donation_url).strip()
-        try:
-            charity.max_number = int(request.form.get("max_number", charity.max_number))
-        except ValueError:
-            msg = "Invalid number format."
+        try: charity.max_number = int(request.form.get("max_number", charity.max_number))
+        except ValueError: msg = "Invalid number format."
         else:
-            db.session.commit()
-            msg = "Charity updated successfully."
-
+            db.session.commit(); msg = "Charity updated successfully."
     body = """
     <h2>Edit Charity</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
@@ -385,23 +338,17 @@ def edit_charity(slug):
     return render(body, charity=charity, msg=msg, title=f"Edit {charity.name}")
 
 # -----------------------------------------------------------------------------
-# Admin: entries list + CSV + toggle paid
+# Admin: entries + CSV + toggle paid + BULK actions
 # -----------------------------------------------------------------------------
 @app.route("/admin/charity/<slug>/entries")
 def admin_charity_entries(slug):
-    if not session.get("admin_ok"):
-        return redirect(url_for("admin_charities"))
-
+    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
-
     flt = request.args.get("filter")
     q = Entry.query.filter_by(charity_id=charity.id)
-    if flt == "paid":
-        q = q.filter(Entry.paid.is_(True))
-    elif flt == "unpaid":
-        q = q.filter(Entry.paid.is_(False))
+    if flt == "paid": q = q.filter(Entry.paid.is_(True))
+    elif flt == "unpaid": q = q.filter(Entry.paid.is_(False))
     entries = q.order_by(Entry.id.desc()).all()
-
     body = """
     <h2>Entries — {{ charity.name }}</h2>
     <p class="muted">Total: {{ entries|length }}</p>
@@ -414,51 +361,54 @@ def admin_charity_entries(slug):
       <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
     </p>
 
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
-          <th>Number</th><th>Created</th><th>Paid</th><th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for e in entries %}
+    <form method="post" action="{{ url_for('admin_bulk_entries', slug=charity.slug) }}">
+      <div class="row" style="margin:8px 0">
+        <button class="pill" type="submit" name="action" value="mark_paid">Mark paid</button>
+        <button class="pill" type="submit" name="action" value="mark_unpaid">Unmark</button>
+        <button class="pill" type="submit" name="action" value="delete" onclick="return confirm('Delete selected entries?')">Delete</button>
+      </div>
+
+      <table>
+        <thead>
           <tr>
-            <td>{{ e.id }}</td>
-            <td>{{ e.name }}</td>
-            <td>{{ e.email }}</td>
-            <td>{{ e.phone }}</td>
-            <td><strong>#{{ e.number }}</strong></td>
-            <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
-            <td>
-              {{ "Yes" if e.paid else "No" }}
-              {% if e.paid_at %}<span class="muted">({{ e.paid_at.strftime("%Y-%m-%d %H:%M") }})</span>{% endif %}
-            </td>
-            <td>
-              <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
-                <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
-              </form>
-            </td>
+            <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
+            <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
+            <th>Number</th><th>Created</th><th>Paid</th><th>Actions</th>
           </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+            <tr>
+              <td><input class="rowcb" type="checkbox" name="ids" value="{{ e.id }}"></td>
+              <td>{{ e.id }}</td>
+              <td>{{ e.name }}</td>
+              <td>{{ e.email }}</td>
+              <td>{{ e.phone }}</td>
+              <td><strong>#{{ e.number }}</strong></td>
+              <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
+              <td>
+                {{ "Yes" if e.paid else "No" }}
+                {% if e.paid_at %}<span class="muted">({{ e.paid_at.strftime("%Y-%m-%d %H:%M") }})</span>{% endif %}
+              </td>
+              <td>
+                <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
+                  <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </form>
     """
     return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}")
 
 @app.route("/admin/charity/<slug>/entries.csv")
 def admin_charity_entries_csv(slug):
-    if not session.get("admin_ok"):
-        return redirect(url_for("admin_charities"))
-
+    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
-    entries = (Entry.query
-               .filter_by(charity_id=charity.id)
-               .order_by(Entry.id.asc())
-               .all())
-
-    output = io.StringIO()
-    w = csv.writer(output)
+    entries = (Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.asc()).all())
+    output = io.StringIO(); w = csv.writer(output)
     w.writerow(["id","name","email","phone","number","created_at","paid","paid_at","charity_slug","charity_name"])
     for e in entries:
         w.writerow([
@@ -469,16 +419,10 @@ def admin_charity_entries_csv(slug):
             charity.slug, charity.name
         ])
     data = output.getvalue().encode("utf-8")
-    return send_file(
-        io.BytesIO(data),
-        mimetype="text/csv",
-        as_attachment=True,
-        download_name=f"{slug}_entries.csv"
-    )
+    return send_file(io.BytesIO(data), mimetype="text/csv", as_attachment=True, download_name=f"{slug}_entries.csv")
 
 @app.route("/admin/entry/<int:entry_id>/toggle-paid", methods=["POST"])
 def toggle_paid(entry_id):
-    # shared by admin + partner
     if not (session.get("admin_ok") or session.get("partner_ok")):
         return redirect(url_for("admin_charities"))
     e = Entry.query.get_or_404(entry_id)
@@ -488,16 +432,32 @@ def toggle_paid(entry_id):
     next_url = request.args.get("next") or url_for("admin_charity_entries", slug=e.charity.slug)
     return redirect(next_url)
 
+@app.route("/admin/charity/<slug>/entries/bulk", methods=["POST"])
+def admin_bulk_entries(slug):
+    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+    ids = request.form.getlist("ids"); action = request.form.get("action")
+    if not ids or not action: return redirect(url_for("admin_charity_entries", slug=slug))
+    q = Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids))
+    now = datetime.utcnow()
+    if action == "mark_paid":
+        for e in q.all(): e.paid = True; e.paid_at = now
+        db.session.commit()
+    elif action == "mark_unpaid":
+        for e in q.all(): e.paid = False; e.paid_at = None
+        db.session.commit()
+    elif action == "delete":
+        q.delete(synchronize_session=False); db.session.commit()
+    return redirect(url_for("admin_charity_entries", slug=slug))
+
 # -----------------------------------------------------------------------------
-# Admin: per-charity users (partners)
+# Admin: per-charity users
 # -----------------------------------------------------------------------------
-@app.route("/admin/charity/<slug>/users", methods=["GET", "POST"])
+@app.route("/admin/charity/<slug>/users", methods=["GET","POST"])
 def admin_charity_users(slug):
-    if not session.get("admin_ok"):
-        return redirect(url_for("admin_charities"))
+    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     msg = None
-
     if request.method == "POST":
         uname = request.form.get("username","").strip().lower()
         pw = request.form.get("password","").strip()
@@ -507,22 +467,17 @@ def admin_charity_users(slug):
             msg = "Username already exists for this charity."
         else:
             u = CharityUser(charity_id=charity.id, username=uname)
-            u.set_password(pw)
-            db.session.add(u)
-            db.session.commit()
+            u.set_password(pw); db.session.add(u); db.session.commit()
             msg = "User created."
-
     users = CharityUser.query.filter_by(charity_id=charity.id).order_by(CharityUser.username.asc()).all()
     body = """
     <h2>Users — {{ charity.name }}</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-
     <form method="post" style="margin-bottom:12px">
       <label>Username <input type="text" name="username" required></label>
       <label>Password <input type="password" name="password" required></label>
       <div style="margin-top:8px"><button>Create User</button></div>
     </form>
-
     <table>
       <thead><tr><th>Username</th><th>Actions</th></tr></thead>
       <tbody>
@@ -538,25 +493,21 @@ def admin_charity_users(slug):
         {% endfor %}
       </tbody>
     </table>
-
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back</a></p>
     """
     return render(body, charity=charity, users=users, msg=msg, title=f"Users – {charity.name}")
 
 @app.route("/admin/charity/<slug>/users/<int:uid>/delete", methods=["POST"])
 def admin_delete_user(slug, uid):
-    if not session.get("admin_ok"):
-        return redirect(url_for("admin_charities"))
+    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     u = CharityUser.query.get_or_404(uid)
-    if u.charity_id != charity.id:
-        abort(403)
-    db.session.delete(u)
-    db.session.commit()
+    if u.charity_id != charity.id: abort(403)
+    db.session.delete(u); db.session.commit()
     return redirect(url_for("admin_charity_users", slug=slug))
 
 # -----------------------------------------------------------------------------
-# Partner auth + partner CRUD (limited to own charity)
+# Partner auth + entries + CRUD + BULK
 # -----------------------------------------------------------------------------
 @app.route("/partner/login", methods=["GET","POST"])
 def partner_login():
@@ -571,8 +522,7 @@ def partner_login():
         else:
             u = CharityUser.query.filter_by(charity_id=charity.id, username=username).first()
             if u and u.check_password(password):
-                session.clear()
-                session.permanent = True
+                session.clear(); session.permanent = True
                 session["partner_ok"] = True
                 session["partner_slug"] = slug
                 session["partner_charity_id"] = charity.id
@@ -605,17 +555,12 @@ def partner_logout():
 @app.route("/partner/<slug>/entries")
 def partner_entries(slug):
     charity = partner_guard(slug)
-    if not charity:
-        return redirect(url_for("partner_login"))
-
+    if not charity: return redirect(url_for("partner_login"))
     flt = request.args.get("filter")
     q = Entry.query.filter_by(charity_id=charity.id)
-    if flt == "paid":
-        q = q.filter(Entry.paid.is_(True))
-    elif flt == "unpaid":
-        q = q.filter(Entry.paid.is_(False))
+    if flt == "paid": q = q.filter(Entry.paid.is_(True))
+    elif flt == "unpaid": q = q.filter(Entry.paid.is_(False))
     entries = q.order_by(Entry.id.desc()).all()
-
     body = """
     <h2>Entries — {{ charity.name }}</h2>
     <p>
@@ -625,77 +570,78 @@ def partner_entries(slug):
       <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='paid') }}">Paid</a>
       <a class="pill" href="{{ url_for('partner_logout') }}">Log out</a>
     </p>
-    <table>
-      <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>No.</th><th>Created</th><th>Paid</th><th>Actions</th></tr></thead>
-      <tbody>
-      {% for e in entries %}
-        <tr>
-          <td>{{ e.id }}</td>
-          <td>{{ e.name }}</td>
-          <td>{{ e.email }}</td>
-          <td>{{ e.phone }}</td>
-          <td><strong>#{{ e.number }}</strong></td>
-          <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
-          <td>{{ "Yes" if e.paid else "No" }}</td>
-          <td>
-            <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
-              <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
-            </form>
-            <a class="pill" href="{{ url_for('partner_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
-            <form method="post" action="{{ url_for('partner_delete_entry', slug=charity.slug, entry_id=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this entry?')">
-              <button class="pill" type="submit">Delete</button>
-            </form>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+
+    <form method="post" action="{{ url_for('partner_bulk_entries', slug=charity.slug) }}">
+      <div class="row" style="margin:8px 0">
+        <button class="pill" type="submit" name="action" value="mark_paid">Mark paid</button>
+        <button class="pill" type="submit" name="action" value="mark_unpaid">Unmark</button>
+        <button class="pill" type="submit" name="action" value="delete" onclick="return confirm('Delete selected entries?')">Delete</button>
+      </div>
+
+      <table>
+        <thead><tr>
+          <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
+          <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>No.</th><th>Created</th><th>Paid</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+        {% for e in entries %}
+          <tr>
+            <td><input class="rowcb" type="checkbox" name="ids" value="{{ e.id }}"></td>
+            <td>{{ e.id }}</td>
+            <td>{{ e.name }}</td>
+            <td>{{ e.email }}</td>
+            <td>{{ e.phone }}</td>
+            <td><strong>#{{ e.number }}</strong></td>
+            <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
+            <td>{{ "Yes" if e.paid else "No" }}</td>
+            <td>
+              <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
+                <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
+              </form>
+              <a class="pill" href="{{ url_for('partner_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('partner_delete_entry', slug=charity.slug, entry_id=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this entry?')">
+                <button class="pill" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </form>
     """
     return render(body, charity=charity, entries=entries, title=f"{charity.name} – Entries")
 
 @app.route("/partner/<slug>/entries/new", methods=["GET","POST"])
 def partner_new_entry(slug):
     charity = partner_guard(slug)
-    if not charity:
-        return redirect(url_for("partner_login"))
-
+    if not charity: return redirect(url_for("partner_login"))
     msg = None
     if request.method == "POST":
         name = request.form.get("name","").strip()
         email = request.form.get("email","").strip()
         phone = request.form.get("phone","").strip()
         number_raw = request.form.get("number","").strip()
-
         if not name or not email:
             msg = "Name and Email required."
         else:
-            # choose number
             if number_raw:
                 try:
                     num = int(number_raw)
-                    if num < 1 or num > charity.max_number:
-                        msg = f"Number must be between 1 and {charity.max_number}."
+                    if num < 1 or num > charity.max_number: msg = f"Number must be between 1 and {charity.max_number}."
                 except ValueError:
-                    msg = "Number must be an integer."
-                    num = None
+                    msg = "Number must be an integer."; num = None
             else:
-                # pick random available
                 taken = {n for (n,) in db.session.query(Entry.number).filter(Entry.charity_id==charity.id).all()}
                 avail = [i for i in range(1, charity.max_number+1) if i not in taken]
                 num = random.choice(avail) if avail else None
-                if not num:
-                    msg = "No numbers available."
-
+                if not num: msg = "No numbers available."
             if not msg and num is not None:
                 try:
                     e = Entry(charity_id=charity.id, name=name, email=email, phone=phone, number=num)
-                    db.session.add(e)
-                    db.session.commit()
+                    db.session.add(e); db.session.commit()
                     return redirect(url_for("partner_entries", slug=charity.slug))
                 except IntegrityError:
-                    db.session.rollback()
-                    msg = "That number is already taken."
-
+                    db.session.rollback(); msg = "That number is already taken."
     body = """
     <h2>Add Entry — {{ charity.name }}</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
@@ -712,12 +658,9 @@ def partner_new_entry(slug):
 @app.route("/partner/<slug>/entry/<int:entry_id>/edit", methods=["GET","POST"])
 def partner_edit_entry(slug, entry_id):
     charity = partner_guard(slug)
-    if not charity:
-        return redirect(url_for("partner_login"))
+    if not charity: return redirect(url_for("partner_login"))
     e = Entry.query.get_or_404(entry_id)
-    if e.charity_id != charity.id:
-        abort(403)
-
+    if e.charity_id != charity.id: abort(403)
     msg = None
     if request.method == "POST":
         e.name = request.form.get("name", e.name).strip()
@@ -738,9 +681,7 @@ def partner_edit_entry(slug, entry_id):
                 db.session.commit()
                 return redirect(url_for("partner_entries", slug=charity.slug))
         except IntegrityError:
-            db.session.rollback()
-            msg = "That number is already taken."
-
+            db.session.rollback(); msg = "That number is already taken."
     body = """
     <h2>Edit Entry — {{ charity.name }}</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
@@ -757,22 +698,36 @@ def partner_edit_entry(slug, entry_id):
 @app.route("/partner/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
 def partner_delete_entry(slug, entry_id):
     charity = partner_guard(slug)
-    if not charity:
-        return redirect(url_for("partner_login"))
+    if not charity: return redirect(url_for("partner_login"))
     e = Entry.query.get_or_404(entry_id)
-    if e.charity_id != charity.id:
-        abort(403)
-    db.session.delete(e)
-    db.session.commit()
+    if e.charity_id != charity.id: abort(403)
+    db.session.delete(e); db.session.commit()
     return redirect(url_for("partner_entries", slug=charity.slug))
 
+@app.route("/partner/<slug>/entries/bulk", methods=["POST"])
+def partner_bulk_entries(slug):
+    charity = partner_guard(slug)
+    if not charity: return redirect(url_for("partner_login"))
+    ids = request.form.getlist("ids"); action = request.form.get("action")
+    if not ids or not action: return redirect(url_for("partner_entries", slug=slug))
+    q = Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids))
+    now = datetime.utcnow()
+    if action == "mark_paid":
+        for e in q.all(): e.paid = True; e.paid_at = now
+        db.session.commit()
+    elif action == "mark_unpaid":
+        for e in q.all(): e.paid = False; e.paid_at = None
+        db.session.commit()
+    elif action == "delete":
+        q.delete(synchronize_session=False); db.session.commit()
+    return redirect(url_for("partner_entries", slug=slug))
+
 # -----------------------------------------------------------------------------
-# (Optional) manual migration trigger (visit while logged in as admin)
+# (Optional) manual migration trigger
 # -----------------------------------------------------------------------------
 @app.route("/admin/migrate")
 def admin_migrate():
-    if not session.get("admin_ok"):
-        return redirect(url_for("admin_charities"))
+    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     try:
         with db.engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE entry ADD COLUMN paid BOOLEAN DEFAULT 0")
@@ -786,11 +741,10 @@ def admin_migrate():
     return "Migration attempted. Go back to Entries and refresh."
 
 # -----------------------------------------------------------------------------
-# DB init + seed default charity/user on first boot
+# DB init + seeding
 # -----------------------------------------------------------------------------
 with app.app_context():
     db.create_all()
-    # lightweight auto-migration if table existed without new columns
     try:
         insp = inspect(db.engine)
         cols = {c['name'] for c in insp.get_columns('entry')}
@@ -802,7 +756,6 @@ with app.app_context():
     except Exception as e:
         print("Auto-migration check failed:", e)
 
-    # Seed default charity (The Kehilla) if missing
     if not Charity.query.filter_by(slug="thekehilla").first():
         db.session.add(Charity(
             slug="thekehilla",
@@ -813,17 +766,15 @@ with app.app_context():
         db.session.commit()
         print("Seeded default charity: /thekehilla")
 
-    # Seed demo partner user for The Kehilla (change password after first login)
     thek = Charity.query.filter_by(slug="thekehilla").first()
     if thek and not CharityUser.query.filter_by(charity_id=thek.id, username="kehilla").first():
         u = CharityUser(charity_id=thek.id, username="kehilla")
         u.set_password("change_me_now")
-        db.session.add(u)
-        db.session.commit()
+        db.session.add(u); db.session.commit()
         print("Seeded charity user: username=kehilla / password=change_me_now")
 
 # -----------------------------------------------------------------------------
-# Local dev runner
+# Local runner
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
