@@ -190,67 +190,69 @@ def success(slug):
 
 @app.route("/admin/charity/<slug>/entries")
 def admin_charity_entries(slug):
-    # require login
+    # Require login
     if not session.get("admin_ok"):
         return redirect(url_for("admin_charities"))
 
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+
+    # Optional filter: all, paid, unpaid
     flt = request.args.get("filter")
     q = Entry.query.filter_by(charity_id=charity.id)
     if flt == "paid":
-    	q = q.filter(Entry.paid.is_(True))
+        q = q.filter(Entry.paid.is_(True))
     elif flt == "unpaid":
-    	q = q.filter(Entry.paid.is_(False))
+        q = q.filter(Entry.paid.is_(False))
     entries = q.order_by(Entry.id.desc()).all()
-
 
     body = """
     <h2>Entries — {{ charity.name }}</h2>
     <p class="muted">Total: {{ entries|length }}</p>
-    <p><a class="pill" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
-       <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a></p>
+
     <p>
-  	<a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug) }}">All</a>
-  	<a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid') }}">Unpaid</a>
-  	<a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid') }}">Paid</a>
-  	<a class="pill" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
-  	<a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
+      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug) }}">All</a>
+      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid') }}">Unpaid</a>
+      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid') }}">Paid</a>
+      <a class="pill" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
+      <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
     </p>
+
     <table>
-  <thead>
-    <tr>
-      <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Number</th>
-      <th>Created</th><th>Paid</th><th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for e in entries %}
-      <tr>
-        <td>{{ e.id }}</td>
-        <td>{{ e.name }}</td>
-        <td>{{ e.email }}</td>
-        <td>{{ e.phone }}</td>
-        <td><strong>#{{ e.number }}</strong></td>
-        <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
-        <td>
-          {{ "Yes" if e.paid else "No" }}
-          {% if e.paid_at %}<span class="muted">({{ e.paid_at.strftime("%Y-%m-%d %H:%M") }})</span>{% endif %}
-        </td>
-        <td>
-          <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
-            <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
-          </form>
-        </td>
-      </tr>
-    {% endfor %}
-  </tbody>
-</table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
+          <th>Number</th><th>Created</th><th>Paid</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entries %}
+          <tr>
+            <td>{{ e.id }}</td>
+            <td>{{ e.name }}</td>
+            <td>{{ e.email }}</td>
+            <td>{{ e.phone }}</td>
+            <td><strong>#{{ e.number }}</strong></td>
+            <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
+            <td>
+              {{ "Yes" if e.paid else "No" }}
+              {% if e.paid_at %}<span class="muted">({{ e.paid_at.strftime("%Y-%m-%d %H:%M") }})</span>{% endif %}
+            </td>
+            <td>
+              <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
+                <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     """
     return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}")
 
 
 @app.route("/admin/charity/<slug>/entries.csv")
 def admin_charity_entries_csv(slug):
-    # require login
+    # Require login
     if not session.get("admin_ok"):
         return redirect(url_for("admin_charities"))
 
@@ -264,21 +266,19 @@ def admin_charity_entries_csv(slug):
     w = csv.writer(output)
     w.writerow(["id","name","email","phone","number","created_at","paid","paid_at","charity_slug","charity_name"])
     for e in entries:
-    	w.writerow([
-        	e.id, e.name, e.email, e.phone, e.number,
-        	e.created_at.isoformat() if e.created_at else "",
-        	1 if e.paid else 0,
-        	e.paid_at.isoformat() if e.paid_at else "",
-        	charity.slug, charity.name
+        w.writerow([
+            e.id, e.name, e.email, e.phone, e.number,
+            e.created_at.isoformat() if e.created_at else "",
+            1 if e.paid else 0,
+            e.paid_at.isoformat() if e.paid_at else "",
+            charity.slug, charity.name
         ])
-
-
     data = output.getvalue().encode("utf-8")
     return send_file(
         io.BytesIO(data),
         mimetype="text/csv",
         as_attachment=True,
-        download_name=f"{charity.slug}_entries.csv"
+        download_name=f"{slug}_entries.csv"
     )
 
 # ---- Simple “Add Charity” page (password from env) ----
