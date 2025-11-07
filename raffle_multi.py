@@ -1,13 +1,12 @@
-
-# raffle_multi.py — multi-charity raffle (single file, polished UI)
+# raffle_multi.py — multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
+# ----------------------------------------------------------------------
 # Features:
-# - Public: per-charity raffle pages (/thekehilla) with progress bar & polished design
-# - Admin: login/logout, add/edit charities, entries log (filters), CSV export, bulk actions
-# - Admin: per-charity partner users management
-# - Partner: login/logout, entries list with add/edit/delete/mark-paid, bulk actions (only own charity)
-# - DB: SQLite under ./instance/raffle.db by default (or Postgres via DATABASE_URL)
-# - Auto-init & light auto-migration for paid/paid_at
-# - Clean inline templating with nested render()
+# - Public per-charity raffle pages with progress bar & polished design
+# - Admin (env-guarded): add/edit charities, entries log (filters), CSV export, bulk mark-paid/unpaid/delete, partner user mgmt
+# - Partner (per charity): login, entries list, add/edit/delete, bulk actions (restricted to own charity)
+# - DB: SQLite (./instance/raffle.db) by default or Postgres via DATABASE_URL
+# - Light auto-migration for Entry.paid / Entry.paid_at columns
+# - Embedded logo ONLY on /thekehilla via KEHILLA_LOGO_DATA_URI (replace with your PNG/JPG base64 when ready)
 
 from flask import (
     Flask, render_template_string, request, redirect,
@@ -20,9 +19,8 @@ from sqlalchemy import UniqueConstraint, inspect, text
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# -----------------------------------------------------------------------------
-# App & config
-# -----------------------------------------------------------------------------
+# ====== CONFIG ================================================================
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
 app.permanent_session_lifetime = timedelta(minutes=30)
@@ -33,23 +31,33 @@ if DB_URL:
     app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    INSTANCE_PATH = os.path.join(BASE_DIR, "instance")
-    os.makedirs(INSTANCE_PATH, exist_ok=True)
-    sqlite_path = os.path.join(INSTANCE_PATH, "raffle.db")
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
-
+    INSTANCE = os.path.join(BASE_DIR, "instance")
+    os.makedirs(INSTANCE, exist_ok=True)
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(INSTANCE,'raffle.db')}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
 db = SQLAlchemy(app)
 
-# -----------------------------------------------------------------------------
-# Models
-# -----------------------------------------------------------------------------
+# Embedded logo only for /thekehilla.
+# Replace this with your actual bitmap data URI when ready, e.g.:
+# KEHILLA_LOGO_DATA_URI = "data:image/png;base64,AAAA...."
+KEHILLA_LOGO_DATA_URI = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' width='180' height='60'>"
+    "<rect width='100%' height='100%' rx='12' fill='%231aa5a5'/>"
+    "<text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' "
+    "font-family='Arial,Helvetica,sans-serif' font-size='18' fill='white'>THE KEHILLA</text>"
+    "</svg>"
+)
+
+# ====== MODELS ================================================================
+
 class Charity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    slug = db.Column(db.String(80), unique=True, nullable=False)      # URL slug
+    slug = db.Column(db.String(80), unique=True, nullable=False)        # URL slug
     name = db.Column(db.String(200), nullable=False)
     donation_url = db.Column(db.String(500), nullable=False)
-    max_number = db.Column(db.Integer, nullable=False, default=500)   # numbers 1..max
+    max_number = db.Column(db.Integer, nullable=False, default=500)     # 1..max
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -57,7 +65,7 @@ class Entry(db.Model):
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(255), nullable=False)
     phone = db.Column(db.String(40))
-    number = db.Column(db.Integer, nullable=False)                    # unique per charity
+    number = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     paid = db.Column(db.Boolean, nullable=False, default=False)
     paid_at = db.Column(db.DateTime, nullable=True)
@@ -74,20 +82,14 @@ class CharityUser(db.Model):
     __table_args__ = (UniqueConstraint("charity_id", "username", name="uq_charityuser_char_user"),)
     charity = db.relationship("Charity", backref="users")
 
-    def set_password(self, pw: str):
-        self.password_hash = generate_password_hash(pw)
+    def set_password(self, pw: str): self.password_hash = generate_password_hash(pw)
+    def check_password(self, pw: str) -> bool: return check_password_hash(self.password_hash, pw)
 
-    def check_password(self, pw: str) -> bool:
-        return check_password_hash(self.password_hash, pw)
+# ====== LAYOUT / RENDER =======================================================
 
-# -----------------------------------------------------------------------------
-# Layout + render helper (polished UI)
-# -----------------------------------------------------------------------------
 LAYOUT = """
-<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title or "Get My Number" }}</title>
 <meta name="color-scheme" content="dark light">
 <style>
@@ -106,7 +108,8 @@ LAYOUT = """
   .wrap{max-width:1100px;margin:0 auto;padding:28px}
   .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
   .logo{display:flex;gap:10px;align-items:center;color:var(--text);text-decoration:none}
-  .logo-badge{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#05111e;font-weight:900}
+  .logo-badge{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+              background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#05111e;font-weight:900}
   .nav-links a{color:var(--muted);padding:8px 10px;border:1px solid transparent;border-radius:999px}
   .nav-links a:hover{border-color:var(--border);color:var(--text)}
   .card{background:linear-gradient(180deg,var(--card),var(--card-2));border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
@@ -124,8 +127,7 @@ LAYOUT = """
     background:#0c141f;color:var(--text);outline:none
   }
   label{display:grid;gap:6px;margin-bottom:10px;color:var(--muted);font-size:14px}
-  .muted{color:var(--muted)}
-  .sep{height:10px}
+  .muted{color:var(--muted)} .sep{height:10px}
   table{width:100%;border-collapse:collapse;margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
   thead th{background:#0f1722;color:var(--muted);font-weight:600}
   th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
@@ -139,7 +141,6 @@ LAYOUT = """
   .row{display:flex;gap:10px;flex-wrap:wrap}
 </style>
 <script>
-  // Prevent double-submits on forms with data-safe-submit
   document.addEventListener('DOMContentLoaded', ()=>{
     document.querySelectorAll('form[data-safe-submit]').forEach(f=>{
       f.addEventListener('submit', ()=>{
@@ -180,13 +181,11 @@ LAYOUT = """
 """
 
 def render(body, **ctx):
-    """Render inner body first, then inject into the main layout."""
     inner = render_template_string(body, request=request, datetime=datetime, **ctx)
     return render_template_string(LAYOUT, body=inner, request=request, datetime=datetime, **ctx)
 
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
+# ====== HELPERS ===============================================================
+
 def get_charity_or_404(slug: str) -> Charity:
     c = Charity.query.filter_by(slug=slug.lower().strip()).first()
     if not c: abort(404)
@@ -207,9 +206,8 @@ def partner_guard(slug):
     if not c or session.get("partner_charity_id") != c.id: return None
     return c
 
-# -----------------------------------------------------------------------------
-# Public
-# -----------------------------------------------------------------------------
+# ====== PUBLIC ================================================================
+
 @app.route("/")
 def home():
     charities = Charity.query.order_by(Charity.name.asc()).all()
@@ -255,9 +253,15 @@ def charity_page(slug):
     taken = total - remaining
     pct = int((taken / total) * 100) if total else 0
 
+    # Only show embedded logo on /thekehilla
+    kehilla_logo = KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
+
     body = """
     <div class="hero">
       <h1>{{ charity.name }}</h1>
+      {% if kehilla_logo %}
+        <img src="{{ kehilla_logo }}" alt="{{ charity.name }} logo" style="max-width:180px;margin:12px 0;border-radius:12px;">
+      {% endif %}
       <p>Numbers are unique between 1 and {{ total }}.</p>
       <div class="sep"></div>
       <div class="grid grid-2">
@@ -267,24 +271,13 @@ def charity_page(slug):
             <span class="badge">Taken: {{ taken }}</span>
           </div>
           <div class="sep"></div>
-          <div class="progress" aria-label="progress">
-            <i style="width: {{ pct }}%"></i>
-          </div>
+          <div class="progress" aria-label="progress"><i style="width: {{ pct }}%"></i></div>
           <p class="muted" style="margin-top:6px">{{ pct }}% filled</p>
         </div>
         <form method="post" data-safe-submit>
-          <label>
-            Full name
-            <input type="text" name="name" required placeholder="e.g. Sarah Cohen">
-          </label>
-          <label>
-            Email
-            <input type="email" name="email" required placeholder="name@example.com">
-          </label>
-          <label>
-            Phone (optional)
-            <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx">
-          </label>
+          <label>Full name <input type="text" name="name" required placeholder="e.g. Sarah Cohen"></label>
+          <label>Email <input type="email" name="email" required placeholder="name@example.com"></label>
+          <label>Phone (optional) <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx"></label>
           <div class="row" style="margin-top:8px">
             <button class="btn" type="submit">Get my number</button>
             <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
@@ -295,7 +288,8 @@ def charity_page(slug):
       <p class="muted">You’ll get a random number still available. Your donation equals your number.</p>
     </div>
     """
-    return render(body, charity=charity, total=total, remaining=remaining, taken=taken, pct=pct, title=charity.name)
+    return render(body, charity=charity, total=total, remaining=remaining, taken=taken, pct=pct,
+                  title=charity.name, kehilla_logo=kehilla_logo)
 
 @app.route("/<slug>/success")
 def success(slug):
@@ -318,9 +312,8 @@ def success(slug):
     """
     return render(body, charity=charity, num=num, name=name, title=charity.name)
 
-# -----------------------------------------------------------------------------
-# Admin: login/logout & manage charities
-# -----------------------------------------------------------------------------
+# ====== ADMIN (env guarded) ===================================================
+
 @app.route("/admin/charities", methods=["GET","POST"])
 def admin_charities():
     admin_user = os.getenv("ADMIN_USERNAME", "admin")
@@ -437,9 +430,8 @@ def edit_charity(slug):
     """
     return render(body, charity=charity, msg=msg, title=f"Edit {charity.name}")
 
-# -----------------------------------------------------------------------------
-# Admin: entries + CSV + toggle paid + BULK actions
-# -----------------------------------------------------------------------------
+# ====== ADMIN: ENTRIES / CSV / BULK ==========================================
+
 @app.route("/admin/charity/<slug>/entries")
 def admin_charity_entries(slug):
     if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
@@ -507,7 +499,7 @@ def admin_charity_entries(slug):
 def admin_charity_entries_csv(slug):
     if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
-    entries = (Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.asc()).all())
+    entries = Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.asc()).all()
     output = io.StringIO(); w = csv.writer(output)
     w.writerow(["id","name","email","phone","number","created_at","paid","paid_at","charity_slug","charity_name"])
     for e in entries:
@@ -550,9 +542,8 @@ def admin_bulk_entries(slug):
         q.delete(synchronize_session=False); db.session.commit()
     return redirect(url_for("admin_charity_entries", slug=slug))
 
-# -----------------------------------------------------------------------------
-# Admin: per-charity users
-# -----------------------------------------------------------------------------
+# ====== ADMIN: PARTNER USERS ==================================================
+
 @app.route("/admin/charity/<slug>/users", methods=["GET","POST"])
 def admin_charity_users(slug):
     if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
@@ -606,9 +597,8 @@ def admin_delete_user(slug, uid):
     db.session.delete(u); db.session.commit()
     return redirect(url_for("admin_charity_users", slug=slug))
 
-# -----------------------------------------------------------------------------
-# Partner auth + entries + CRUD + BULK
-# -----------------------------------------------------------------------------
+# ====== PARTNER AREA ==========================================================
+
 @app.route("/partner/login", methods=["GET","POST"])
 def partner_login():
     msg = None
@@ -822,9 +812,8 @@ def partner_bulk_entries(slug):
         q.delete(synchronize_session=False); db.session.commit()
     return redirect(url_for("partner_entries", slug=slug))
 
-# -----------------------------------------------------------------------------
-# (Optional) manual migration trigger
-# -----------------------------------------------------------------------------
+# ====== (Optional) MANUAL MIGRATION ==========================================
+
 @app.route("/admin/migrate")
 def admin_migrate():
     if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
@@ -840,9 +829,8 @@ def admin_migrate():
         print("paid_at column:", e)
     return "Migration attempted. Go back to Entries and refresh."
 
-# -----------------------------------------------------------------------------
-# DB init + seeding
-# -----------------------------------------------------------------------------
+# ====== DB INIT / SEED ========================================================
+
 with app.app_context():
     db.create_all()
     try:
@@ -856,6 +844,7 @@ with app.app_context():
     except Exception as e:
         print("Auto-migration check failed:", e)
 
+    # Seed default charity for convenience
     if not Charity.query.filter_by(slug="thekehilla").first():
         db.session.add(Charity(
             slug="thekehilla",
@@ -873,8 +862,8 @@ with app.app_context():
         db.session.add(u); db.session.commit()
         print("Seeded charity user: username=kehilla / password=change_me_now")
 
-# -----------------------------------------------------------------------------
-# Local runner
-# -----------------------------------------------------------------------------
+# ====== LOCAL RUNNER ==========================================================
+
 if __name__ == "__main__":
     app.run(debug=True)
+
