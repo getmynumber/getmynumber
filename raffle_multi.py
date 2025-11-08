@@ -238,3 +238,31 @@ def success(slug):
       </section>
     """, n=n, charity=charity)
     return render_page("Success", body)
+
+
+
+# --- Safe totals helper (appended) -------------------------------------------
+def _calc_totals(charity):
+    try:
+        q = db.session.query(db.func.coalesce(db.func.sum(Entry.number), 0))
+        q = q.filter(Entry.charity_id == charity.id)
+        if hasattr(Entry, "paid"):
+            q = q.filter(Entry.paid.is_(True))
+        elif hasattr(Entry, "status"):
+            q = q.filter(Entry.status == "paid")
+        paid_sum = int(q.scalar() or 0)
+    except Exception:
+        paid_sum = 0
+    goal = int(getattr(charity, "goal_amount", 1000) or 1000)
+    try:
+        pct = min(100, round((paid_sum / goal * 100) if goal else 0, 1))
+    except Exception:
+        pct = 0
+    return {"raised": paid_sum, "goal": goal, "pct": pct}
+
+
+@app.route("/sw.js", methods=["GET"])
+def sw_js():
+    js = "self.addEventListener('install', e=>self.skipWaiting()); self.addEventListener('fetch', ()=>{});"
+    from flask import Response
+    return Response(js, mimetype="application/javascript")
