@@ -66,48 +66,23 @@ def _ensure_templates():
 
     # Home
     _write("home.html", [
-        "{% extends 'base.html' %}",
-        "{% block body %}",
-        "<section class='grid md:grid-cols-2 gap-8 items-center'>",
-        "  <div>",
-        "    <h1 class='text-3xl md:text-4xl font-semibold leading-tight mb-3' style='color:var(--brand)'>",
-        "      Raffle for good - simple, transparent, fair.",
-        "    </h1>",
-        "    <p class='text-[15px] muted mb-6'>",
-        "      Get a random number. Donate the same amount. Every entry supports your chosen charity.",
-        "    </p>",
-        "    <div class='flex gap-3'>",
-        "      <a class='btn' href='/charities'>Choose Charity</a>",
-        "      <a class='btn-ghost' href='/how-it-works'>How it works</a>",
-        "    </div>",
-        "    <p class='text-xs mt-3 muted'>Gift Aid support coming soon - Secure payments</p>",
-        "  </div>",
-        "  <div class='card p-6'>",
-        "    <div class='text-sm muted mb-2'>Live example</div>",
-        "    <div class='flex items-center gap-3'>",
-        "      <div class='rounded-xl px-4 py-3' style='background:var(--accent-soft);color:var(--brand);font-weight:600'># 27</div>",
-        "      <div class='text-sm'>Your donation would be <b>&pound;27</b></div>",
-        "    </div>",
-        "    <div class='mt-4'><a class='btn' href='/charities'>Get My Number</a></div>",
-        "  </div>",
-        "</section>",
-        "",
-        "<section class='grid sm:grid-cols-3 gap-4 mt-10'>",
-        "  <div class='card p-5'>",
-        "    <div class='font-semibold mb-1'>1) Get a number</div>",
-        "    <p class='text-sm muted'>We generate a fair, random number.</p>",
-        "  </div>",
-        "  <div class='card p-5'>",
-        "    <div class='font-semibold mb-1'>2) Donate that amount</div>",
-        "    <p class='text-sm muted'>Pay securely with card or the charity's page.</p>",
-        "  </div>",
-        "  <div class='card p-5'>",
-        "    <div class='font-semibold mb-1'>3) Support the cause</div>",
-        "    <p class='text-sm muted'>Your entry helps the charity raise more.</p>",
-        "  </div>",
-        "</section>",
-        "{% endblock %}",
-    ])
+    "{% extends 'base.html' %}",
+    "{% block body %}",
+    "<section class='max-w-3xl'>",
+    "  <h1 class='text-3xl md:text-4xl font-semibold leading-tight mb-3' style='color:var(--brand)'>",
+    "    Raffle for good - simple, transparent, fair.",
+    "  </h1>",
+    "  <p class='text-[15px] muted mb-6'>",
+    "    Get a random number. Donate the same amount. Every entry supports your chosen charity.",
+    "  </p>",
+    "  <div class='flex gap-3'>",
+    "    <a class='btn' href='/charities'>Choose Charity</a>",
+    "    <a class='btn-ghost' href='/how-it-works'>How it works</a>",
+    "  </div>",
+    "  <p class='text-xs mt-3 muted'>Gift Aid support coming soon - Secure payments</p>",
+    "</section>",
+    "{% endblock %}",
+])
 
     # Charities
     _write("charities.html", [
@@ -188,6 +163,22 @@ def _ensure_templates():
         "{% endblock %}",
     ])
 
+    
+    _write("admin_stub.html", [
+        "{% extends 'base.html' %}",
+        "{% block body %}",
+        "<h1 class='text-2xl font-semibold mb-4'>Admin</h1>",
+        "<p class='text-sm muted'>This is a placeholder. If your real admin dashboard uses a different path, update the nav link or set up a redirect.</p>",
+        "{% endblock %}",
+    ])
+    _write("partner_login_stub.html", [
+        "{% extends 'base.html' %}",
+        "{% block body %}",
+        "<h1 class='text-2xl font-semibold mb-4'>Partner login</h1>",
+        "<p class='text-sm muted'>This is a placeholder. If your real partner login uses a different path, update the nav link or set up a redirect.</p>",
+        "{% endblock %}",
+    ])
+    
     return tpl_dir
 
 from jinja2 import FileSystemLoader
@@ -213,6 +204,30 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # ====== CONFIG ================================================================
 
 app = Flask(__name__)
+
+
+def _route_exists(path):
+    try:
+        for r in app.url_map.iter_rules():
+            if str(r.rule) == path:
+                return True
+    except Exception:
+        pass
+    return False
+
+def _register_stub(path, template_name, title):
+    if not _route_exists(path):
+        def _view():
+            return render_template(template_name,
+                                   title=title,
+                                   theme=THEME,
+                                   SITE_NAME=SITE_NAME,
+                                   now=datetime.utcnow(),
+                                   main_logo_data_uri=MAIN_LOGO_DATA_URI)
+        endpoint = f"stub_{template_name.replace('.', '_')}"
+        app.add_url_rule(path, endpoint, _view, methods=["GET"])
+
+
 _template_dir = _ensure_templates()
 if _template_dir:
     app.jinja_loader = FileSystemLoader(_template_dir)
@@ -413,3 +428,7 @@ def sw_js():
 @app.route("/healthz", methods=["GET"])
 def healthz():
     return {"ok": True}, 200
+
+# Register stub pages only when corresponding routes don't already exist
+_register_stub("/admin", "admin_stub.html", "Admin")
+_register_stub("/partner/login", "partner_login_stub.html", "Partner login")
