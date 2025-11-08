@@ -81,41 +81,220 @@ class CharityUser(db.Model):
 
 # ====== LAYOUT / RENDER =======================================================
 
-LAYOUT = """
-<!doctype html><html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{ title or "Get My Number" }}</title>
-<meta name="color-scheme" content="dark light">
-<style>
-  :root{
-    --bg:#0b0f14; --bg-soft:#0f1520; --card:#121924; --card-2:#0f1722;
-    --text:#e9f0f7; --muted:#a8b6c7; --brand:#5aa8ff; --brand-2:#7cd2ff;
-    --ok:#3ad19f; --warn:#ffd29f; --danger:#ff7a7a; --border:#223146;
-    --shadow:0 10px 30px rgba(0,0,0,.35); --radius:16px;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:
-    radial-gradient(1200px 800px at 10% -10%, #122034, transparent),
-    radial-gradient(900px 700px at 110% 10%, #101a28, transparent), var(--bg);
-    color:var(--text)}
-  a{color:var(--brand);text-decoration:none}
-  .wrap{max-width:1100px;margin:0 auto;padding:28px}
-  .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-  .logo{display:flex;gap:10px;align-items:center;color:var(--text);text-decoration:none}
-  .logo-badge{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
-              background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#05111e;font-weight:900}
-  .nav-links a{color:var(--muted);padding:8px 10px;border:1px solid transparent;border-radius:999px}
-  .nav-links a:hover{border-color:var(--border);color:var(--text)}
-  .card{background:linear-gradient(180deg,var(--card),var(--card-2));border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow)}
-  .hero h1{margin:0 0 6px 0;font-size:28px}
-  .hero p{margin:0;color:var(--muted)}
-  .stack{display:flex;gap:10px;flex-wrap:wrap}
-  .pill,button.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--border);color:var(--text);background:transparent;cursor:pointer}
-  button.btn{background:linear-gradient(135deg,var(--brand),var(--brand-2));border:none;color:#05111e;font-weight:700}
-  button.btn.secondary{background:transparent;border:1px solid var(--border);color:var(--text)}
-  button.btn:disabled{opacity:.6;cursor:not-allowed}
-  .grid{display:grid;gap:12px}
-  @app.route("/", methods=["GET"])
+
+
+# ===== THEME (discreet palette) ==============================================
+SITE_NAME = "GetMyNumber"
+THEME = {
+    "brand_hex": "#0f172a",   # slate-900
+    "accent_hex": "#0ea5a4",  # teal-500
+    "accent_soft": "#99f6e4", # teal-100
+    "bg_hex": "#f8fafc",      # slate-50
+    "text_hex": "#0b1324",    # near-black
+}
+THEME["brand_hex"] = os.getenv("THEME_BRAND_HEX", THEME["brand_hex"])
+THEME["accent_hex"] = os.getenv("THEME_ACCENT_HEX", THEME["accent_hex"])
+MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")  # optional data: URI overrides inline SVG
+
+# ===== DISCREET LOGO (inline SVG) ============================================
+def render_logo_svg(title="GetMyNumber"):
+    return """
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="{title}" viewBox="0 0 180 40" class="h-7 w-auto">
+  <defs>
+    <style>
+      .gm-stroke{stroke:var(--brand);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .gm-fill{fill:var(--brand)}
+    </style>
+  </defs>
+  <path class="gm-stroke" d="M10 6h120c3 0 6 3 6 6v0a6 6 0 0 0 0 12v0c0 3-3 6-6 6H10c-3 0-6-3-6-6v0a6 6 0 0 0 0-12v0c0-3 3-6 6-6z"/>
+  <path class="gm-stroke" d="M34 16c0-3 2-5 5-5 2 0 3 1 4 2 1-1 2-2 4-2 3 0 5 2 5 5 0 6-9 10-9 10s-9-4-9-10z"/>
+  <path class="gm-stroke" d="M43 14c-2 0-3 1-3 3 0 3 3 3 6 3m-6 2h7"/>
+  <text x="70" y="26" class="gm-fill" style="font:600 18px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial">GetMyNumber</text>
+</svg>
+""".format(title=title)
+
+BASE_HTML = """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title or SITE_NAME }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root{
+      --brand: {{ theme.brand_hex }};
+      --accent: {{ theme.accent_hex }};
+      --accent-soft: {{ theme.accent_soft }};
+      --text: {{ theme.text_hex }};
+      --bg: {{ theme.bg_hex }};
+    }
+    .btn{display:inline-flex;align-items:center;justify-content:center;border-radius:0.75rem;padding:0.5rem 1rem;background:var(--accent);color:#fff;font-weight:600;transition:opacity .15s}
+    .btn:hover{opacity:.9}
+    .btn-ghost{display:inline-flex;align-items:center;justify-content:center;border-radius:0.75rem;padding:0.5rem 1rem;background:#fff;color:var(--brand);border:1px solid #e5e7eb}
+    .card{background:#fff;border:1px solid #f1f5f9;border-radius:1rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .muted{color:#667085}
+    body{background:var(--bg);color:var(--text)}
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="border-b border-gray-200 bg-white">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+      <a href="/" class="flex items-center gap-3">
+        {% if main_logo_data_uri %}
+          <img src="{{ main_logo_data_uri }}" alt="{{ SITE_NAME }} logo" class="h-7 w-auto">
+        {% else %}
+          {{ logo|safe }}
+        {% endif %}
+      </a>
+      <nav class="ml-auto flex items-center gap-3 text-sm">
+        <a class="btn-ghost" href="/charities">Choose Charity</a>
+        <a class="btn-ghost" href="/partner/login">Partner</a>
+        <a class="btn-ghost" href="/admin">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    {{ body|safe }}
+  </main>
+
+  <footer class="border-t border-gray-200">
+    <div class="max-w-6xl mx-auto px-4 py-8 text-xs muted">
+      © {{ now.year }} {{ SITE_NAME }} · <a class="underline" href="/how-it-works">How it works</a>
+    </div>
+  </footer>
+</body>
+</html>
+"""
+
+def render_page(title, body_html, charity=None):
+    logo = render_logo_svg(SITE_NAME)
+    return render_template_string(
+        BASE_HTML,
+        title=title,
+        body=body_html,
+        logo=logo,
+        theme=THEME,
+        SITE_NAME=SITE_NAME,
+        now=datetime.utcnow(),
+        main_logo_data_uri=MAIN_LOGO_DATA_URI
+    )
+
+HOME_HTML = 
+<section class="grid md:grid-cols-2 gap-8 items-center">
+  <div>
+    <h1 class="text-3xl md:text-4xl font-semibold leading-tight mb-3" style="color:var(--brand)">
+      Raffle for good — simple, transparent, fair.
+    </h1>
+    <p class="text-[15px] muted mb-6">
+      Get a random number. Donate the same amount. Every entry supports your chosen charity.
+    </p>
+    <div class="flex gap-3">
+      <a class="btn" href="/charities">Choose Charity</a>
+      <a class="btn-ghost" href="/how-it-works">How it works</a>
+    </div>
+    <p class="text-xs mt-3 muted">Gift Aid support coming soon • Secure payments</p>
+  </div>
+  <div class="card p-6">
+    <div class="text-sm muted mb-2">Live example</div>
+    <div class="flex items-center gap-3">
+      <div class="rounded-xl px-4 py-3" style="background:var(--accent-soft);color:var(--brand);font-weight:600"># 27</div>
+      <div class="text-sm">Your donation would be <b>£27</b></div>
+    </div>
+    <div class="mt-4"><a class="btn" href="/charities">Get My Number</a></div>
+  </div>
+</section>
+
+<section class="grid sm:grid-cols-3 gap-4 mt-10">
+  <div class="card p-5">
+    <div class="font-semibold mb-1">1) Get a number</div>
+    <p class="text-sm muted">We generate a fair, random number.</p>
+  </div>
+  <div class="card p-5">
+    <div class="font-semibold mb-1">2) Donate that amount</div>
+    <p class="text-sm muted">Pay securely with card or the charity’s page.</p>
+  </div>
+  <div class="card p-5">
+    <div class="font-semibold mb-1">3) Support the cause</div>
+    <p class="text-sm muted">Your entry helps the charity raise more.</p>
+  </div>
+</section>
+
+
+CHARITIES_HTML = 
+<h2 class="text-2xl font-semibold mb-5">Choose a charity</h2>
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for c in rows %}
+  <a class="card p-5 hover:shadow-md transition border-gray-100" href="/{{ c.slug }}">
+    <div class="flex items-center gap-3">
+      {% if c.logo_data_uri %}
+        <img src="{{ c.logo_data_uri }}" class="h-8 w-auto" alt="{{ c.name }} logo">
+      {% endif %}
+      <div class="font-semibold">{{ c.name }}</div>
+    </div>
+    {% if c.description %}
+      <p class="text-sm muted mt-2">{{ c.description }}</p>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+
+CHARITY_HTML = 
+<div class="grid md:grid-cols-3 gap-6">
+  <section class="md:col-span-2 card p-6">
+    <div class="flex items-start gap-3">
+      {% if charity.logo_data_uri %}
+        <img src="{{ charity.logo_data_uri }}" class="h-9 w-auto" alt="{{ charity.name }} logo">
+      {% endif %}
+      <div>
+        <h1 class="text-2xl font-semibold">{{ charity.name }}</h1>
+        {% if charity.tagline %}<p class="muted text-sm mt-1">{{ charity.tagline }}</p>{% endif %}
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <form method="post" action="{{ url_for('create_entry', slug=charity.slug) }}">
+        <button class="btn w-full md:w-auto">Get my number</button>
+      </form>
+      {% if last_entry %}
+        <p class="text-xs muted mt-2">Last number drawn: <b>{{ last_entry.number }}</b></p>
+      {% endif %}
+    </div>
+
+    {% if charity.description %}
+      <p class="text-sm muted mt-6">{{ charity.description }}</p>
+    {% endif %}
+  </section>
+
+  <aside class="card p-6">
+    <div class="text-sm muted">Raised so far</div>
+    <div class="text-3xl font-semibold mb-2">£{{ totals.raised }}</div>
+    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div class="h-2" style="width: {{ totals.pct }}%; background: var(--accent)"></div>
+    </div>
+    <div class="text-xs muted mt-2">{{ totals.pct }}% of £{{ totals.goal }}</div>
+  </aside>
+</div>
+
+
+SUCCESS_HTML = 
+<section class="card p-6 text-center">
+  <h2 class="text-2xl font-semibold mb-2">You got <span style="color:var(--accent)">#{{ n }}</span></h2>
+  <p class="muted">Donate <b>£{{ n }}</b> to complete your entry.</p>
+  <div class="mt-5 flex gap-3 justify-center">
+    {% if session.get('last_entry_id') %}
+    <a class="btn" href="{{ url_for('create_checkout', slug=charity.slug, entry_id=session.get('last_entry_id')) }}">Pay by card</a>
+    {% endif %}
+    <a class="btn-ghost" href="{{ charity.donation_url or url_for('charity_page', slug=charity.slug) }}">Charity page</a>
+  </div>
+</section>
+
+
+
+
+@app.route("/", methods=["GET"])
 def home():
     body = render_template_string(HOME_HTML)
     return render_page("Home", body)
