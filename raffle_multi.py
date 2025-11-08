@@ -105,7 +105,7 @@ def render_page(title, body_html, charity=None):
 
 
 
-@app.get("/")
+@app.route("/", methods=["GET"])
 def home():
     body = render_template_string("""
       <section class="grid md:grid-cols-2 gap-8 items-center">
@@ -149,7 +149,7 @@ def home():
     return render_page("Home", body)
 
 
-@app.get("/charities")
+@app.route("/charities", methods=["GET"])
 def charities():
     rows = Charity.query.order_by(Charity.name.asc()).all()
     body = render_template_string("""
@@ -179,7 +179,7 @@ def _calc_totals(charity):
     pct = min(100, round((paid/goal*100) if goal else 0, 1))
     return {"raised": int(paid), "goal": int(goal), "pct": pct}
 
-@app.get("/<slug>")
+@app.route("/<slug>", methods=["GET"])
 def charity_page(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     totals = _calc_totals(charity)
@@ -221,7 +221,7 @@ def charity_page(slug):
     return render_page(f"{charity.name} Raffle", body)
 
 
-@app.get("/<slug>/success")
+@app.route("/<slug>/success", methods=["GET"])
 def success(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     n = session.get("last_num")
