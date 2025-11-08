@@ -28,6 +28,7 @@ app = Flask(__name__)
 # Point Jinja to the runtime templates dir
 _template_dir = _ensure_templates()
 try:
+    if _template_dir:
     app.jinja_loader = FileSystemLoader(_template_dir)
 except Exception:
     pass
@@ -69,6 +70,7 @@ MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")  # optional data:URI overri
 
 # ===== RUNTIME TEMPLATES SETUP ===============================================
 def _ensure_templates():
+    try:
     # Write templates to a runtime dir (works on Render) and point Flask loader there
     tpl_dir = os.getenv("TEMPLATE_DIR") or os.path.join(tempfile.gettempdir(), "getmynumber_templates")
     try:
@@ -258,7 +260,10 @@ def _ensure_templates():
         "{% endblock %}",
     ])
 
-    return tpl_dir
+        return tpl_dir
+    except Exception:
+        _log_exc('Template setup failed')
+        return None
 
 
 
@@ -392,3 +397,8 @@ def sw_js():
     from flask import Response
     return Response(js, mimetype="application/javascript")
 
+
+
+@app.route("/healthz", methods=["GET"])
+def healthz():
+    return {"ok": True}, 200
