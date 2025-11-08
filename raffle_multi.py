@@ -338,14 +338,17 @@ def partner_guard(slug):
 
 @app.route("/", methods=["GET"])
 def home():
-    return render_template("home.html", title="Home", theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
-
-
-
+    return render_template(
+        "home.html",
+        title="Home",
+        theme=THEME,
+        SITE_NAME=SITE_NAME,
+        now=datetime.utcnow(),
+        main_logo_data_uri=MAIN_LOGO_DATA_URI
+    )
 
 @app.route("/charities", methods=["GET"])
 def charities():
-    # Order by name if the column exists; otherwise order by id; otherwise fallback to all()
     try:
         order_col = getattr(Charity, "name", None)
         if order_col is not None:
@@ -357,53 +360,47 @@ def charities():
             rows = Charity.query.all()
         except Exception:
             rows = []
-    return render_template("charities.html",
-                           title="Charities",
-                           rows=rows,
-                           theme=THEME,
-                           SITE_NAME=SITE_NAME,
-                           now=datetime.utcnow(),
-                           main_logo_data_uri=MAIN_LOGO_DATA_URI), main_logo_data_uri=MAIN_LOGO_DATA_URI), main_logo_data_uri=MAIN_LOGO_DATA_URI)
-
-
-
-
-def _calc_totals(charity):
-    try:
-        q = db.session.query(db.func.coalesce(db.func.sum(Entry.number), 0)).filter(Entry.charity_id == charity.id)
-        if hasattr(Entry, "paid"):
-            q = q.filter(Entry.paid.is_(True))
-        elif hasattr(Entry, "status"):
-            q = q.filter(Entry.status == "paid")
-        paid = int(q.scalar() or 0)
-    except Exception:
-        paid = 0
-    goal = int(getattr(charity, "goal_amount", 1000) or 1000)
-    pct = min(100, round((paid / goal * 100) if goal else 0, 1))
-    return {"raised": paid, "goal": goal, "pct": pct}
-
-
-
-
+    return render_template(
+        "charities.html",
+        title="Charities",
+        rows=rows,
+        theme=THEME,
+        SITE_NAME=SITE_NAME,
+        now=datetime.utcnow(),
+        main_logo_data_uri=MAIN_LOGO_DATA_URI
+    )
 
 @app.route("/<slug>", methods=["GET"])
 def charity_page(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     totals = _calc_totals(charity)
     last_entry = Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.desc()).first()
-    return render_template("charity.html", title=f"{charity.name} Raffle", charity=charity, totals=totals, last_entry=last_entry, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
-
-
-
+    return render_template(
+        "charity.html",
+        title=f"{charity.name} Raffle",
+        charity=charity,
+        totals=totals,
+        last_entry=last_entry,
+        theme=THEME,
+        SITE_NAME=SITE_NAME,
+        now=datetime.utcnow(),
+        main_logo_data_uri=MAIN_LOGO_DATA_URI
+    )
 
 @app.route("/<slug>/success", methods=["GET"])
 def success(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     n = session.get("last_num")
-    return render_template("success.html", title="Success", n=n, charity=charity, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
-
-
-
+    return render_template(
+        "success.html",
+        title="Success",
+        n=n,
+        charity=charity,
+        theme=THEME,
+        SITE_NAME=SITE_NAME,
+        now=datetime.utcnow(),
+        main_logo_data_uri=MAIN_LOGO_DATA_URI
+    )
 
 @app.route("/sw.js", methods=["GET","HEAD"])
 def sw_js():
