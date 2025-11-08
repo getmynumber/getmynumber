@@ -1,3 +1,37 @@
+
+# ===== THEME (discreet palette) ==============================================
+SITE_NAME = "GetMyNumber"
+THEME = {
+    "brand_hex": "#0f172a",
+    "accent_hex": "#0ea5a4",
+    "accent_soft": "#99f6e4",
+    "bg_hex": "#f8fafc",
+    "text_hex": "#0b1324",
+}
+import os
+THEME["brand_hex"] = os.getenv("THEME_BRAND_HEX", THEME["brand_hex"])
+THEME["accent_hex"] = os.getenv("THEME_ACCENT_HEX", THEME["accent_hex"])
+MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")
+
+
+# ===== DISCREET LOGO (inline SVG) ============================================
+def render_logo_svg(title="GetMyNumber"):
+    return """
+<svg xmlns="http://www.w3.org/2000/svg" aria-label="{title}" viewBox="0 0 180 40" class="h-7 w-auto">
+  <defs>
+    <style>
+      .gm-stroke{stroke:var(--brand);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .gm-fill{fill:var(--brand)}
+    </style>
+  </defs>
+  <path class="gm-stroke" d="M10 6h120c3 0 6 3 6 6v0a6 6 0 0 0 0 12v0c0 3-3 6-6 6H10c-3 0-6-3-6-6v0a6 6 0 0 0 0-12v0c0-3 3-6 6-6z"/>
+  <path class="gm-stroke" d="M34 16c0-3 2-5 5-5 2 0 3 1 4 2 1-1 2-2 4-2 3 0 5 2 5 5 0 6-9 10-9 10s-9-4-9-10z"/>
+  <path class="gm-stroke" d="M43 14c-2 0-3 1-3 3 0 3 3 3 6 3m-6 2h7"/>
+  <text x="70" y="26" class="gm-fill" style="font:600 18px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">GetMyNumber</text>
+</svg>
+""".format(title=title)
+
+
 # raffle_multi.py — multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
 # ----------------------------------------------------------------------
 # Features:
