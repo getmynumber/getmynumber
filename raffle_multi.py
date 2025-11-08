@@ -202,7 +202,7 @@ import tempfile
 # - Light auto-migration for Entry.paid / Entry.paid_at columns
 # - Embedded logo ONLY on /thekehilla via KEHILLA_LOGO_DATA_URI (replace with your PNG/JPG base64 when ready)
 
-from flask import (
+from flask import (, render_template
     Flask, render_template_string, request, redirect,
     url_for, session, flash, abort, send_file
 )
