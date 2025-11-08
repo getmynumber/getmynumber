@@ -1,73 +1,3 @@
-from jinja2 import FileSystemLoader
-import tempfile
-# raffle_multi.py - multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
-# ----------------------------------------------------------------------
-# Features:
-# - Public per-charity raffle pages with progress bar & polished design
-# - Admin (env-guarded): add/edit charities, entries log (filters), CSV export, bulk mark-paid/unpaid/delete, partner user mgmt
-# - Partner (per charity): login, entries list, add/edit/delete, bulk actions (restricted to own charity)
-# - DB: SQLite (./instance/raffle.db) by default or Postgres via DATABASE_URL
-# - Light auto-migration for Entry.paid / Entry.paid_at columns
-# - Embedded logo ONLY on /thekehilla via KEHILLA_LOGO_DATA_URI (replace with your PNG/JPG base64 when ready)
-
-from flask import (
-    Flask, render_template_string, request, redirect,
-    url_for, session, flash, abort, send_file
-)
-import os, random, csv, io
-from datetime import datetime, timedelta
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import UniqueConstraint, inspect, text
-from sqlalchemy.exc import IntegrityError
-from werkzeug.security import generate_password_hash, check_password_hash
-
-# ====== CONFIG ================================================================
-
-app = Flask(__name__)
-
-# Point Jinja to the runtime templates dir
-_template_dir = _ensure_templates()
-try:
-    app.jinja_loader = FileSystemLoader(_template_dir)
-except Exception:
-    pass
-
-def render_page(title, body_html, charity=None):
-    # body_html is ignored because we render full templates now; kept for compatibility
-    return render_template('base.html', title=title, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
-
-
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
-app.permanent_session_lifetime = timedelta(minutes=30)
-
-DB_URL = os.getenv("DATABASE_URL")
-if DB_URL:
-    DB_URL = DB_URL.replace("postgres://", "postgresql://")
-    app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    INSTANCE = os.path.join(BASE_DIR, "instance")
-    os.makedirs(INSTANCE, exist_ok=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(INSTANCE,'raffle.db')}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-db = SQLAlchemy(app)
-
-# ===== THEME (discreet palette) ==============================================
-SITE_NAME = "GetMyNumber"
-THEME = {
-    "brand_hex": "#0f172a",
-    "accent_hex": "#0ea5a4",
-    "accent_soft": "#99f6e4",
-    "bg_hex": "#f8fafc",
-    "text_hex": "#0b1324",
-}
-THEME["brand_hex"] = os.getenv("THEME_BRAND_HEX", THEME["brand_hex"])
-THEME["accent_hex"] = os.getenv("THEME_ACCENT_HEX", THEME["accent_hex"])
-MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")  # optional data:URI override
-
-
-# ===== RUNTIME TEMPLATES SETUP ===============================================
 def _ensure_templates():
     # Write templates to a runtime dir (works on Render) and point Flask loader there
     tpl_dir = os.getenv("TEMPLATE_DIR") or os.path.join(tempfile.gettempdir(), "getmynumber_templates")
@@ -259,6 +189,81 @@ def _ensure_templates():
     ])
 
     return tpl_dir
+
+from jinja2 import FileSystemLoader
+import tempfile
+# raffle_multi.py - multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
+# ----------------------------------------------------------------------
+# Features:
+# - Public per-charity raffle pages with progress bar & polished design
+# - Admin (env-guarded): add/edit charities, entries log (filters), CSV export, bulk mark-paid/unpaid/delete, partner user mgmt
+# - Partner (per charity): login, entries list, add/edit/delete, bulk actions (restricted to own charity)
+# - DB: SQLite (./instance/raffle.db) by default or Postgres via DATABASE_URL
+# - Light auto-migration for Entry.paid / Entry.paid_at columns
+# - Embedded logo ONLY on /thekehilla via KEHILLA_LOGO_DATA_URI (replace with your PNG/JPG base64 when ready)
+
+from flask import (
+    Flask, render_template_string, request, redirect,
+    url_for, session, flash, abort, send_file
+)
+import os, random, csv, io
+from datetime import datetime, timedelta
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import UniqueConstraint, inspect, text
+from sqlalchemy.exc import IntegrityError
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# ====== CONFIG ================================================================
+
+app = Flask(__name__)
+_template_dir = _ensure_templates()
+if _template_dir:
+    app.jinja_loader = FileSystemLoader(_template_dir)
+
+
+# Point Jinja to the runtime templates dir
+try:
+    app.jinja_loader = FileSystemLoader(_template_dir)
+except Exception:
+    pass
+
+def render_page(title, body_html, charity=None):
+    # body_html is ignored because we render full templates now; kept for compatibility
+    return render_template('base.html', title=title, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+
+
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
+app.permanent_session_lifetime = timedelta(minutes=30)
+
+DB_URL = os.getenv("DATABASE_URL")
+if DB_URL:
+    DB_URL = DB_URL.replace("postgres://", "postgresql://")
+    app.config["SQLALCHEMY_DATABASE_URI"] = DB_URL
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    INSTANCE = os.path.join(BASE_DIR, "instance")
+    os.makedirs(INSTANCE, exist_ok=True)
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(INSTANCE,'raffle.db')}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+# ===== THEME (discreet palette) ==============================================
+SITE_NAME = "GetMyNumber"
+THEME = {
+    "brand_hex": "#0f172a",
+    "accent_hex": "#0ea5a4",
+    "accent_soft": "#99f6e4",
+    "bg_hex": "#f8fafc",
+    "text_hex": "#0b1324",
+}
+THEME["brand_hex"] = os.getenv("THEME_BRAND_HEX", THEME["brand_hex"])
+THEME["accent_hex"] = os.getenv("THEME_ACCENT_HEX", THEME["accent_hex"])
+MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")  # optional data:URI override
+
+
+# ===== RUNTIME TEMPLATES SETUP ===============================================
+
 
 
 
