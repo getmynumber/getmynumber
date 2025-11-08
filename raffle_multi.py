@@ -345,15 +345,25 @@ def home():
 
 @app.route("/charities", methods=["GET"])
 def charities():
+    # Order by name if the column exists; otherwise order by id; otherwise fallback to all()
     try:
-        order_col = getattr(Charity, "name", Charity.id)
-        rows = Charity.query.order_by(order_col.asc()).all()
+        order_col = getattr(Charity, "name", None)
+        if order_col is not None:
+            rows = Charity.query.order_by(order_col.asc()).all()
+        else:
+            rows = Charity.query.order_by(Charity.id.asc()).all()
     except Exception:
         try:
             rows = Charity.query.all()
         except Exception:
             rows = []
-    return render_template("charities.html", title="Charities", rows=rows, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+    return render_template("charities.html",
+                           title="Charities",
+                           rows=rows,
+                           theme=THEME,
+                           SITE_NAME=SITE_NAME,
+                           now=datetime.utcnow(),
+                           main_logo_data_uri=MAIN_LOGO_DATA_URI), main_logo_data_uri=MAIN_LOGO_DATA_URI), main_logo_data_uri=MAIN_LOGO_DATA_URI)
 
 
 
