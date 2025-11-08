@@ -1,4 +1,5 @@
-# raffle_multi.py — multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
+# -*- coding: utf-8 -*-
+# raffle_multi.py - multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
 # ----------------------------------------------------------------------
 # Features:
 # - Public per-charity raffle pages with progress bar & polished design
@@ -161,7 +162,7 @@ BASE_HTML = """
 
   <footer class="border-t border-gray-200">
     <div class="max-w-6xl mx-auto px-4 py-8 text-xs muted">
-      © {{ now.year }} {{ SITE_NAME }} · <a class="underline" href="/how-it-works">How it works</a>
+       {{ now.year }} {{ SITE_NAME }}  <a class="underline" href="/how-it-works">How it works</a>
     </div>
   </footer>
 </body>
@@ -185,7 +186,7 @@ HOME_HTML =
 <section class="grid md:grid-cols-2 gap-8 items-center">
   <div>
     <h1 class="text-3xl md:text-4xl font-semibold leading-tight mb-3" style="color:var(--brand)">
-      Raffle for good — simple, transparent, fair.
+      Raffle for good - simple, transparent, fair.
     </h1>
     <p class="text-[15px] muted mb-6">
       Get a random number. Donate the same amount. Every entry supports your chosen charity.
@@ -194,13 +195,13 @@ HOME_HTML =
       <a class="btn" href="/charities">Choose Charity</a>
       <a class="btn-ghost" href="/how-it-works">How it works</a>
     </div>
-    <p class="text-xs mt-3 muted">Gift Aid support coming soon • Secure payments</p>
+    <p class="text-xs mt-3 muted">Gift Aid support coming soon * Secure payments</p>
   </div>
   <div class="card p-6">
     <div class="text-sm muted mb-2">Live example</div>
     <div class="flex items-center gap-3">
       <div class="rounded-xl px-4 py-3" style="background:var(--accent-soft);color:var(--brand);font-weight:600"># 27</div>
-      <div class="text-sm">Your donation would be <b>£27</b></div>
+      <div class="text-sm">Your donation would be <b>27</b></div>
     </div>
     <div class="mt-4"><a class="btn" href="/charities">Get My Number</a></div>
   </div>
@@ -213,7 +214,7 @@ HOME_HTML =
   </div>
   <div class="card p-5">
     <div class="font-semibold mb-1">2) Donate that amount</div>
-    <p class="text-sm muted">Pay securely with card or the charity’s page.</p>
+    <p class="text-sm muted">Pay securely with card or the charity's page.</p>
   </div>
   <div class="card p-5">
     <div class="font-semibold mb-1">3) Support the cause</div>
@@ -270,11 +271,11 @@ CHARITY_HTML =
 
   <aside class="card p-6">
     <div class="text-sm muted">Raised so far</div>
-    <div class="text-3xl font-semibold mb-2">£{{ totals.raised }}</div>
+    <div class="text-3xl font-semibold mb-2">{{ totals.raised }}</div>
     <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
       <div class="h-2" style="width: {{ totals.pct }}%; background: var(--accent)"></div>
     </div>
-    <div class="text-xs muted mt-2">{{ totals.pct }}% of £{{ totals.goal }}</div>
+    <div class="text-xs muted mt-2">{{ totals.pct }}% of {{ totals.goal }}</div>
   </aside>
 </div>
 
@@ -282,7 +283,7 @@ CHARITY_HTML =
 SUCCESS_HTML = 
 <section class="card p-6 text-center">
   <h2 class="text-2xl font-semibold mb-2">You got <span style="color:var(--accent)">#{{ n }}</span></h2>
-  <p class="muted">Donate <b>£{{ n }}</b> to complete your entry.</p>
+  <p class="muted">Donate <b>{{ n }}</b> to complete your entry.</p>
   <div class="mt-5 flex gap-3 justify-center">
     {% if session.get('last_entry_id') %}
     <a class="btn" href="{{ url_for('create_checkout', slug=charity.slug, entry_id=session.get('last_entry_id')) }}">Pay by card</a>
