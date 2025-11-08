@@ -119,9 +119,9 @@ def _ensure_templates():
         "  <a class='card p-5 hover:shadow-md transition border-gray-100' href='/{{ c.slug }}'>",
         "    <div class='flex items-center gap-3'>",
         "      {% if c.logo_data_uri %}",
-        "        <img src='{{ c.logo_data_uri }}' class='h-8 w-auto' alt='{{ c.name }} logo'>",
+        "        <img src='{{ c.logo_data_uri }}' class='h-8 w-auto' alt='{{ c.name or c.slug or ('Charity #' ~ c.id) }} logo'>",
         "      {% endif %}",
-        "      <div class='font-semibold'>{{ c.name }}</div>",
+        "      <div class='font-semibold'>{{ c.name or c.slug or ('Charity #' ~ c.id) }}</div>",
         "    </div>",
         "    {% if c.description %}",
         "      <p class='text-sm muted mt-2'>{{ c.description }}</p>",
@@ -345,8 +345,15 @@ def home():
 
 @app.route("/charities", methods=["GET"])
 def charities():
-    rows = Charity.query.order_by(Charity.name.asc()).all()
-    return render_template("charities.html", title="Charities", rows=rows, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+    try:
+        order_col = getattr(Charity, "name", Charity.id)
+        rows = Charity.query.order_by(order_col.asc()).all()
+    except Exception:
+        try:
+            rows = Charity.query.all()
+        except Exception:
+            rows = []
+    return render_template("charities.html", title="Charities", rows=rows, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI), main_logo_data_uri=MAIN_LOGO_DATA_URI)
 
 
 
