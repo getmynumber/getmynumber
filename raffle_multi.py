@@ -1,5 +1,6 @@
-# -*- coding: utf-8 -*-
-# raffle_multi.py - multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
+from jinja2 import FileSystemLoader
+import tempfile
+# raffle_multi.py — multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
 # ----------------------------------------------------------------------
 # Features:
 # - Public per-charity raffle pages with progress bar & polished design
@@ -23,6 +24,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # ====== CONFIG ================================================================
 
 app = Flask(__name__)
+
+# Point Jinja to the runtime templates dir
+_template_dir = _ensure_templates()
+try:
+    app.jinja_loader = FileSystemLoader(_template_dir)
+except Exception:
+    pass
+
+def render_page(title, body_html, charity=None):
+    # body_html is ignored because we render full templates now; kept for compatibility
+    return render_template('base.html', title=title, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+
+
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
 app.permanent_session_lifetime = timedelta(minutes=30)
 
@@ -38,6 +52,216 @@ else:
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+
+# ===== THEME (discreet palette) ==============================================
+SITE_NAME = "GetMyNumber"
+THEME = {
+    "brand_hex": "#0f172a",
+    "accent_hex": "#0ea5a4",
+    "accent_soft": "#99f6e4",
+    "bg_hex": "#f8fafc",
+    "text_hex": "#0b1324",
+}
+THEME["brand_hex"] = os.getenv("THEME_BRAND_HEX", THEME["brand_hex"])
+THEME["accent_hex"] = os.getenv("THEME_ACCENT_HEX", THEME["accent_hex"])
+MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")  # optional data:URI override
+
+
+# ===== RUNTIME TEMPLATES SETUP ===============================================
+def _ensure_templates():
+    # Write templates to a runtime dir (works on Render) and point Flask loader there
+    tpl_dir = os.getenv("TEMPLATE_DIR") or os.path.join(tempfile.gettempdir(), "getmynumber_templates")
+    try:
+        os.makedirs(tpl_dir, exist_ok=True)
+    except Exception:
+        pass
+
+    def _write(path, lines):
+        full = os.path.join(tpl_dir, path)
+        d = os.path.dirname(full)
+        try:
+            os.makedirs(d, exist_ok=True)
+        except Exception:
+            pass
+        with open(full, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+    # Base layout (ASCII only)
+    _write("base.html", [
+        "<!doctype html>",
+        "<html lang='en'>",
+        "<head>",
+        "  <meta charset='utf-8'>",
+        "  <title>{{ title or SITE_NAME }}</title>",
+        "  <meta name='viewport' content='width=device-width, initial-scale=1'>",
+        "  <script src='https://cdn.tailwindcss.com'></script>",
+        "  <style>",
+        "    :root{ --brand: {{ theme.brand_hex }}; --accent: {{ theme.accent_hex }}; --accent-soft: {{ theme.accent_soft }}; --text: {{ theme.text_hex }}; --bg: {{ theme.bg_hex }}; }",
+        "    .btn{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:8px 16px;background:var(--accent);color:#fff;font-weight:600;transition:opacity .15s;}",
+        "    .btn:hover{opacity:.9}",
+        "    .btn-ghost{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:8px 16px;background:#fff;color:var(--brand);border:1px solid #e5e7eb;}",
+        "    .card{background:#fff;border:1px solid #f1f5f9;border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);}",
+        "    .muted{color:#667085}",
+        "    body{background:var(--bg);color:var(--text)}",
+        "  </style>",
+        "</head>",
+        "<body class='min-h-screen'>",
+        "  <header class='border-b border-gray-200 bg-white'>",
+        "    <div class='max-w-6xl mx-auto px-4 py-3 flex items-center gap-3'>",
+        "      <a href='/' class='flex items-center gap-3'>",
+        "        {% if main_logo_data_uri %}",
+        "          <img src='{{ main_logo_data_uri }}' alt='{{ SITE_NAME }} logo' class='h-7 w-auto'>",
+        "        {% else %}",
+        "          <span class='text-lg font-semibold' style='color:var(--brand)'>{{ SITE_NAME }}</span>",
+        "        {% endif %}",
+        "      </a>",
+        "      <nav class='ml-auto flex items-center gap-3 text-sm'>",
+        "        <a class='btn-ghost' href='/charities'>Choose Charity</a>",
+        "        <a class='btn-ghost' href='/partner/login'>Partner</a>",
+        "        <a class='btn-ghost' href='/admin'>Admin</a>",
+        "      </nav>",
+        "    </div>",
+        "  </header>",
+        "  <main class='max-w-6xl mx-auto px-4 py-8'>",
+        "    {% block body %}{% endblock %}",
+        "  </main>",
+        "  <footer class='border-t border-gray-200'>",
+        "    <div class='max-w-6xl mx-auto px-4 py-8 text-xs muted'>",
+        "      &copy; {{ now.year }} {{ SITE_NAME }} &middot; <a class='underline' href='/how-it-works'>How it works</a>",
+        "    </div>",
+        "  </footer>",
+        "</body>",
+        "</html>",
+    ])
+
+    # Home
+    _write("home.html", [
+        "{% extends 'base.html' %}",
+        "{% block body %}",
+        "<section class='grid md:grid-cols-2 gap-8 items-center'>",
+        "  <div>",
+        "    <h1 class='text-3xl md:text-4xl font-semibold leading-tight mb-3' style='color:var(--brand)'>",
+        "      Raffle for good - simple, transparent, fair.",
+        "    </h1>",
+        "    <p class='text-[15px] muted mb-6'>",
+        "      Get a random number. Donate the same amount. Every entry supports your chosen charity.",
+        "    </p>",
+        "    <div class='flex gap-3'>",
+        "      <a class='btn' href='/charities'>Choose Charity</a>",
+        "      <a class='btn-ghost' href='/how-it-works'>How it works</a>",
+        "    </div>",
+        "    <p class='text-xs mt-3 muted'>Gift Aid support coming soon - Secure payments</p>",
+        "  </div>",
+        "  <div class='card p-6'>",
+        "    <div class='text-sm muted mb-2'>Live example</div>",
+        "    <div class='flex items-center gap-3'>",
+        "      <div class='rounded-xl px-4 py-3' style='background:var(--accent-soft);color:var(--brand);font-weight:600'># 27</div>",
+        "      <div class='text-sm'>Your donation would be <b>&pound;27</b></div>",
+        "    </div>",
+        "    <div class='mt-4'><a class='btn' href='/charities'>Get My Number</a></div>",
+        "  </div>",
+        "</section>",
+        "",
+        "<section class='grid sm:grid-cols-3 gap-4 mt-10'>",
+        "  <div class='card p-5'>",
+        "    <div class='font-semibold mb-1'>1) Get a number</div>",
+        "    <p class='text-sm muted'>We generate a fair, random number.</p>",
+        "  </div>",
+        "  <div class='card p-5'>",
+        "    <div class='font-semibold mb-1'>2) Donate that amount</div>",
+        "    <p class='text-sm muted'>Pay securely with card or the charity's page.</p>",
+        "  </div>",
+        "  <div class='card p-5'>",
+        "    <div class='font-semibold mb-1'>3) Support the cause</div>",
+        "    <p class='text-sm muted'>Your entry helps the charity raise more.</p>",
+        "  </div>",
+        "</section>",
+        "{% endblock %}",
+    ])
+
+    # Charities
+    _write("charities.html", [
+        "{% extends 'base.html' %}",
+        "{% block body %}",
+        "<h2 class='text-2xl font-semibold mb-5'>Choose a charity</h2>",
+        "<div class='grid sm:grid-cols-2 lg:grid-cols-3 gap-4'>",
+        "  {% for c in rows %}",
+        "  <a class='card p-5 hover:shadow-md transition border-gray-100' href='/{{ c.slug }}'>",
+        "    <div class='flex items-center gap-3'>",
+        "      {% if c.logo_data_uri %}",
+        "        <img src='{{ c.logo_data_uri }}' class='h-8 w-auto' alt='{{ c.name }} logo'>",
+        "      {% endif %}",
+        "      <div class='font-semibold'>{{ c.name }}</div>",
+        "    </div>",
+        "    {% if c.description %}",
+        "      <p class='text-sm muted mt-2'>{{ c.description }}</p>",
+        "    {% endif %}",
+        "  </a>",
+        "  {% endfor %}",
+        "</div>",
+        "{% endblock %}",
+    ])
+
+    # Charity page
+    _write("charity.html", [
+        "{% extends 'base.html' %}",
+        "{% block body %}",
+        "<div class='grid md:grid-cols-3 gap-6'>",
+        "  <section class='md:col-span-2 card p-6'>",
+        "    <div class='flex items-start gap-3'>",
+        "      {% if charity.logo_data_uri %}",
+        "        <img src='{{ charity.logo_data_uri }}' class='h-9 w-auto' alt='{{ charity.name }} logo'>",
+        "      {% endif %}",
+        "      <div>",
+        "        <h1 class='text-2xl font-semibold'>{{ charity.name }}</h1>",
+        "        {% if charity.tagline %}<p class='muted text-sm mt-1'>{{ charity.tagline }}</p>{% endif %}",
+        "      </div>",
+        "    </div>",
+        "    <div class='mt-6'>",
+        "      <form method='post' action='{{ url_for(\"create_entry\", slug=charity.slug) }}'>",
+        "        <button class='btn w-full md:w-auto'>Get my number</button>",
+        "      </form>",
+        "      {% if last_entry %}",
+        "        <p class='text-xs muted mt-2'>Last number drawn: <b>{{ last_entry.number }}</b></p>",
+        "      {% endif %}",
+        "    </div>",
+        "    {% if charity.description %}",
+        "      <p class='text-sm muted mt-6'>{{ charity.description }}</p>",
+        "    {% endif %}",
+        "  </section>",
+        "  <aside class='card p-6'>",
+        "    <div class='text-sm muted'>Raised so far</div>",
+        "    <div class='text-3xl font-semibold mb-2'>&pound;{{ totals.raised }}</div>",
+        "    <div class='h-2 bg-gray-200 rounded-full overflow-hidden'>",
+        "      <div class='h-2' style='width: {{ totals.pct }}%; background: var(--accent)'></div>",
+        "    </div>",
+        "    <div class='text-xs muted mt-2'>{{ totals.pct }}% of &pound;{{ totals.goal }}</div>",
+        "  </aside>",
+        "</div>",
+        "{% endblock %}",
+    ])
+
+    # Success page
+    _write("success.html", [
+        "{% extends 'base.html' %}",
+        "{% block body %}",
+        "<section class='card p-6 text-center'>",
+        "  <h2 class='text-2xl font-semibold mb-2'>You got <span style='color:var(--accent)'>#{{ n }}</span></h2>",
+        "  <p class='muted'>Donate <b>&pound;{{ n }}</b> to complete your entry.</p>",
+        "  <div class='mt-5 flex gap-3 justify-center'>",
+        "    {% if session.get('last_entry_id') %}",
+        "    <a class='btn' href='{{ url_for(\"create_checkout\", slug=charity.slug, entry_id=session.get(\"last_entry_id\")) }}'>Pay by card</a>",
+        "    {% endif %}",
+        "    <a class='btn-ghost' href='{{ charity.donation_url or url_for(\"charity_page\", slug=charity.slug) }}'>Charity page</a>",
+        "  </div>",
+        "</section>",
+        "{% endblock %}",
+    ])
+
+    return tpl_dir
+
+
+
 
 # Embedded logo only for /thekehilla.
 # Replace this with your actual bitmap data URI when ready, e.g.:
@@ -81,231 +305,48 @@ class CharityUser(db.Model):
     def check_password(self, pw: str) -> bool: return check_password_hash(self.password_hash, pw)
 
 # ====== LAYOUT / RENDER =======================================================
+def render(body, **ctx):
+    inner = render_template_string(body, request=request, datetime=datetime, **ctx)
+    return render_template_string(LAYOUT, body=inner, request=request, datetime=datetime, **ctx)
 
+# ====== HELPERS ===============================================================
 
+def get_charity_or_404(slug: str) -> Charity:
+    c = Charity.query.filter_by(slug=slug.lower().strip()).first()
+    if not c: abort(404)
+    return c
 
-# ===== THEME (discreet palette) ==============================================
-SITE_NAME = "GetMyNumber"
-THEME = {
-    "brand_hex": "#0f172a",   # slate-900
-    "accent_hex": "#0ea5a4",  # teal-500
-    "accent_soft": "#99f6e4", # teal-100
-    "bg_hex": "#f8fafc",      # slate-50
-    "text_hex": "#0b1324",    # near-black
-}
-THEME["brand_hex"] = os.getenv("THEME_BRAND_HEX", THEME["brand_hex"])
-THEME["accent_hex"] = os.getenv("THEME_ACCENT_HEX", THEME["accent_hex"])
-MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")  # optional data: URI overrides inline SVG
+def available_numbers(c: Charity):
+    taken = {n for (n,) in db.session.query(Entry.number).filter(Entry.charity_id == c.id).all()}
+    return [i for i in range(1, c.max_number + 1) if i not in taken]
 
-# ===== DISCREET LOGO (inline SVG) ============================================
-def render_logo_svg(title="GetMyNumber"):
-    return """
-<svg xmlns="http://www.w3.org/2000/svg" aria-label="{title}" viewBox="0 0 180 40" class="h-7 w-auto">
-  <defs>
-    <style>
-      .gm-stroke{stroke:var(--brand);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
-      .gm-fill{fill:var(--brand)}
-    </style>
-  </defs>
-  <path class="gm-stroke" d="M10 6h120c3 0 6 3 6 6v0a6 6 0 0 0 0 12v0c0 3-3 6-6 6H10c-3 0-6-3-6-6v0a6 6 0 0 0 0-12v0c0-3 3-6 6-6z"/>
-  <path class="gm-stroke" d="M34 16c0-3 2-5 5-5 2 0 3 1 4 2 1-1 2-2 4-2 3 0 5 2 5 5 0 6-9 10-9 10s-9-4-9-10z"/>
-  <path class="gm-stroke" d="M43 14c-2 0-3 1-3 3 0 3 3 3 6 3m-6 2h7"/>
-  <text x="70" y="26" class="gm-fill" style="font:600 18px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial">GetMyNumber</text>
-</svg>
-""".format(title=title)
+def assign_number(c: Charity):
+    avail = available_numbers(c)
+    return random.choice(avail) if avail else None
 
-BASE_HTML = """
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>{{ title or SITE_NAME }}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    :root{
-      --brand: {{ theme.brand_hex }};
-      --accent: {{ theme.accent_hex }};
-      --accent-soft: {{ theme.accent_soft }};
-      --text: {{ theme.text_hex }};
-      --bg: {{ theme.bg_hex }};
-    }
-    .btn{display:inline-flex;align-items:center;justify-content:center;border-radius:0.75rem;padding:0.5rem 1rem;background:var(--accent);color:#fff;font-weight:600;transition:opacity .15s}
-    .btn:hover{opacity:.9}
-    .btn-ghost{display:inline-flex;align-items:center;justify-content:center;border-radius:0.75rem;padding:0.5rem 1rem;background:#fff;color:var(--brand);border:1px solid #e5e7eb}
-    .card{background:#fff;border:1px solid #f1f5f9;border-radius:1rem;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-    .muted{color:#667085}
-    body{background:var(--bg);color:var(--text)}
-  </style>
-</head>
-<body class="min-h-screen">
-  <header class="border-b border-gray-200 bg-white">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-      <a href="/" class="flex items-center gap-3">
-        {% if main_logo_data_uri %}
-          <img src="{{ main_logo_data_uri }}" alt="{{ SITE_NAME }} logo" class="h-7 w-auto">
-        {% else %}
-          {{ logo|safe }}
-        {% endif %}
-      </a>
-      <nav class="ml-auto flex items-center gap-3 text-sm">
-        <a class="btn-ghost" href="/charities">Choose Charity</a>
-        <a class="btn-ghost" href="/partner/login">Partner</a>
-        <a class="btn-ghost" href="/admin">Admin</a>
-      </nav>
-    </div>
-  </header>
+def partner_guard(slug):
+    if not session.get("partner_ok"): return None
+    if session.get("partner_slug") != slug: return None
+    c = Charity.query.filter_by(slug=slug).first()
+    if not c or session.get("partner_charity_id") != c.id: return None
+    return c
 
-  <main class="max-w-6xl mx-auto px-4 py-8">
-    {{ body|safe }}
-  </main>
-
-  <footer class="border-t border-gray-200">
-    <div class="max-w-6xl mx-auto px-4 py-8 text-xs muted">
-       {{ now.year }} {{ SITE_NAME }}  <a class="underline" href="/how-it-works">How it works</a>
-    </div>
-  </footer>
-</body>
-</html>
-"""
-
-def render_page(title, body_html, charity=None):
-    logo = render_logo_svg(SITE_NAME)
-    return render_template_string(
-        BASE_HTML,
-        title=title,
-        body=body_html,
-        logo=logo,
-        theme=THEME,
-        SITE_NAME=SITE_NAME,
-        now=datetime.utcnow(),
-        main_logo_data_uri=MAIN_LOGO_DATA_URI
-    )
-
-HOME_HTML = 
-<section class="grid md:grid-cols-2 gap-8 items-center">
-  <div>
-    <h1 class="text-3xl md:text-4xl font-semibold leading-tight mb-3" style="color:var(--brand)">
-      Raffle for good - simple, transparent, fair.
-    </h1>
-    <p class="text-[15px] muted mb-6">
-      Get a random number. Donate the same amount. Every entry supports your chosen charity.
-    </p>
-    <div class="flex gap-3">
-      <a class="btn" href="/charities">Choose Charity</a>
-      <a class="btn-ghost" href="/how-it-works">How it works</a>
-    </div>
-    <p class="text-xs mt-3 muted">Gift Aid support coming soon * Secure payments</p>
-  </div>
-  <div class="card p-6">
-    <div class="text-sm muted mb-2">Live example</div>
-    <div class="flex items-center gap-3">
-      <div class="rounded-xl px-4 py-3" style="background:var(--accent-soft);color:var(--brand);font-weight:600"># 27</div>
-      <div class="text-sm">Your donation would be <b>27</b></div>
-    </div>
-    <div class="mt-4"><a class="btn" href="/charities">Get My Number</a></div>
-  </div>
-</section>
-
-<section class="grid sm:grid-cols-3 gap-4 mt-10">
-  <div class="card p-5">
-    <div class="font-semibold mb-1">1) Get a number</div>
-    <p class="text-sm muted">We generate a fair, random number.</p>
-  </div>
-  <div class="card p-5">
-    <div class="font-semibold mb-1">2) Donate that amount</div>
-    <p class="text-sm muted">Pay securely with card or the charity's page.</p>
-  </div>
-  <div class="card p-5">
-    <div class="font-semibold mb-1">3) Support the cause</div>
-    <p class="text-sm muted">Your entry helps the charity raise more.</p>
-  </div>
-</section>
-
-
-CHARITIES_HTML = 
-<h2 class="text-2xl font-semibold mb-5">Choose a charity</h2>
-<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-  {% for c in rows %}
-  <a class="card p-5 hover:shadow-md transition border-gray-100" href="/{{ c.slug }}">
-    <div class="flex items-center gap-3">
-      {% if c.logo_data_uri %}
-        <img src="{{ c.logo_data_uri }}" class="h-8 w-auto" alt="{{ c.name }} logo">
-      {% endif %}
-      <div class="font-semibold">{{ c.name }}</div>
-    </div>
-    {% if c.description %}
-      <p class="text-sm muted mt-2">{{ c.description }}</p>
-    {% endif %}
-  </a>
-  {% endfor %}
-</div>
-
-
-CHARITY_HTML = 
-<div class="grid md:grid-cols-3 gap-6">
-  <section class="md:col-span-2 card p-6">
-    <div class="flex items-start gap-3">
-      {% if charity.logo_data_uri %}
-        <img src="{{ charity.logo_data_uri }}" class="h-9 w-auto" alt="{{ charity.name }} logo">
-      {% endif %}
-      <div>
-        <h1 class="text-2xl font-semibold">{{ charity.name }}</h1>
-        {% if charity.tagline %}<p class="muted text-sm mt-1">{{ charity.tagline }}</p>{% endif %}
-      </div>
-    </div>
-
-    <div class="mt-6">
-      <form method="post" action="{{ url_for('create_entry', slug=charity.slug) }}">
-        <button class="btn w-full md:w-auto">Get my number</button>
-      </form>
-      {% if last_entry %}
-        <p class="text-xs muted mt-2">Last number drawn: <b>{{ last_entry.number }}</b></p>
-      {% endif %}
-    </div>
-
-    {% if charity.description %}
-      <p class="text-sm muted mt-6">{{ charity.description }}</p>
-    {% endif %}
-  </section>
-
-  <aside class="card p-6">
-    <div class="text-sm muted">Raised so far</div>
-    <div class="text-3xl font-semibold mb-2">{{ totals.raised }}</div>
-    <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
-      <div class="h-2" style="width: {{ totals.pct }}%; background: var(--accent)"></div>
-    </div>
-    <div class="text-xs muted mt-2">{{ totals.pct }}% of {{ totals.goal }}</div>
-  </aside>
-</div>
-
-
-SUCCESS_HTML = 
-<section class="card p-6 text-center">
-  <h2 class="text-2xl font-semibold mb-2">You got <span style="color:var(--accent)">#{{ n }}</span></h2>
-  <p class="muted">Donate <b>{{ n }}</b> to complete your entry.</p>
-  <div class="mt-5 flex gap-3 justify-center">
-    {% if session.get('last_entry_id') %}
-    <a class="btn" href="{{ url_for('create_checkout', slug=charity.slug, entry_id=session.get('last_entry_id')) }}">Pay by card</a>
-    {% endif %}
-    <a class="btn-ghost" href="{{ charity.donation_url or url_for('charity_page', slug=charity.slug) }}">Charity page</a>
-  </div>
-</section>
-
-
+# ====== PUBLIC ================================================================
 
 
 @app.route("/", methods=["GET"])
 def home():
-    body = render_template_string(HOME_HTML)
-    return render_page("Home", body)
+    return render_template("home.html", title="Home", theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+
+
 
 
 @app.route("/charities", methods=["GET"])
 def charities():
     rows = Charity.query.order_by(Charity.name.asc()).all()
-    body = render_template_string(CHARITIES_HTML, rows=rows)
-    return render_page("Charities", body)
+    return render_template("charities.html", title="Charities", rows=rows, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+
+
 
 
 def _calc_totals(charity):
@@ -324,21 +365,25 @@ def _calc_totals(charity):
 
 
 
+
+
 @app.route("/<slug>", methods=["GET"])
 def charity_page(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     totals = _calc_totals(charity)
     last_entry = Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.desc()).first()
-    body = render_template_string(CHARITY_HTML, charity=charity, totals=totals, last_entry=last_entry)
-    return render_page(f"{charity.name} Raffle", body)
+    return render_template("charity.html", title=f"{charity.name} Raffle", charity=charity, totals=totals, last_entry=last_entry, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+
+
 
 
 @app.route("/<slug>/success", methods=["GET"])
 def success(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     n = session.get("last_num")
-    body = render_template_string(SUCCESS_HTML, n=n, charity=charity)
-    return render_page("Success", body)
+    return render_template("success.html", title="Success", n=n, charity=charity, theme=THEME, SITE_NAME=SITE_NAME, now=datetime.utcnow(), main_logo_data_uri=MAIN_LOGO_DATA_URI)
+
+
 
 
 @app.route("/sw.js", methods=["GET","HEAD"])
@@ -346,3 +391,4 @@ def sw_js():
     js = "self.addEventListener('install', e=>self.skipWaiting()); self.addEventListener('fetch', ()=>{});"
     from flask import Response
     return Response(js, mimetype="application/javascript")
+
