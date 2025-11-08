@@ -1,6 +1,6 @@
 from jinja2 import FileSystemLoader
 import tempfile
-# raffle_multi.py — multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
+# raffle_multi.py - multi-charity raffle (single file, polished UI, embedded logo for /thekehilla)
 # ----------------------------------------------------------------------
 # Features:
 # - Public per-charity raffle pages with progress bar & polished design
@@ -28,7 +28,6 @@ app = Flask(__name__)
 # Point Jinja to the runtime templates dir
 _template_dir = _ensure_templates()
 try:
-    if _template_dir:
     app.jinja_loader = FileSystemLoader(_template_dir)
 except Exception:
     pass
@@ -70,7 +69,6 @@ MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI")  # optional data:URI overri
 
 # ===== RUNTIME TEMPLATES SETUP ===============================================
 def _ensure_templates():
-    try:
     # Write templates to a runtime dir (works on Render) and point Flask loader there
     tpl_dir = os.getenv("TEMPLATE_DIR") or os.path.join(tempfile.gettempdir(), "getmynumber_templates")
     try:
@@ -260,10 +258,7 @@ def _ensure_templates():
         "{% endblock %}",
     ])
 
-        return tpl_dir
-    except Exception:
-        _log_exc('Template setup failed')
-        return None
+    return tpl_dir
 
 
 
