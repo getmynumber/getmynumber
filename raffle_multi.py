@@ -948,7 +948,7 @@ def admin_root():
     # Send anyone hitting /admin to the real dashboard
     return redirect("/admin/charities")
 
-# ====================== CLEAN GETMYNUMBER THEME ======================
+# ====================== CLEAN GETMYNUMBER THEME (FINAL) ======================
 import re
 from datetime import datetime
 
@@ -1053,8 +1053,7 @@ textarea::placeholder{
 /* Muted body text */
 .muted{color:var(--gmn-muted)}
 
-/* Optional: progress-bar-like elements if your HTML uses these classes.
-   (If not present, this does nothing and is safe.) */
+/* Optional: progress-bar-like elements if your HTML uses these classes */
 .progress,
 .progress-bar,
 .fill-bar{
@@ -1084,7 +1083,6 @@ def _apply_gmn_theme(resp):
     Simple, safe theme:
     - injects CSS variables / colours
     - wraps body content in a shell with header+footer
-    Does NOT try to guess internal elements or change layout structure.
     """
     try:
         ctype = (resp.headers.get("Content-Type") or "").lower()
@@ -1097,7 +1095,6 @@ def _apply_gmn_theme(resp):
             html = html.replace("</head>", f"<style>{_GMN_CSS}</style></head>", 1)
 
         if "<body" in html and "</body>" in html and 'id="gmn-shell"' not in html:
-            # wrap existing content in shell and add header/footer
             html = re.sub(
                 r"(<body[^>]*>)",
                 r"\\1" + _GMN_HEADER() + '<div id="gmn-shell" class="gmn-shell">',
@@ -1111,7 +1108,80 @@ def _apply_gmn_theme(resp):
     except Exception:
         return resp
     return resp
-# ==================== END CLEAN GETMYNUMBER THEME ====================
 
 
+@app.after_request
+def _gmn_fix_pills_and_bar(resp):
+    """
+    Final polish:
+    - styles 'Available:' and 'Taken:' as pills
+    - styles the bar above 'X% filled' as a thin teal bar
+    """
+    try:
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        if "text/html" not in ctype:
+            return resp
+
+        html = resp.get_data(as_text=True)
+        if "</body>" not in html or "_gmn_fix_pills_and_bar" in html:
+            return resp
+
+        script = """
+<script id="_gmn_fix_pills_and_bar">
+(function(){
+  try{
+    var nodes = document.querySelectorAll("button, span, div, a");
+    nodes.forEach(function(el){
+      var t = (el.textContent || "").trim();
+      if (!t) return;
+
+      if (t.indexOf("Available:") === 0){
+        el.style.background = "var(--gmn-accent-soft)";
+        el.style.color = "var(--gmn-accent)";
+        el.style.borderRadius = "999px";
+        el.style.border = "1px solid rgba(11,114,133,0.25)";
+        el.style.padding = "0.25rem 0.9rem";
+        el.style.display = "inline-flex";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "center";
+        el.style.fontWeight = "500";
+        el.style.fontSize = "13px";
+      }
+      if (t.indexOf("Taken:") === 0){
+        el.style.background = "#f3f4f6";
+        el.style.color = "var(--gmn-muted)";
+        el.style.borderRadius = "999px";
+        el.style.border = "1px solid #e5e7eb";
+        el.style.padding = "0.25rem 0.9rem";
+        el.style.display = "inline-flex";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "center";
+        el.style.fontWeight = "500";
+        el.style.fontSize = "13px";
+      }
+    });
+
+    var labels = Array.from(document.querySelectorAll("span, div, p"));
+    labels.forEach(function(l){
+      var txt = (l.textContent || "").trim();
+      if (!txt || txt.indexOf("% filled") === -1) return;
+
+      var bar = l.previousElementSibling;
+      if (!bar || !bar.tagName || bar.tagName.toLowerCase() !== "div") return;
+
+      bar.style.background = "linear-gradient(90deg,#0b7285,#15aabf)";
+      bar.style.height = "6px";
+      bar.style.borderRadius = "999px";
+    });
+  }catch(e){}
+})();
+</script>
+"""
+        html = html.replace("</body>", script + "</body>", 1)
+        resp.set_data(html)
+    except Exception:
+        return resp
+    return resp
+
+# ==================== END CLEAN GETMYNUMBER THEME (FINAL) ====================
 
