@@ -1158,3 +1158,101 @@ def _gmn_theme(resp):
         return resp
     return resp
 # ==================== END GETMYNUMBER THEME LAYER ====================
+
+# ================== EXTRA THEME TUNING (PILLS + BAR) ==================
+
+_GMN_FINE_TUNE = """
+<style>
+/* Pills for "Available" / "Taken" */
+.gmn-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0.25rem 0.9rem;
+  border-radius:999px;
+  font-size:13px;
+  font-weight:500;
+  border:1px solid rgba(11,114,133,0.2);
+}
+.gmn-pill-available{
+  background:var(--gmn-accent-soft);
+  color:var(--gmn-accent);
+}
+.gmn-pill-secondary{
+  background:#f3f4f6;
+  color:var(--gmn-muted);
+  border-color:#e5e7eb;
+}
+
+/* Progress bar under the pills */
+.gmn-progress{
+  background:linear-gradient(90deg,#0b7285,#15aabf);
+  height:6px;
+  border-radius:999px;
+}
+
+/* Make sure any old dark bar colour is overridden */
+.gmn-progress *{
+  background:transparent !important;
+}
+</style>
+"""
+
+@app.after_request
+def _gmn_fine_tune(resp):
+    try:
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        if "text/html" not in ctype:
+            return resp
+
+        html = resp.get_data(as_text=True)
+        if "</body>" not in html:
+            return resp
+
+        # Inject extra CSS in <head> once
+        if _GMN_FINE_TUNE not in html and "</head>" in html:
+            html = html.replace("</head>", _GMN_FINE_TUNE + "</head>", 1)
+
+        # Inject a small script that tags the "Available"/"Taken" pills
+        # and the bar above the "0% filled" label.
+        if "_gmn_fine_tune_js" not in html:
+            tweak_js = """
+<script id="_gmn_fine_tune_js">
+(function(){
+  try{
+    // Tag "Available" / "Taken" chips
+    var nodes = document.querySelectorAll("button, span, a, div");
+    nodes.forEach(function(el){
+      var t = (el.textContent || "").trim();
+      if (!t) return;
+      if (t.indexOf("Available") === 0){
+        el.classList.add("gmn-pill","gmn-pill-available");
+      }
+      if (t.indexOf("Taken") === 0){
+        el.classList.add("gmn-pill","gmn-pill-secondary");
+      }
+    });
+
+    // Tag the progress bar just above the "X% filled" label
+    var labels = Array.from(document.querySelectorAll("span, div, p"));
+    labels.forEach(function(l){
+      var txt = (l.textContent || "").trim();
+      if (!txt || txt.indexOf("% filled") === -1) return;
+      var bar = l.previousElementSibling;
+      if (bar && bar.tagName && bar.tagName.toLowerCase() === "div"){
+        bar.classList.add("gmn-progress");
+      }
+    });
+  }catch(e){}
+})();
+</script>
+"""
+            html = html.replace("</body>", tweak_js + "</body>", 1)
+
+        resp.set_data(html)
+    except Exception:
+        return resp
+    return resp
+
+# ================== END EXTRA THEME TUNING ==================
+
