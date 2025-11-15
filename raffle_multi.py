@@ -1032,27 +1032,7 @@ def how_it_works():
     )
 
 @app.route("/admin", methods=["GET"])
-def admin():
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-          <title>Admin</title>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="text-2xl font-semibold mb-4">Admin</h1>
-            <p class="muted" style="font-size:14px;">
-              This is a simple admin placeholder at <code>/admin</code>.
-            </p>
-            <p class="muted" style="font-size:13px;margin-top:12px;">
-              If you later build a full admin dashboard, you can replace this function
-              with your real admin view.
-            </p>
-          </div>
-        </body>
-        </html>
-        """
-    )
+def admin_root():
+    # Send anyone hitting /admin to the real dashboard
+    return redirect("/admin/charities")
 
