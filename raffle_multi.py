@@ -1036,3 +1036,55 @@ def admin_root():
     # Send anyone hitting /admin to the real dashboard
     return redirect("/admin/charities")
 
+# ================== LIGHTER FORM FIELDS (UX TWEAK) ==================
+
+_EXTRA_INPUT_CSS = """
+<style>
+/* Make inputs look lighter and cleaner on all pages */
+input[type=text],
+input[type=email],
+input[type=tel],
+input[type=number],
+input[type=password],
+textarea,
+select {
+  background: #ffffff !important;
+  color: #0f172a !important;      /* same brand navy as your headings */
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 0.6rem 0.8rem;
+  box-shadow: none;
+}
+
+/* Placeholder text a bit softer */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}
+
+/* Progress bars / range inputs a bit lighter if you use them */
+progress,
+input[type=range] {
+  accent-color: #0ea5a4; /* teal accent */
+}
+</style>
+"""
+
+@app.after_request
+def _gmn_lighten_inputs(resp):
+    try:
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        if "text/html" not in ctype:
+            return resp
+
+        html = resp.get_data(as_text=True)
+        if "</head>" not in html or _EXTRA_INPUT_CSS in html:
+            return resp
+
+        html = html.replace("</head>", _EXTRA_INPUT_CSS + "</head>", 1)
+        resp.set_data(html)
+    except Exception:
+        return resp
+    return resp
+# ================== END LIGHTER FORM FIELDS ==================
+
