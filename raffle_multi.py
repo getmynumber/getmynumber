@@ -1077,12 +1077,134 @@ _GMN_FOOTER = f"""<footer class="gmn"><div class="gmn-shell">
   <span class="muted" style="font-size:12px;">&copy; {datetime.utcnow().year} {SITE_NAME} &bull; Secure raffle donations</span>
 </div></footer>"""
 
+# ====================== SIMPLE GETMYNUMBER THEME ======================
+import re
+from datetime import datetime
+
+SITE_NAME = os.getenv("SITE_NAME", "GetMyNumber")
+MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI", "")  # optional data:URI
+
+_SIMPLE_CSS = r"""
+:root{
+  --gmn-bg:#f4f6fb;        /* page background */
+  --gmn-card:#ffffff;      /* card background */
+  --gmn-brand:#0b1220;     /* main text */
+  --gmn-muted:#6b7280;     /* secondary text */
+  --gmn-border:#e5e7eb;
+  --gmn-accent:#0b7285;    /* teal */
+}
+
+/* Base */
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--gmn-bg);
+  color:var(--gmn-brand);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  line-height:1.45;
+}
+
+/* Simple container */
+.gmn-shell{max-width:1100px;margin:0 auto;padding:1rem}
+
+/* Header & footer */
+header.gmn, footer.gmn{background:#fff}
+header.gmn{border-bottom:1px solid var(--gmn-border)}
+footer.gmn{border-top:1px solid var(--gmn-border);margin-top:2rem}
+.gmn-nav{display:flex;align-items:center;gap:.75rem}
+.gmn-right{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.gmn-logo{display:flex;align-items:center;gap:.5rem;font-weight:700;color:var(--gmn-brand)}
+.gmn-logo img{height:28px}
+
+/* Cards */
+.card{
+  background:var(--gmn-card);
+  border-radius:18px;
+  border:1px solid #edf0f7;
+  box-shadow:0 8px 30px rgba(15,18,32,0.05);
+}
+
+/* Buttons */
+.btn,
+button,
+input[type=submit],
+.button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:.55rem 1rem;
+  border-radius:999px;
+  border:none;
+  background:linear-gradient(135deg,#0b7285,#15aabf);
+  color:#fff;
+  font-weight:600;
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(11,114,133,0.35);
+}
+.btn:hover,
+button:hover,
+input[type=submit]:hover{
+  filter:brightness(1.05);
+}
+.btn-ghost,
+.button-outline{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:.5rem 1rem;
+  border-radius:999px;
+  border:1px solid var(--gmn-border);
+  background:#fff;
+  color:var(--gmn-brand);
+  font-weight:500;
+  box-shadow:none;
+}
+
+/* Inputs */
+input[type=text],
+input[type=email],
+input[type=tel],
+input[type=number],
+input[type=password],
+textarea,
+select{
+  background:#ffffff !important;
+  color:var(--gmn-brand) !important;
+  border-radius:999px;
+  border:1px solid var(--gmn-border);
+  padding:0.6rem 0.9rem;
+  box-shadow:none;
+}
+input::placeholder,
+textarea::placeholder{
+  color:#9ca3af;
+}
+
+/* Muted text */
+.muted{color:var(--gmn-muted)}
+"""
+
+_SIMPLE_HEADER = lambda: f"""<header class="gmn"><div class="gmn-shell gmn-nav">
+  <a class="gmn-logo" href="/">{f'<img alt="{SITE_NAME}" src="{MAIN_LOGO_DATA_URI}"/>' if MAIN_LOGO_DATA_URI else SITE_NAME}</a>
+  <nav class="gmn-right">
+    <a class="btn-ghost" href="/charities">Choose Charity</a>
+    <a class="btn-ghost" href="/partner/login">Partner</a>
+    <a class="btn-ghost" href="/admin">Admin</a>
+    <a class="btn-ghost" href="/how-it-works">How it works</a>
+  </nav>
+</div></header>"""
+
+_SIMPLE_FOOTER = f"""<footer class="gmn"><div class="gmn-shell">
+  <span class="muted" style="font-size:12px;">&copy; {datetime.utcnow().year} {SITE_NAME} &bull; Secure raffle donations</span>
+</div></footer>"""
+
 @app.after_request
-def _apply_gmn_theme(resp):
+def _simple_theme(resp):
     """
-    Simple, safe theme:
-    - injects CSS variables / colours
-    - wraps body content in a shell with header+footer
+    Single, simple theme:
+    - injects base CSS
+    - wraps body in a header/footer shell
+    Does not try to alter any internal layout or guess elements.
     """
     try:
         ctype = (resp.headers.get("Content-Type") or "").lower()
@@ -1091,97 +1213,23 @@ def _apply_gmn_theme(resp):
 
         html = resp.get_data(as_text=True)
 
-        if "</head>" in html and _GMN_CSS not in html:
-            html = html.replace("</head>", f"<style>{_GMN_CSS}</style></head>", 1)
+        # Inject CSS
+        if "</head>" in html and _SIMPLE_CSS not in html:
+            html = html.replace("</head>", f"<style>{_SIMPLE_CSS}</style></head>", 1)
 
+        # Wrap content with header/footer once
         if "<body" in html and "</body>" in html and 'id="gmn-shell"' not in html:
             html = re.sub(
                 r"(<body[^>]*>)",
-                r"\\1" + _GMN_HEADER() + '<div id="gmn-shell" class="gmn-shell">',
+                r"\\1" + _SIMPLE_HEADER() + '<div id="gmn-shell" class="gmn-shell">',
                 html,
                 count=1,
                 flags=re.IGNORECASE,
             )
-            html = html.replace("</body>", _GMN_FOOTER + "</div></body>", 1)
+            html = html.replace("</body>", _SIMPLE_FOOTER + "</div></body>", 1)
 
         resp.set_data(html)
     except Exception:
         return resp
     return resp
-
-
-@app.after_request
-def _gmn_fix_pills_and_bar(resp):
-    """
-    Final polish:
-    - styles 'Available:' and 'Taken:' as pills
-    - styles the bar above 'X% filled' as a thin teal bar
-    """
-    try:
-        ctype = (resp.headers.get("Content-Type") or "").lower()
-        if "text/html" not in ctype:
-            return resp
-
-        html = resp.get_data(as_text=True)
-        if "</body>" not in html or "_gmn_fix_pills_and_bar" in html:
-            return resp
-
-        script = """
-<script id="_gmn_fix_pills_and_bar">
-(function(){
-  try{
-    var nodes = document.querySelectorAll("button, span, div, a");
-    nodes.forEach(function(el){
-      var t = (el.textContent || "").trim();
-      if (!t) return;
-
-      if (t.indexOf("Available:") === 0){
-        el.style.background = "var(--gmn-accent-soft)";
-        el.style.color = "var(--gmn-accent)";
-        el.style.borderRadius = "999px";
-        el.style.border = "1px solid rgba(11,114,133,0.25)";
-        el.style.padding = "0.25rem 0.9rem";
-        el.style.display = "inline-flex";
-        el.style.alignItems = "center";
-        el.style.justifyContent = "center";
-        el.style.fontWeight = "500";
-        el.style.fontSize = "13px";
-      }
-      if (t.indexOf("Taken:") === 0){
-        el.style.background = "#f3f4f6";
-        el.style.color = "var(--gmn-muted)";
-        el.style.borderRadius = "999px";
-        el.style.border = "1px solid #e5e7eb";
-        el.style.padding = "0.25rem 0.9rem";
-        el.style.display = "inline-flex";
-        el.style.alignItems = "center";
-        el.style.justifyContent = "center";
-        el.style.fontWeight = "500";
-        el.style.fontSize = "13px";
-      }
-    });
-
-    var labels = Array.from(document.querySelectorAll("span, div, p"));
-    labels.forEach(function(l){
-      var txt = (l.textContent || "").trim();
-      if (!txt || txt.indexOf("% filled") === -1) return;
-
-      var bar = l.previousElementSibling;
-      if (!bar || !bar.tagName || bar.tagName.toLowerCase() !== "div") return;
-
-      bar.style.background = "linear-gradient(90deg,#0b7285,#15aabf)";
-      bar.style.height = "6px";
-      bar.style.borderRadius = "999px";
-    });
-  }catch(e){}
-})();
-</script>
-"""
-        html = html.replace("</body>", script + "</body>", 1)
-        resp.set_data(html)
-    except Exception:
-        return resp
-    return resp
-
-# ==================== END CLEAN GETMYNUMBER THEME (FINAL) ====================
-
+# ==================== END SIMPLE GETMYNUMBER THEME ====================
