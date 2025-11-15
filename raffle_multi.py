@@ -948,7 +948,6 @@ def admin_root():
     # Send anyone hitting /admin to the real dashboard
     return redirect("/admin/charities")
 
-
 # ====================== CLEAN GETMYNUMBER THEME ======================
 import re
 from datetime import datetime
@@ -1113,5 +1112,6 @@ def _apply_gmn_theme(resp):
         return resp
     return resp
 # ==================== END CLEAN GETMYNUMBER THEME ====================
+
 
 
