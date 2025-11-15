@@ -948,136 +948,7 @@ def admin_root():
     # Send anyone hitting /admin to the real dashboard
     return redirect("/admin/charities")
 
-# ====================== CLEAN GETMYNUMBER THEME (FINAL) ======================
-import re
-from datetime import datetime
-
-SITE_NAME = os.getenv("SITE_NAME", "GetMyNumber")
-MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI", "")  # optional data: URI logo
-
-_GMN_CSS = r"""
-:root{
-  --gmn-bg:#f4f6fb;          /* page background */
-  --gmn-card:#ffffff;        /* card background */
-  --gmn-brand:#0b1220;       /* main text */
-  --gmn-muted:#6b7280;       /* secondary text */
-  --gmn-border:#e5e7eb;
-  --gmn-accent:#0b7285;      /* teal */
-  --gmn-accent-soft:#e0fbff; /* soft highlight */
-}
-
-html{scroll-behavior:smooth}
-body{
-  margin:0;
-  background:var(--gmn-bg);
-  color:var(--gmn-brand);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-  line-height:1.45;
-}
-
-/* Basic layout shell */
-.gmn-shell{max-width:1100px;margin:0 auto;padding:1rem}
-header.gmn, footer.gmn{background:#fff}
-header.gmn{border-bottom:1px solid var(--gmn-border)}
-footer.gmn{border-top:1px solid var(--gmn-border);margin-top:2rem}
-.gmn-nav{display:flex;align-items:center;gap:.75rem}
-.gmn-right{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
-.gmn-logo{display:flex;align-items:center;gap:.5rem;font-weight:700;color:var(--gmn-brand)}
-.gmn-logo img{height:28px}
-
-/* Cards (main content blocks) */
-.card{
-  background:var(--gmn-card);
-  border-radius:18px;
-  border:1px solid #edf0f7;
-  box-shadow:0 8px 30px rgba(15,18,32,0.05);
-}
-.gmn-main-card{padding:2rem 2.5rem}
-
-/* Buttons */
-.btn,
-button,
-input[type=submit],
-.button{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:.55rem 1rem;
-  border-radius:999px;
-  border:none;
-  background:linear-gradient(135deg,#0b7285,#15aabf);
-  color:#fff;
-  font-weight:600;
-  cursor:pointer;
-  box-shadow:0 6px 16px rgba(11,114,133,0.35);
-}
-.btn:hover,
-button:hover,
-input[type=submit]:hover{
-  filter:brightness(1.05);
-}
-.btn-ghost,
-.button-outline{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:.5rem 1rem;
-  border-radius:999px;
-  border:1px solid var(--gmn-border);
-  background:#fff;
-  color:var(--gmn-brand);
-  font-weight:500;
-  box-shadow:none;
-}
-
-/* Inputs */
-input[type=text],
-input[type=email],
-input[type=tel],
-input[type=number],
-input[type=password],
-textarea,
-select{
-  background:#ffffff !important;
-  color:var(--gmn-brand) !important;
-  border-radius:999px;
-  border:1px solid var(--gmn-border);
-  padding:0.6rem 0.9rem;
-  box-shadow:none;
-}
-input::placeholder,
-textarea::placeholder{
-  color:#9ca3af;
-}
-
-/* Muted body text */
-.muted{color:var(--gmn-muted)}
-
-/* Optional: progress-bar-like elements if your HTML uses these classes */
-.progress,
-.progress-bar,
-.fill-bar{
-  background:linear-gradient(90deg,#0b7285,#15aabf);
-  height:6px;
-  border-radius:999px;
-}
-"""
-
-_GMN_HEADER = lambda: f"""<header class="gmn"><div class="gmn-shell gmn-nav">
-  <a class="gmn-logo" href="/">{f'<img alt="{SITE_NAME}" src="{MAIN_LOGO_DATA_URI}"/>' if MAIN_LOGO_DATA_URI else SITE_NAME}</a>
-  <nav class="gmn-right">
-    <a class="btn-ghost" href="/charities">Choose Charity</a>
-    <a class="btn-ghost" href="/partner/login">Partner</a>
-    <a class="btn-ghost" href="/admin">Admin</a>
-    <a class="btn-ghost" href="/how-it-works">How it works</a>
-  </nav>
-</div></header>"""
-
-_GMN_FOOTER = f"""<footer class="gmn"><div class="gmn-shell">
-  <span class="muted" style="font-size:12px;">&copy; {datetime.utcnow().year} {SITE_NAME} &bull; Secure raffle donations</span>
-</div></footer>"""
-
-# ====================== SIMPLE GETMYNUMBER THEME ======================
+# ====================== SIMPLE GETMYNUMBER THEME (CLEAN) ======================
 import re
 from datetime import datetime
 
@@ -1204,7 +1075,7 @@ def _simple_theme(resp):
     Single, simple theme:
     - injects base CSS
     - wraps body in a header/footer shell
-    Does not try to alter any internal layout or guess elements.
+    - removes any old radial-gradient backgrounds (the big aqua bubble)
     """
     try:
         ctype = (resp.headers.get("Content-Type") or "").lower()
@@ -1212,6 +1083,12 @@ def _simple_theme(resp):
             return resp
 
         html = resp.get_data(as_text=True)
+
+        # Strip old radial-gradient backgrounds and that aqua overlay colour
+        if "radial-gradient" in html or "#e0fbff" in html:
+            html = html.replace("radial-gradient", "none")
+            # soften that specific aqua to transparent-ish background
+            html = html.replace("#e0fbff", "transparent")
 
         # Inject CSS
         if "</head>" in html and _SIMPLE_CSS not in html:
@@ -1232,4 +1109,4 @@ def _simple_theme(resp):
     except Exception:
         return resp
     return resp
-# ==================== END SIMPLE GETMYNUMBER THEME ====================
+# ==================== END SIMPLE GETMYNUMBER THEME (CLEAN) ====================
