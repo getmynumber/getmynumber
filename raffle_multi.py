@@ -861,94 +861,6 @@ with app.app_context():
 if __name__ == "__main__":
     app.run(debug=True)
 
-# ====================== MINIMAL UX LAYER (SAFE, NON-INTRUSIVE) ======================
-# Drop-in theme that does NOT modify any routes or templates. It just injects a small
-# CSS block (and optionally a logo) into outgoing HTML pages.
-
-import re
-from datetime import datetime
-
-SITE_NAME = os.getenv("SITE_NAME", "GetMyNumber")
-MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI", "")  # optional data:URI (PNG/SVG)
-
-_BRAND_CSS = r"""
-/* --- GetMyNumber minimal theme (non-destructive) --- */
-:root{
-  --brand:#0f172a;     /* slate-900 */
-  --accent:#0ea5a4;    /* teal-500  */
-  --bg:#f8fafc;        /* slate-50  */
-  --text:#0b1324;      /* near-black*/
-}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;line-height:1.45}
-a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
-.btn, .button, button, input[type=submit]{
-  background:var(--accent); color:#fff; border:0; border-radius:12px; padding:.55rem 1rem; font-weight:600;
-}
-.btn-outline, .button-outline{
-  background:#fff; color:var(--brand); border:1px solid #e5e7eb; border-radius:12px; padding:.55rem 1rem; font-weight:600;
-}
-.card{background:#fff;border:1px solid #f1f5f9;border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04);padding:1rem}
-.muted{color:#667085}
-.container{max-width:1100px;margin:0 auto;padding:1rem}
-header.gmn, footer.gmn{background:#fff;border-bottom:1px solid #e5e7eb}
-footer.gmn{border-top:1px solid #e5e7eb;border-bottom:0;margin-top:2rem}
-.gmn-nav{display:flex;align-items:center;gap:.75rem}
-.gmn-right{margin-left:auto;display:flex;gap:.5rem}
-.gmn-logo{display:flex;align-items:center;gap:.5rem;font-weight:700;color:var(--brand)}
-.gmn-logo img{height:28px}
-"""
-
-# very small header/footer shell (only added if your HTML has a <body> tag)
-_GMN_HEADER = lambda: f"""<header class="gmn"><div class="container gmn-nav">
-  <a class="gmn-logo" href="/">{f'<img alt="{SITE_NAME}" src="{MAIN_LOGO_DATA_URI}"/>' if MAIN_LOGO_DATA_URI else SITE_NAME}</a>
-  <nav class="gmn-right">
-    <a class="btn-outline" href="/charities">Choose Charity</a>
-    <a class="btn-outline" href="/partner/login">Partner</a>
-    <a class="btn-outline" href="/admin">Admin</a>
-    <a class="btn-outline" href="/how-it-works">How it works</a>
-  </nav>
-</div></header>"""
-
-_GMN_FOOTER = f"""<footer class="gmn"><div class="container">
-  <span class="muted" style="font-size:12px;">&copy; {datetime.utcnow().year} {SITE_NAME}</span>
-</div></footer>"""
-
-_HEAD_INJECT = f"""<style>{_BRAND_CSS}</style>"""
-
-_BODY_TOP = """<div id="gmn-layout">"""
-_BODY_BOTTOM = f"""{_GMN_FOOTER}</div>"""
-
-@app.after_request
-def _gmn_theme_inject(resp):
-    try:
-        ctype = resp.headers.get("Content-Type", "")
-        if "text/html" not in ctype.lower():
-            return resp
-
-        html = resp.get_data(as_text=True)
-
-        # 1) inject CSS into <head> (once)
-        if "</head>" in html and _HEAD_INJECT not in html:
-            html = html.replace("</head>", _HEAD_INJECT + "</head>", 1)
-
-        # 2) add a simple header + footer inside <body> without altering your page content
-        #    we wrap existing body content in a container and prepend our header
-        if "<body" in html and "</body>" in html and 'id="gmn-layout"' not in html:
-            # insert header right after opening <body ...>
-            html = re.sub(r"(<body[^>]*>)", r"\1" + _GMN_HEADER(), html, count=1, flags=re.IGNORECASE)
-            # wrap existing content with container + append footer
-            html = html.replace("</body>", _BODY_BOTTOM + "</body>", 1)
-            # place opening wrapper right after header
-            html = html.replace(_GMN_HEADER(), _GMN_HEADER() + _BODY_TOP, 1)
-
-        resp.set_data(html)
-    except Exception:
-        # never break your normal responses if injection fails
-        return resp
-    return resp
-# ==================== END MINIMAL UX LAYER ====================
 
 
 # ====================== PUBLIC PAGES ADDED LATER ======================
@@ -1036,55 +948,213 @@ def admin_root():
     # Send anyone hitting /admin to the real dashboard
     return redirect("/admin/charities")
 
-# ================== LIGHTER FORM FIELDS (UX TWEAK) ==================
 
-_EXTRA_INPUT_CSS = """
-<style>
-/* Make inputs look lighter and cleaner on all pages */
+# ====================== GETMYNUMBER THEME LAYER ======================
+import re
+from datetime import datetime
+
+# Brand + logo
+SITE_NAME = os.getenv("SITE_NAME", "GetMyNumber")
+MAIN_LOGO_DATA_URI = os.getenv("MAIN_LOGO_DATA_URI", "")  # optional data: URI
+
+# New colour system & layout
+_GMN_CSS = r"""
+:root{
+  --gmn-brand:#0b1220;        /* deep slate/navy for text */
+  --gmn-accent:#0b7285;       /* teal primary */
+  --gmn-accent-soft:#e0fbff;  /* soft aqua highlight */
+  --gmn-bg:#f4f6fb;           /* page background */
+  --gmn-card:#ffffff;         /* card background */
+  --gmn-border:#e5e7eb;
+  --gmn-muted:#6b7280;
+}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--gmn-bg);
+  color:var(--gmn-brand);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  line-height:1.45;
+}
+a{color:var(--gmn-accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Layout shell */
+.gmn-container{max-width:1100px;margin:0 auto;padding:1rem}
+header.gmn, footer.gmn{background:#fff}
+header.gmn{
+  border-bottom:1px solid var(--gmn-border);
+}
+footer.gmn{
+  border-top:1px solid var(--gmn-border);
+  margin-top:2rem;
+}
+.gmn-nav{display:flex;align-items:center;gap:.75rem}
+.gmn-right{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.gmn-logo{display:flex;align-items:center;gap:.5rem;font-weight:700;color:var(--gmn-brand)}
+.gmn-logo img{height:28px}
+
+/* Card look for main content blocks */
+.gmn-card, .card{
+  background:var(--gmn-card);
+  border-radius:18px;
+  border:1px solid #edf0f7;
+  box-shadow:0 8px 30px rgba(15,18,32,0.05);
+}
+
+/* Buttons */
+.btn,
+button,
+input[type=submit],
+.button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:.55rem 1rem;
+  border-radius:999px;
+  border:none;
+  background:linear-gradient(135deg,#0b7285,#15aabf);
+  color:#fff;
+  font-weight:600;
+  cursor:pointer;
+  box-shadow:0 6px 16px rgba(11,114,133,0.35);
+}
+.btn:hover,
+button:hover,
+input[type=submit]:hover{
+  filter:brightness(1.05);
+}
+.btn-ghost,
+.button-outline{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:.5rem 1rem;
+  border-radius:999px;
+  border:1px solid var(--gmn-border);
+  background:#fff;
+  color:var(--gmn-brand);
+  font-weight:500;
+  box-shadow:none;
+}
+
+/* Form fields */
 input[type=text],
 input[type=email],
 input[type=tel],
 input[type=number],
 input[type=password],
 textarea,
-select {
-  background: #ffffff !important;
-  color: #0f172a !important;      /* same brand navy as your headings */
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  padding: 0.6rem 0.8rem;
-  box-shadow: none;
+select{
+  background:#ffffff !important;
+  color:var(--gmn-brand) !important;
+  border-radius:999px;
+  border:1px solid var(--gmn-border);
+  padding:0.6rem 0.9rem;
+  box-shadow:none;
 }
-
-/* Placeholder text a bit softer */
 input::placeholder,
-textarea::placeholder {
-  color: #9ca3af;
+textarea::placeholder{
+  color:#9ca3af;
 }
 
-/* Progress bars / range inputs a bit lighter if you use them */
-progress,
-input[type=range] {
-  accent-color: #0ea5a4; /* teal accent */
+/* Muted copy */
+.muted{color:var(--gmn-muted)}
+
+/* Fix the dark progress bar / fill bar by forcing our accent colour instead of black */
+div[style*="background-color: black"],
+div[style*="background:#000"],
+div[style*="background: #000"],
+div[style*="background-color:#000"],
+div[style*="background-color:#000000"]{
+  background:var(--gmn-accent) !important;
 }
-</style>
+
+/* Make the main charity content card feel like the mock-up */
+body .gmn-main-card{
+  padding:2rem 2.5rem;
+}
 """
 
+_GMN_HEADER = lambda: f"""<header class="gmn"><div class="gmn-container gmn-nav">
+  <a class="gmn-logo" href="/">{f'<img alt="{SITE_NAME}" src="{MAIN_LOGO_DATA_URI}"/>' if MAIN_LOGO_DATA_URI else SITE_NAME}</a>
+  <nav class="gmn-right">
+    <a class="btn-ghost" data-check="/charities" href="/charities">Choose Charity</a>
+    <a class="btn-ghost" data-check="/partner/login" href="/partner/login">Partner</a>
+    <a class="btn-ghost" data-check="/admin" href="/admin">Admin</a>
+    <a class="btn-ghost" data-check="/how-it-works" href="/how-it-works">How it works</a>
+  </nav>
+</div></header>"""
+
+_GMN_FOOTER = f"""<footer class="gmn"><div class="gmn-container">
+  <span class="muted" style="font-size:12px;">&copy; {datetime.utcnow().year} {SITE_NAME} &bull; Secure raffle donations</span>
+</div></footer>"""
+
 @app.after_request
-def _gmn_lighten_inputs(resp):
+def _gmn_theme(resp):
+    """
+    Injects the modern GetMyNumber theme:
+    - CSS variables / colours / buttons
+    - header + footer shell
+    - hides 'Live example' card if present
+    - hides nav links whose routes do not exist (via HEAD check)
+    """
     try:
         ctype = (resp.headers.get("Content-Type") or "").lower()
         if "text/html" not in ctype:
             return resp
 
         html = resp.get_data(as_text=True)
-        if "</head>" not in html or _EXTRA_INPUT_CSS in html:
-            return resp
 
-        html = html.replace("</head>", _EXTRA_INPUT_CSS + "</head>", 1)
+        # 1) inject CSS in <head>
+        if "</head>" in html and _GMN_CSS not in html:
+            html = html.replace("</head>", f"<style>{_GMN_CSS}</style></head>", 1)
+
+        # 2) add header + footer + wrapper
+        if "<body" in html and "</body>" in html and 'id="gmn-layout"' not in html:
+            html = re.sub(r"(<body[^>]*>)", r"\\1" + _GMN_HEADER() + '<div id="gmn-layout" class="gmn-container">', html, count=1, flags=re.I)
+            html = html.replace("</body>", _GMN_FOOTER + "</div></body>", 1)
+
+        # 3) remove the 'Live example' box if it exists (non-destructive)
+        if "Live example" in html and "_gmn_hide_live_example" not in html:
+            html = re.sub(
+                r"<div[^>]*>\s*Live example\s*</div>[\s\S]*?<div[^>]*>\s*Get My Number\s*</div>",
+                "",
+                html,
+                flags=re.I
+            )
+            # lightweight JS fallback in case markup changes slightly
+            html = html.replace("</body>", """
+<script id="_gmn_hide_live_example">
+(function(){
+  try {
+    var all = document.querySelectorAll("body *");
+    all.forEach(function(el){
+      if (el.textContent && el.textContent.trim() === "Live example") {
+        if (el.parentElement) { el.parentElement.style.display = "none"; }
+      }
+    });
+  } catch(e) {}
+})();
+</script></body>""", 1)
+
+        # 4) JS to hide nav links whose routes 404 (so you never see broken buttons)
+        if "data-check" in html and "_gmn_navcheck" not in html:
+            html = html.replace("</body>", """
+<script id="_gmn_navcheck">
+(function(){
+  var links = document.querySelectorAll('[data-check]');
+  links.forEach(function(a){
+    var url = a.getAttribute('data-check');
+    fetch(url, {method:'HEAD'}).then(function(r){
+      if(!r.ok){ a.style.display='none'; }
+    }).catch(function(){ a.style.display='none'; });
+  });
+})();
+</script></body>""", 1)
+
         resp.set_data(html)
     except Exception:
         return resp
     return resp
-# ================== END LIGHTER FORM FIELDS ==================
-
+# ==================== END GETMYNUMBER THEME LAYER ====================
