@@ -950,3 +950,84 @@ def _gmn_theme_inject(resp):
     return resp
 # ==================== END MINIMAL UX LAYER ====================
 
+
+# ====================== PUBLIC PAGES ADDED LATER ======================
+
+@app.route("/charities", methods=["GET"])
+def charities():
+    """
+    Simple list of all charities so the 'Choose Charity' button has somewhere to go.
+    This does NOT change any existing routes or logic.
+    """
+    try:
+        q = Charity.query
+        # If Charity has a 'name' column, order by it; otherwise just get all rows.
+        if hasattr(Charity, "name"):
+            q = q.order_by(Charity.name.asc())
+        rows = q.all()
+    except Exception:
+        rows = []
+
+    return render_template_string(
+        """
+        <!doctype html>
+        <html>
+        <head>
+          <title>Choose Charity</title>
+        </head>
+        <body>
+          <div class="container">
+            <h1 class="text-2xl font-semibold mb-4">Choose a charity</h1>
+            {% if rows %}
+              <ul style="list-style:none;padding:0;margin:0;display:grid;gap:12px;">
+                {% for c in rows %}
+                  <li class="card">
+                    <a href="/{{ c.slug }}" style="text-decoration:none;color:inherit;display:block;">
+                      <div style="font-weight:600;">
+                        {{ c.name or c.slug or ("Charity #" ~ c.id) }}
+                      </div>
+                      {% if c.description %}
+                        <div class="muted" style="font-size:14px;margin-top:4px;">
+                          {{ c.description }}
+                        </div>
+                      {% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="muted">No charities found yet.</p>
+            {% endif %}
+          </div>
+        </body>
+        </html>
+        """,
+        rows=rows,
+    )
+
+@app.route("/how-it-works", methods=["GET"])
+def how_it_works():
+    return render_template_string(
+        """
+        <!doctype html>
+        <html>
+        <head>
+          <title>How it works</title>
+        </head>
+        <body>
+          <div class="container">
+            <h1 class="text-2xl font-semibold mb-4">How it works</h1>
+            <ol style="padding-left:20px;font-size:14px;">
+              <li>Choose a charity (for example, /thekehilla).</li>
+              <li>Click "Get my number" to draw a random number.</li>
+              <li>Donate exactly that amount to complete your entry.</li>
+            </ol>
+            <p class="muted" style="font-size:12px;margin-top:16px;">
+              Numbers are random; payments are handled securely via your existing flow.
+            </p>
+          </div>
+        </body>
+        </html>
+        """
+    )
+
