@@ -744,6 +744,7 @@ def admin_charity_entries(slug):
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug) }}">All</a>
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid') }}">Unpaid</a>
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid') }}">Paid</a>
+      <a class="pill" href="{{ url_for('admin_new_entry', slug=charity.slug) }}">Add Entry</a>
       <a class="pill" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
       <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
     </p>
@@ -789,6 +790,72 @@ def admin_charity_entries(slug):
     </form>
     """
     return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}")
+
+@app.route("/admin/charity/<slug>/entries/new", methods=["GET","POST"])
+def admin_new_entry(slug):
+    if not session.get("admin_ok"): 
+        return redirect(url_for("admin_charities"))
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+    msg = None
+
+    if request.method == "POST":
+        name = request.form.get("name","").strip()
+        email = request.form.get("email","").strip()
+        phone = request.form.get("phone","").strip()
+        number_raw = request.form.get("number","").strip()
+
+        if not name or not email:
+            msg = "Name and Email required."
+        else:
+            # Use specific number if provided
+            if number_raw:
+                try:
+                    num = int(number_raw)
+                    if num < 1 or num > charity.max_number:
+                        msg = f"Number must be between 1 and {charity.max_number}."
+                except ValueError:
+                    msg = "Number must be an integer."
+                    num = None
+            else:
+                # Auto-assign a free number
+                num = assign_number(charity)
+                if not num:
+                    msg = "No numbers available."
+
+            if not msg and num is not None:
+                try:
+                    e = Entry(
+                        charity_id=charity.id,
+                        name=name,
+                        email=email,
+                        phone=phone,
+                        number=num
+                    )
+                    db.session.add(e)
+                    db.session.commit()
+                    return redirect(url_for("admin_charity_entries", slug=charity.slug))
+                except IntegrityError:
+                    db.session.rollback()
+                    msg = "That number is already taken."
+
+    body = """
+    <h2>Add Entry — {{ charity.name }}</h2>
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
+    <form method="post" data-safe-submit>
+      <label>Name <input type="text" name="name" required></label>
+      <label>Email <input type="email" name="email" required></label>
+      <label>Phone <input type="tel" name="phone"></label>
+      <label>Number (leave blank to auto-assign) 
+        <input type="number" name="number" min="1" max="{{ charity.max_number }}">
+      </label>
+      <div style="margin-top:8px">
+        <button class="btn">Save</button>
+        <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug) }}">Cancel</a>
+      </div>
+    </form>
+    """
+    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}")
+
 
 @app.route("/admin/charity/<slug>/entries.csv")
 def admin_charity_entries_csv(slug):
