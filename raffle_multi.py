@@ -462,6 +462,10 @@ LAYOUT = """
 </body></html>
 """
 
+def render(body, **ctx):
+    inner = render_template_string(body, request=request, datetime=datetime, **ctx)
+    return render_template_string(LAYOUT, body=inner, request=request, datetime=datetime, **ctx)
+
 # ====== HELPERS ===============================================================
 
 def get_charity_or_404(slug: str) -> Charity:
