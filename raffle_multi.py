@@ -80,27 +80,26 @@ class CharityUser(db.Model):
     def check_password(self, pw: str) -> bool: return check_password_hash(self.password_hash, pw)
 
 # ====== LAYOUT / RENDER =======================================================
-
 LAYOUT = """
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title or "Get My Number" }}</title>
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="light dark">
 <style>
   :root{
-    --bg:#050910;
-    --bg-soft:#0b101a;
-    --card:#101725;
-    --card-2:#0d1420;
-    --text:#e9f0f7;
-    --muted:#a8b6c7;
-    --brand:#5aa8ff;
-    --brand-2:#7cd2ff;
-    --ok:#3ad19f;
-    --warn:#ffd29f;
-    --danger:#ff7a7a;
-    --border:#223146;
-    --shadow:0 18px 45px rgba(0,0,0,0.55);
+    --bg:#f3fafc;
+    --bg-soft:#e4f3f7;
+    --card:#ffffff;
+    --card-2:#f8feff;
+    --text:#12313d;
+    --muted:#6a8893;
+    --brand:#00b8a9;
+    --brand-2:#27c6d6;
+    --ok:#1ea97a;
+    --warn:#f5a623;
+    --danger:#e94f37;
+    --border:#cfe3ea;
+    --shadow:0 18px 45px rgba(3,46,66,0.16);
     --radius:18px;
     --radius-sm:12px;
     --transition-fast:150ms ease-out;
@@ -112,13 +111,17 @@ LAYOUT = """
     min-height:100%;
     font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:
-      radial-gradient(1200px 800px at 10% -10%, #16243a 0, transparent 60%),
-      radial-gradient(900px 700px at 110% 10%, #101a28 0, transparent 60%),
+      radial-gradient(900px 700px at 0% 0%, #e0f7fa 0, transparent 60%),
+      radial-gradient(900px 700px at 100% 0%, #d0f0f6 0, transparent 60%),
       var(--bg);
     color:var(--text);
   }
 
-  a{color:var(--brand);text-decoration:none;transition:color var(--transition-fast), opacity var(--transition-fast)}
+  a{
+    color:var(--brand);
+    text-decoration:none;
+    transition:color var(--transition-fast), opacity var(--transition-fast);
+  }
   a:hover{color:var(--brand-2);}
 
   .wrap{
@@ -135,12 +138,12 @@ LAYOUT = """
     align-items:center;
     justify-content:space-between;
     margin-bottom:20px;
-    padding:10px 14px;
+    padding:10px 16px;
     border-radius:999px;
-    background:linear-gradient(135deg,rgba(9,14,25,0.9),rgba(7,11,20,0.9));
-    border:1px solid rgba(62,84,120,0.55);
-    box-shadow:0 14px 35px rgba(0,0,0,0.6);
-    backdrop-filter:blur(14px);
+    background:rgba(255,255,255,0.96);
+    border:1px solid var(--border);
+    box-shadow:0 16px 35px rgba(3,46,66,0.15);
+    backdrop-filter:blur(12px);
   }
 
   .logo{
@@ -157,10 +160,10 @@ LAYOUT = """
     display:grid;
     place-items:center;
     background:linear-gradient(135deg,var(--brand),var(--brand-2));
-    color:#041019;
+    color:#ffffff;
     font-weight:900;
     font-size:20px;
-    box-shadow:0 10px 20px rgba(31,106,190,0.7);
+    box-shadow:0 8px 18px rgba(0,184,169,0.35);
   }
 
   .logo strong{
@@ -184,9 +187,9 @@ LAYOUT = """
   }
 
   .nav-links a:hover{
-    border-color:rgba(112,138,181,0.7);
+    border-color:var(--border);
     color:var(--text);
-    background:rgba(6,11,22,0.75);
+    background:rgba(0,184,169,0.06);
   }
 
   @media (max-width:600px){
@@ -199,9 +202,10 @@ LAYOUT = """
 
   .card{
     margin-top:10px;
-    background:radial-gradient(circle at top left, rgba(90,168,255,0.10), transparent 55%),
-               linear-gradient(180deg,var(--card),var(--card-2));
-    border:1px solid rgba(44,62,90,0.9);
+    background:
+      radial-gradient(circle at top left, rgba(0,184,169,0.10), transparent 55%),
+      linear-gradient(180deg,var(--card),var(--card-2));
+    border:1px solid var(--border);
     border-radius:var(--radius);
     padding:24px 20px 22px;
     box-shadow:var(--shadow);
@@ -225,6 +229,11 @@ LAYOUT = """
     font-size:14px;
   }
 
+  h2{
+    font-size:20px;
+    margin-bottom:6px;
+  }
+
   .stack{
     display:flex;
     flex-wrap:wrap;
@@ -246,9 +255,9 @@ LAYOUT = """
     gap:8px;
     padding:8px 13px;
     border-radius:999px;
-    border:1px solid rgba(46,63,93,0.95);
+    border:1px solid var(--border);
     color:var(--text);
-    background:rgba(9,13,22,0.6);
+    background:#f6fcfd;
     cursor:pointer;
     font-size:13px;
     line-height:1.1;
@@ -262,73 +271,75 @@ LAYOUT = """
   }
 
   .pill:hover{
-    background:rgba(21,32,52,0.95);
-    border-color:rgba(93,124,176,0.9);
+    background:#e5f6f7;
+    border-color:#9ad7e0;
     transform:translateY(-1px);
-    box-shadow:0 10px 22px rgba(0,0,0,0.45);
+    box-shadow:0 10px 24px rgba(3,46,66,0.16);
   }
 
   button.btn{
     background:linear-gradient(135deg,var(--brand),var(--brand-2));
     border:none;
-    color:#05111e;
+    color:#ffffff;
     font-weight:700;
     padding-inline:16px;
   }
 
+  button.btn:hover{
+    box-shadow:0 10px 24px rgba(0,184,169,0.35);
+    transform:translateY(-1px);
+  }
+
   button.btn.secondary{
     background:transparent;
-    border:1px solid rgba(61,82,115,0.9);
-    color:var(--text);
+    border:1px solid var(--border);
+    color:var(--brand);
   }
 
-  button.btn:hover:not(:disabled){
-    transform:translateY(-1px);
-    box-shadow:0 14px 28px rgba(25,93,176,0.65);
-    filter:brightness(1.05);
-  }
-
-  button.btn:disabled{
-    opacity:.6;
-    cursor:not-allowed;
+  button[disabled],
+  button:disabled{
+    opacity:0.7;
+    cursor:default;
     box-shadow:none;
     transform:none;
   }
 
-  .grid{display:grid;gap:14px;}
-  @media(min-width:720px){ .grid-2{grid-template-columns:1.1fr .9fr;} }
-
-  input[type=text],
-  input[type=email],
-  input[type=tel],
-  input[type=number],
-  input[type=url],
-  input[type=password]{
-    width:100%;
-    padding:12px 13px;
-    border-radius:var(--radius-sm);
-    border:1px solid rgba(47,67,97,0.9);
-    background:#050a14;
-    color:var(--text);
-    outline:none;
-    font-size:14px;
-    transition:border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
-  }
-
-  input::placeholder{color:rgba(156,174,199,0.8);}
-
-  input:focus{
-    border-color:var(--brand-2);
-    background:#040711;
-    box-shadow:0 0 0 1px rgba(124,210,255,0.45), 0 0 20px rgba(87,165,255,0.25);
+  form{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    margin-top:10px;
   }
 
   label{
-    display:grid;
-    gap:6px;
-    margin-bottom:11px;
-    color:var(--muted);
     font-size:13px;
+    color:var(--muted);
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  input,select,textarea{
+    font:inherit;
+    padding:7px 9px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:#f9fdfe;
+    color:var(--text);
+    outline:none;
+    transition:border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  }
+
+  textarea{
+    border-radius:var(--radius-sm);
+    min-height:80px;
+    resize:vertical;
+  }
+
+  input:focus,select:focus,textarea:focus{
+    border-color:var(--brand);
+    box-shadow:0 0 0 1px rgba(0,184,169,0.25);
+    background:#ffffff;
   }
 
   .muted{color:var(--muted);}
@@ -341,28 +352,29 @@ LAYOUT = """
     border-radius:var(--radius-sm);
     overflow:hidden;
     font-size:13px;
-    background:rgba(6,11,20,0.9);
+    background:#ffffff;
+    border:1px solid var(--border);
   }
 
   thead th{
-    background:#0f1722;
+    background:#e8f5f7;
     color:var(--muted);
     font-weight:600;
   }
 
   th,td{
     padding:9px 10px;
-    border-bottom:1px solid rgba(33,49,70,0.9);
+    border-bottom:1px solid #e0edf2;
     text-align:left;
     vertical-align:top;
   }
 
   tbody tr:nth-child(even) td{
-    background:rgba(10,18,30,0.85);
+    background:#f7fcfd;
   }
 
   tbody tr:hover td{
-    background:rgba(18,27,42,0.95);
+    background:#eaf7f8;
   }
 
   .badge{
@@ -370,44 +382,44 @@ LAYOUT = """
     align-items:center;
     padding:4px 9px;
     border-radius:12px;
-    border:1px solid rgba(60,98,142,0.8);
-    color:#cfe6ff;
+    border:1px solid #9ad7e0;
+    color:#0f3f4a;
     font-size:12px;
-    background:rgba(11,20,34,0.95);
+    background:#e5f6f7;
   }
 
   .badge.ok{
-    background:rgba(58,209,159,0.12);
-    border-color:#214e3f;
-    color:#7ef2c8;
+    background:rgba(30,169,122,0.08);
+    border-color:#1ea97a;
+    color:#0c6a4c;
   }
 
   .badge.warn{
-    background:rgba(255,210,159,0.12);
-    border-color:#5c4930;
-    color:#ffd7aa;
+    background:rgba(245,166,35,0.08);
+    border-color:#f5a623;
+    color:#8a5c12;
   }
 
   .badge.danger{
-    background:rgba(255,122,122,0.10);
-    border-color:#5c3131;
-    color:#ffb1b1;
+    background:rgba(233,79,55,0.08);
+    border-color:#e94f37;
+    color:#7b2315;
   }
 
   .progress{
     height:10px;
-    background:#050a14;
-    border:1px solid rgba(36,53,78,0.95);
+    background:#e4f2f6;
+    border:1px solid #cfe3ea;
     border-radius:999px;
     overflow:hidden;
-    box-shadow:inset 0 0 10px rgba(0,0,0,0.5);
+    box-shadow:inset 0 0 6px rgba(3,46,66,0.12);
   }
 
   .progress > i{
     display:block;
     height:100%;
     background:linear-gradient(90deg,var(--brand),var(--brand-2));
-    box-shadow:0 0 18px rgba(80,160,255,0.65);
+    box-shadow:0 0 14px rgba(0,184,169,0.45);
     transition:width 220ms ease-out;
   }
 
@@ -416,7 +428,7 @@ LAYOUT = """
     text-align:center;
     margin-top:16px;
     font-size:12px;
-    opacity:0.8;
+    opacity:0.85;
   }
 </style>
 <script>
@@ -461,6 +473,7 @@ LAYOUT = """
   </div>
 </body></html>
 """
+
 
 def render(body, **ctx):
     inner = render_template_string(body, request=request, datetime=datetime, **ctx)
@@ -1152,84 +1165,50 @@ if __name__ == "__main__":
 
 
 # ====================== PUBLIC PAGES ADDED LATER ======================
-
 @app.route("/charities", methods=["GET"])
 def charities():
-    """
-    Simple list of all charities so the 'Choose Charity' button has somewhere to go.
-    This does NOT change any existing routes or logic.
-    """
     try:
         q = Charity.query
-        # If Charity has a 'name' column, order by it; otherwise just get all rows.
         if hasattr(Charity, "name"):
             q = q.order_by(Charity.name.asc())
         rows = q.all()
     except Exception:
         rows = []
 
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-          <title>Choose Charity</title>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="text-2xl font-semibold mb-4">Choose a charity</h1>
-            {% if rows %}
-              <ul style="list-style:none;padding:0;margin:0;display:grid;gap:12px;">
-                {% for c in rows %}
-                  <li class="card">
-                    <a href="/{{ c.slug }}" style="text-decoration:none;color:inherit;display:block;">
-                      <div style="font-weight:600;">
-                        {{ c.name or c.slug or ("Charity #" ~ c.id) }}
-                      </div>
-                      {% if c.description %}
-                        <div class="muted" style="font-size:14px;margin-top:4px;">
-                          {{ c.description }}
-                        </div>
-                      {% endif %}
-                    </a>
-                  </li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <p class="muted">No charities found yet.</p>
-            {% endif %}
-          </div>
-        </body>
-        </html>
-        """,
-        rows=rows,
-    )
+    body = """
+    <h2>Choose a charity</h2>
+    <p class="muted">Pick a charity raffle page below:</p>
+    <div class="stack" style="margin-top:10px;flex-wrap:wrap;">
+      {% for c in rows %}
+        <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}">
+          <strong>{{ c.name or c.slug or ("Charity #" ~ c.id) }}</strong>
+        </a>
+      {% else %}
+        <p class="muted">No charities found yet.</p>
+      {% endfor %}
+    </div>
+    """
+    return render(body, rows=rows, title="Choose a charity")
+
 
 @app.route("/how-it-works", methods=["GET"])
 def how_it_works():
-    return render_template_string(
-        """
-        <!doctype html>
-        <html>
-        <head>
-          <title>How it works</title>
-        </head>
-        <body>
-          <div class="container">
-            <h1 class="text-2xl font-semibold mb-4">How it works</h1>
-            <ol style="padding-left:20px;font-size:14px;">
-              <li>Choose a charity (for example, /thekehilla).</li>
-              <li>Click "Get my number" to draw a random number.</li>
-              <li>Donate exactly that amount to complete your entry.</li>
-            </ol>
-            <p class="muted" style="font-size:12px;margin-top:16px;">
-              Numbers are random; payments are handled securely via your existing flow.
-            </p>
-          </div>
-        </body>
-        </html>
-        """
-    )
+    body = """
+    <div class="hero">
+      <h1>How it works</h1>
+      <p class="muted">A simple, transparent way to run charity raffles.</p>
+      <ol style="padding-left:18px;font-size:14px;margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+        <li>Choose a charity raffle page (for example, <code>/thekehilla</code>).</li>
+        <li>Enter your details and click <strong>“Get my number”</strong> to draw a random number.</li>
+        <li>Donate exactly that amount to the charity’s donation page to complete your entry.</li>
+      </ol>
+      <p class="muted" style="font-size:12px;margin-top:16px;">
+        Numbers are unique and random; payments are handled securely via your existing flow.
+      </p>
+    </div>
+    """
+    return render(body, title="How it works")
+
 
 @app.route("/admin", methods=["GET"])
 def admin_root():
