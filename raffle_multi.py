@@ -28,6 +28,10 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
+# Amount to temporarily hold on the card (in pence) – e.g. 1000 = £10
+HOLD_AMOUNT_PENCE = 25000
+
+
 
 # ====== CONFIG ================================================================
 
@@ -534,14 +538,14 @@ def charity_page(slug):
     charity = get_charity_or_404(slug)
 
     if request.method == "POST":
-        name = request.form.get("name","").strip()
-        email = request.form.get("email","").strip()
-        phone = request.form.get("phone","").strip()
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip()
+        phone = request.form.get("phone", "").strip()
 
         if not name or not email:
             flash("Name and Email are required.")
         else:
-            # Store user details temporarily so we can create the entry AFTER payment
+            # Store user details temporarily so we can create the entry AFTER authorisation
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
@@ -555,12 +559,15 @@ def charity_page(slug):
                         "price_data": {
                             "currency": "gbp",
                             "product_data": {
-                                "name": f"Raffle commitment £1 – {charity.name}",
+                                "name": f"Temporary hold £{HOLD_AMOUNT_PENCE / 100:.0f} – {charity.name}",
                             },
-                            "unit_amount": 100,  # £1.00 in pence
+                            "unit_amount": HOLD_AMOUNT_PENCE,  # e.g. £10 hold
                         },
                         "quantity": 1,
                     }],
+                    payment_intent_data={
+                        "capture_method": "manual",  # <-- authorise only, capture later if you choose
+                    },
                     success_url=url_for(
                         "payment_success",
                         slug=charity.slug,
@@ -575,10 +582,10 @@ def charity_page(slug):
                 # Redirect the browser to Stripe Checkout
                 return redirect(checkout_session.url, code=303)
             except Exception as e:
-                app.logger.error(f"Stripe error: {e}")
-                flash("There was a problem starting the payment. Please try again.")
+                app.logger.error(f"Stripe error creating Checkout Session: {e}")
+                flash("There was a problem starting the card hold. Please try again.")
 
-    # Same GET logic as before
+    # GET: same stats as before
     total = charity.max_number
     remaining = len(available_numbers(charity))
     taken = total - remaining
@@ -593,7 +600,10 @@ def charity_page(slug):
       {% if kehilla_logo %}
         <img src="{{ kehilla_logo }}" alt="{{ charity.name }} logo" style="max-width:180px;margin:12px 0;border-radius:12px;">
       {% endif %}
-      <p>Numbers are unique between 1 and {{ total }}. Once you pay £1, we’ll assign you a random available number. Your donation equals your number.</p>
+      <p>
+        We place a temporary hold on your card before giving you a number.
+        Once your donation is confirmed, the hold will be released or not captured.
+      </p>
 
       <div class="row" style="margin-top:10px">
         <div style="flex:2;min-width:260px">
@@ -602,7 +612,9 @@ def charity_page(slug):
             <label>Email <input type="email" name="email" required placeholder="name@example.com"></label>
             <label>Phone (optional) <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx"></label>
             <div class="row" style="margin-top:8px">
-              <button class="btn" type="submit">Pay £1 &amp; get my number</button>
+              <button class="btn" type="submit">
+                Place hold &amp; get my number
+              </button>
               <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
             </div>
           </form>
@@ -611,7 +623,10 @@ def charity_page(slug):
         <div style="flex:1;min-width:180px">
           <p class="muted">Taken: {{ taken }} / {{ total }} ({{ pct }}%)</p>
           <div class="progress"><i style="width:{{ pct }}%"></i></div>
-          <p class="muted" style="margin-top:8px">You’ll be given a random number still available. Your donation amount equals your number.</p>
+          <p class="muted" style="margin-top:8px">
+            You’ll be given a random number still available.
+            Your donation amount equals your number.
+          </p>
         </div>
       </div>
     </div>
@@ -626,6 +641,7 @@ def charity_page(slug):
         title=charity.name,
         kehilla_logo=kehilla_logo
     )
+
 
 @app.route("/<slug>/payment-success")
 def payment_success(slug):
