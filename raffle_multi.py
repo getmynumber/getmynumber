@@ -29,7 +29,7 @@ if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
 # Amount to temporarily hold on the card (in pence) – e.g. 1000 = £10
-HOLD_AMOUNT_PENCE = 25000
+HOLD_AMOUNT_PENCE = 2500
 
 
 
@@ -652,16 +652,26 @@ def payment_success(slug):
         flash("Missing payment information. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Check the payment with Stripe
+    # Retrieve Checkout Session AND expand the PaymentIntent
     try:
-        checkout_session = stripe.checkout.Session.retrieve(session_id)
+        checkout_session = stripe.checkout.Session.retrieve(
+            session_id,
+            expand=["payment_intent"],
+        )
     except Exception as e:
         app.logger.error(f"Stripe retrieve error: {e}")
-        flash("We could not verify your payment. Please try again.")
+        flash("We could not verify your card hold. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Make sure the payment was completed
-    if checkout_session.get("payment_status") != "paid":
+    payment_intent = checkout_session.get("payment_intent")
+
+    # For a hold, the important thing is that the PaymentIntent is authorised:
+    # status will be "requires_capture" (or "succeeded" if you ever capture it immediately)
+    valid_statuses = ("requires_capture", "succeeded")
+    if not payment_intent or payment_intent.get("status") not in valid_statuses:
+        app.logger.warning(
+            f"Unexpected PaymentIntent status: {payment_intent.get('status') if payment_intent else 'none'}"
+        )
         flash("Payment not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
@@ -687,7 +697,8 @@ def payment_success(slug):
             name=name,
             email=email,
             phone=phone,
-            number=num
+            number=num,
+            # later we can add payment_intent_id field if you want
         )
         db.session.add(entry)
         db.session.commit()
