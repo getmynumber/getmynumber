@@ -77,6 +77,7 @@ class Entry(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     paid = db.Column(db.Boolean, nullable=False, default=False)
     paid_at = db.Column(db.DateTime, nullable=True)
+    payment_intent_id = db.Column(db.String(255))   # ← NEW
 
     __table_args__ = (UniqueConstraint("charity_id", "number", name="uq_charity_number"),)
     charity = db.relationship("Charity", backref="entries")
@@ -698,7 +699,7 @@ def payment_success(slug):
             email=email,
             phone=phone,
             number=num,
-            # later we can add payment_intent_id field if you want
+            payment_intent_id=payment_intent.get("id")  # ← store PI ID here
         )
         db.session.add(entry)
         db.session.commit()
@@ -892,7 +893,7 @@ def admin_charity_entries(slug):
           <tr>
             <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
             <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
-            <th>Number</th><th>Created</th><th>Paid</th><th>Actions</th>
+	    <th>Number</th><th>PI</th><th>Created</th><th>Paid</th><th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -904,6 +905,13 @@ def admin_charity_entries(slug):
               <td>{{ e.email }}</td>
               <td>{{ e.phone }}</td>
               <td><strong>#{{ e.number }}</strong></td>
+              <td class="muted">
+                {% if e.payment_intent_id %}
+                  {{ e.payment_intent_id[:10] }}…
+                {% else %}
+                  -
+                {% endif %}
+              </td>           
               <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
               <td>
                 {{ "Yes" if e.paid else "No" }}
@@ -994,10 +1002,11 @@ def admin_charity_entries_csv(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     entries = Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.asc()).all()
     output = io.StringIO(); w = csv.writer(output)
-    w.writerow(["id","name","email","phone","number","created_at","paid","paid_at","charity_slug","charity_name"])
+    w.writerow(["id","name","email","phone","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
     for e in entries:
         w.writerow([
             e.id, e.name, e.email, e.phone, e.number,
+            e.payment_intent_id or "",
             e.created_at.isoformat() if e.created_at else "",
             1 if e.paid else 0,
             e.paid_at.isoformat() if e.paid_at else "",
@@ -1090,6 +1099,23 @@ def admin_delete_user(slug, uid):
     db.session.delete(u); db.session.commit()
     return redirect(url_for("admin_charity_users", slug=slug))
 
+@app.route("/admin/add_payment_intent_column")
+def add_payment_intent_column():
+    # Only let admins trigger this
+    if not session.get("admin_ok"):
+        abort(403)
+
+    # Check if column already exists
+    insp = inspect(db.engine)
+    cols = [c["name"] for c in insp.get_columns("entry")]
+    if "payment_intent_id" in cols:
+        return "payment_intent_id already exists"
+
+    # Add the column
+    db.session.execute(text("ALTER TABLE entry ADD COLUMN payment_intent_id VARCHAR(255)"))
+    db.session.commit()
+    return "payment_intent_id column added"
+
 # ====== PARTNER AREA ==========================================================
 
 @app.route("/partner/login", methods=["GET","POST"])
@@ -1164,7 +1190,8 @@ def partner_entries(slug):
       <table>
         <thead><tr>
           <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
-          <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>No.</th><th>Created</th><th>Paid</th><th>Actions</th>
+          <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
+          <th>No.</th><th>PI</th><th>Created</th><th>Paid</th><th>Actions</th>
         </tr></thead>
         <tbody>
         {% for e in entries %}
@@ -1175,6 +1202,13 @@ def partner_entries(slug):
             <td>{{ e.email }}</td>
             <td>{{ e.phone }}</td>
             <td><strong>#{{ e.number }}</strong></td>
+            <td class="muted">
+              {% if e.payment_intent_id %}
+                {{ e.payment_intent_id[:10] }}…
+              {% else %}
+                -
+              {% endif %}
+            </td>
             <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
             <td>{{ "Yes" if e.paid else "No" }}</td>
             <td>
