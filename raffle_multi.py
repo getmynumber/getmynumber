@@ -1099,23 +1099,6 @@ def admin_delete_user(slug, uid):
     db.session.delete(u); db.session.commit()
     return redirect(url_for("admin_charity_users", slug=slug))
 
-@app.route("/admin/add_payment_intent_column")
-def add_payment_intent_column():
-    # Only let admins trigger this
-    if not session.get("admin_ok"):
-        abort(403)
-
-    # Check if column already exists
-    insp = inspect(db.engine)
-    cols = [c["name"] for c in insp.get_columns("entry")]
-    if "payment_intent_id" in cols:
-        return "payment_intent_id already exists"
-
-    # Add the column
-    db.session.execute(text("ALTER TABLE entry ADD COLUMN payment_intent_id VARCHAR(255)"))
-    db.session.commit()
-    return "payment_intent_id column added"
-
 # ====== PARTNER AREA ==========================================================
 
 @app.route("/partner/login", methods=["GET","POST"])
