@@ -19,6 +19,16 @@ from sqlalchemy import UniqueConstraint, inspect, text
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
+import stripe
+
+# Stripe config
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+
+
 # ====== CONFIG ================================================================
 
 app = Flask(__name__)
@@ -527,22 +537,48 @@ def charity_page(slug):
         name = request.form.get("name","").strip()
         email = request.form.get("email","").strip()
         phone = request.form.get("phone","").strip()
+
         if not name or not email:
             flash("Name and Email are required.")
         else:
-            num = assign_number(charity)
-            if not num:
-                flash("Sorry, all numbers are taken for this charity.")
-            else:
-                try:
-                    entry = Entry(charity_id=charity.id, name=name, email=email, phone=phone, number=num)
-                    db.session.add(entry); db.session.commit()
-                    session["last_num"] = num; session["last_name"] = name; session["last_slug"] = charity.slug
-                    return redirect(url_for("success", slug=charity.slug))
-                except IntegrityError:
-                    db.session.rollback()
-                    flash("That number was just taken—please try again.")
+            # Store user details temporarily so we can create the entry AFTER payment
+            session["pending_entry"] = {
+                "slug": charity.slug,
+                "name": name,
+                "email": email,
+                "phone": phone,
+            }
+            try:
+                checkout_session = stripe.checkout.Session.create(
+                    mode="payment",
+                    line_items=[{
+                        "price_data": {
+                            "currency": "gbp",
+                            "product_data": {
+                                "name": f"Raffle commitment £1 – {charity.name}",
+                            },
+                            "unit_amount": 100,  # £1.00 in pence
+                        },
+                        "quantity": 1,
+                    }],
+                    success_url=url_for(
+                        "payment_success",
+                        slug=charity.slug,
+                        _external=True
+                    ) + "?session_id={CHECKOUT_SESSION_ID}",
+                    cancel_url=url_for(
+                        "charity_page",
+                        slug=charity.slug,
+                        _external=True
+                    ),
+                )
+                # Redirect the browser to Stripe Checkout
+                return redirect(checkout_session.url, code=303)
+            except Exception as e:
+                app.logger.error(f"Stripe error: {e}")
+                flash("There was a problem starting the payment. Please try again.")
 
+    # Same GET logic as before
     total = charity.max_number
     remaining = len(available_numbers(charity))
     taken = total - remaining
@@ -557,34 +593,102 @@ def charity_page(slug):
       {% if kehilla_logo %}
         <img src="{{ kehilla_logo }}" alt="{{ charity.name }} logo" style="max-width:180px;margin:12px 0;border-radius:12px;">
       {% endif %}
-      <p>Numbers are unique between 1 and {{ total }}.</p>
-      <div class="sep"></div>
-      <div class="grid grid-2">
-        <div>
-          <div class="row">
-            <span class="badge ok">Available: {{ remaining }}</span>
-            <span class="badge">Taken: {{ taken }}</span>
-          </div>
-          <div class="sep"></div>
-          <div class="progress" aria-label="progress"><i style="width: {{ pct }}%"></i></div>
-          <p class="muted" style="margin-top:6px">{{ pct }}% filled</p>
+      <p>Numbers are unique between 1 and {{ total }}. Once you pay £1, we’ll assign you a random available number. Your donation equals your number.</p>
+
+      <div class="row" style="margin-top:10px">
+        <div style="flex:2;min-width:260px">
+          <form method="post" data-safe-submit>
+            <label>Your name <input type="text" name="name" required placeholder="e.g. Sarah Cohen"></label>
+            <label>Email <input type="email" name="email" required placeholder="name@example.com"></label>
+            <label>Phone (optional) <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx"></label>
+            <div class="row" style="margin-top:8px">
+              <button class="btn" type="submit">Pay £1 &amp; get my number</button>
+              <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
+            </div>
+          </form>
         </div>
-        <form method="post" data-safe-submit>
-          <label>Full name <input type="text" name="name" required placeholder="e.g. Sarah Cohen"></label>
-          <label>Email <input type="email" name="email" required placeholder="name@example.com"></label>
-          <label>Phone (optional) <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx"></label>
-          <div class="row" style="margin-top:8px">
-            <button class="btn" type="submit">Get my number</button>
-            <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
-          </div>
-        </form>
+        <div class="sep"></div>
+        <div style="flex:1;min-width:180px">
+          <p class="muted">Taken: {{ taken }} / {{ total }} ({{ pct }}%)</p>
+          <div class="progress"><i style="width:{{ pct }}%"></i></div>
+          <p class="muted" style="margin-top:8px">You’ll be given a random number still available. Your donation amount equals your number.</p>
+        </div>
       </div>
-      <div class="sep"></div>
-      <p class="muted">You’ll get a random number still available. Your donation equals your number.</p>
     </div>
     """
-    return render(body, charity=charity, total=total, remaining=remaining, taken=taken, pct=pct,
-                  title=charity.name, kehilla_logo=kehilla_logo)
+    return render(
+        body,
+        charity=charity,
+        total=total,
+        remaining=remaining,
+        taken=taken,
+        pct=pct,
+        title=charity.name,
+        kehilla_logo=kehilla_logo
+    )
+
+@app.route("/<slug>/payment-success")
+def payment_success(slug):
+    charity = get_charity_or_404(slug)
+
+    session_id = request.args.get("session_id")
+    if not session_id:
+        flash("Missing payment information. Please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    # Check the payment with Stripe
+    try:
+        checkout_session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        app.logger.error(f"Stripe retrieve error: {e}")
+        flash("We could not verify your payment. Please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    # Make sure the payment was completed
+    if checkout_session.get("payment_status") != "paid":
+        flash("Payment not completed. Please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    # Get the details we stored before redirecting to Stripe
+    pending = session.get("pending_entry")
+    if not pending or pending.get("slug") != charity.slug:
+        flash("We could not find your details. Please start again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    name = pending["name"]
+    email = pending["email"]
+    phone = pending["phone"]
+
+    # Now assign a raffle number and create the entry
+    num = assign_number(charity)
+    if not num:
+        flash("Sorry, all numbers are taken for this charity.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    try:
+        entry = Entry(
+            charity_id=charity.id,
+            name=name,
+            email=email,
+            phone=phone,
+            number=num
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("That number was just taken—please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    # Clean up the session
+    session.pop("pending_entry", None)
+
+    # Reuse your existing success page logic
+    session["last_num"] = num
+    session["last_name"] = name
+    session["last_slug"] = charity.slug
+    return redirect(url_for("success", slug=charity.slug))
+
 
 @app.route("/<slug>/success")
 def success(slug):
