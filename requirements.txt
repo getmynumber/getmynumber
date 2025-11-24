@@ -8,4 +8,5 @@ flask_limiter
 python-dotenv
 psycopg2-binary
 stripe>=10
+Stripe
 
