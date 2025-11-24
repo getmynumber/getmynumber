@@ -29,7 +29,7 @@ if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
 # Amount to temporarily hold on the card (in pence) – e.g. 1000 = £10
-HOLD_AMOUNT_PENCE = 2500
+HOLD_AMOUNT_PENCE = 20000
 
 
 
