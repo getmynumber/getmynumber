@@ -631,7 +631,6 @@ def home():
         </div>
         <div class="step-body">
           Choose your charity and enter your name, email and (optionally) phone number.
-          We use this to send you your raffle ticket number and any updates about the draw.
         </div>
       </div>
 
@@ -645,7 +644,7 @@ def home():
         </div>
         <div class="step-body">
           You are redirected to our secure Stripe checkout where a temporary hold
-          of up to <strong>£200</strong> is placed on your card. This is an authorisation only –
+          of <strong>£200</strong> is placed on your card. This is an authorisation only –
           no money is taken at this point.
         </div>
       </div>
