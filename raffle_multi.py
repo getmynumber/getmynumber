@@ -570,7 +570,7 @@ def charity_page(slug):
                         "capture_method": "manual",  # <-- authorise only, capture later if you choose
                     },
                     success_url=url_for(
-                        "payment_success",
+                        "hold_success",
                         slug=charity.slug,
                         _external=True
                     ) + "?session_id={CHECKOUT_SESSION_ID}",
@@ -644,8 +644,16 @@ def charity_page(slug):
     )
 
 
-@app.route("/<slug>/payment-success")
-def payment_success(slug):
+@app.route("/<slug>/hold-success")
+def hold_success(slug):
+    """
+    Step 1 & 2:
+      - Called as success_url of Stripe Checkout Session A (the hold)
+      - Verifies the PaymentIntent is authorised
+      - Assigns a raffle number
+      - Creates an Entry storing the PaymentIntent ID
+      - Shows a page with the number and a 'Pay via Stripe' button (Session B)
+    """
     charity = get_charity_or_404(slug)
 
     session_id = request.args.get("session_id")
@@ -660,18 +668,18 @@ def payment_success(slug):
             expand=["payment_intent"],
         )
     except Exception as e:
-        app.logger.error(f"Stripe retrieve error: {e}")
+        app.logger.error(f"Stripe retrieve error (hold_success): {e}")
         flash("We could not verify your card hold. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
     payment_intent = checkout_session.get("payment_intent")
 
-    # For a hold, the important thing is that the PaymentIntent is authorised:
-    # status will be "requires_capture" (or "succeeded" if you ever capture it immediately)
+    # For a hold, the PaymentIntent should be authorised
     valid_statuses = ("requires_capture", "succeeded")
     if not payment_intent or payment_intent.get("status") not in valid_statuses:
         app.logger.warning(
-            f"Unexpected PaymentIntent status: {payment_intent.get('status') if payment_intent else 'none'}"
+            f"Unexpected PaymentIntent status in hold_success: "
+            f"{payment_intent.get('status') if payment_intent else 'none'}"
         )
         flash("Payment not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
@@ -686,7 +694,7 @@ def payment_success(slug):
     email = pending["email"]
     phone = pending["phone"]
 
-    # Now assign a raffle number and create the entry
+    # Assign a raffle number and create the entry
     num = assign_number(charity)
     if not num:
         flash("Sorry, all numbers are taken for this charity.")
@@ -699,7 +707,7 @@ def payment_success(slug):
             email=email,
             phone=phone,
             number=num,
-            payment_intent_id=payment_intent.get("id")  # ← store PI ID here
+            payment_intent_id=payment_intent.get("id"),  # store Session A's PI ID
         )
         db.session.add(entry)
         db.session.commit()
@@ -708,14 +716,163 @@ def payment_success(slug):
         flash("That number was just taken—please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Clean up the session
+    # Clean up the session data used for pending
     session.pop("pending_entry", None)
 
-    # Reuse your existing success page logic
-    session["last_num"] = num
-    session["last_name"] = name
-    session["last_slug"] = charity.slug
-    return redirect(url_for("success", slug=charity.slug))
+    # Show a page with their number and a Stripe button for Session B
+    body = """
+    <div class="hero">
+      <h1>Thank you{{ ", %s" % name if name else "" }} 🎉</h1>
+      <p>Your raffle number for <strong>{{ charity.name }}</strong> is:</p>
+      <h2 style="margin:10px 0;">
+        <span class="badge" style="font-size:22px">#{{ entry.number }}</span>
+      </h2>
+      <p class="muted">
+        To complete your entry, please pay <strong>£{{ entry.number }}</strong> now.
+      </p>
+      <div class="row" style="margin-top:12px">
+        <a class="btn" href="{{ url_for('pay', entry_id=entry.id) }}">
+          Pay £{{ entry.number }} securely
+        </a>
+      </div>
+    </div>
+    """
+    return render(
+        body,
+        charity=charity,
+        entry=entry,
+        name=name,
+        title=charity.name,
+    )
+
+
+@app.route("/pay/<int:entry_id>")
+def pay(entry_id):
+    """
+    Step 3:
+      - Creates Stripe Checkout Session B for the actual donation amount,
+        equal to the raffle number.
+      - Success → /donation-success?session_id=...&entry_id=...
+    """
+    entry = Entry.query.get_or_404(entry_id)
+    charity = Charity.query.get_or_404(entry.charity_id)
+
+    if entry.paid:
+        flash("This entry is already marked as paid. Thank you!")
+        return redirect(url_for("hold_success", slug=charity.slug))
+
+    # Amount in pence: number is the amount in pounds
+    amount_pence = entry.number * 100
+    if amount_pence <= 0:
+        flash("Invalid donation amount.")
+        return redirect(url_for("hold_success", slug=charity.slug))
+
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "gbp",
+                    "product_data": {
+                        "name": f"Raffle donation £{entry.number} – {charity.name}",
+                    },
+                    "unit_amount": amount_pence,
+                },
+                "quantity": 1,
+            }],
+            success_url=(
+                url_for("donation_success", _external=True)
+                + "?session_id={CHECKOUT_SESSION_ID}"
+                + f"&entry_id={entry.id}"
+            ),
+            cancel_url=url_for(
+                "hold_success",
+                slug=charity.slug,
+                _external=True,
+            ),
+        )
+        return redirect(checkout_session.url, code=303)
+    except Exception as e:
+        app.logger.error(f"Stripe error creating Checkout Session B: {e}")
+        flash("There was a problem starting the donation payment. Please try again.")
+        return redirect(url_for("hold_success", slug=charity.slug))
+
+
+@app.route("/donation-success")
+def donation_success():
+    """
+    Step 4:
+      - Called as success_url of Stripe Checkout Session B.
+      - Verifies Session B is paid.
+      - Marks the Entry as paid.
+      - Cancels the original PaymentIntent from Session A to release the hold.
+    """
+    session_id = request.args.get("session_id")
+    entry_id = request.args.get("entry_id", type=int)
+
+    if not session_id or not entry_id:
+        flash("Missing payment information. Please try again.")
+        return redirect(url_for("home"))
+
+    try:
+        checkout_session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        app.logger.error(f"Stripe retrieve error (donation_success): {e}")
+        flash("We could not verify your donation. Please contact us if this continues.")
+        return redirect(url_for("home"))
+
+    # For Checkout Session B, check payment_status == 'paid'
+    if checkout_session.get("payment_status") != "paid":
+        app.logger.warning(
+            f"Unexpected payment_status in donation_success: "
+            f"{checkout_session.get('payment_status')}"
+        )
+        flash("Donation not completed. Please try again.")
+        return redirect(url_for("home"))
+
+    entry = Entry.query.get(entry_id)
+    if not entry:
+        flash("We could not find your entry, but your payment was successful. Please contact us.")
+        return redirect(url_for("home"))
+
+    charity = Charity.query.get_or_404(entry.charity_id)
+
+    if not entry.paid:
+        # Mark as paid
+        entry.paid = True
+        entry.paid_at = datetime.utcnow()
+
+        # Cancel the original PaymentIntent to release the hold (Session A)
+        if entry.payment_intent_id:
+            try:
+                stripe.PaymentIntent.cancel(entry.payment_intent_id)
+            except Exception as e:
+                # Log but don't fail the user-facing flow
+                app.logger.error(
+                    f"Error cancelling PaymentIntent {entry.payment_intent_id}: {e}"
+                )
+
+        db.session.commit()
+
+    # Final confirmation page
+    body = """
+    <div class="hero">
+      <h1>All set 🎉</h1>
+      <p>
+        We’ve received your donation of <strong>£{{ entry.number }}</strong>
+        for <strong>{{ charity.name }}</strong>.
+      </p>
+      <p class="muted">
+        Your raffle number is <strong>#{{ entry.number }}</strong>. Good luck in the draw!
+      </p>
+    </div>
+    """
+    return render(
+        body,
+        charity=charity,
+        entry=entry,
+        title=f"{charity.name} – Thank you",
+    )
 
 
 @app.route("/<slug>/success")
