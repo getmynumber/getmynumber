@@ -187,13 +187,7 @@ LAYOUT = """
 
     /* No animation, no movement */
     transition:box-shadow .25s ease;
-  }
-
-  .logo-icon{
-    width:18px;
-    height:18px;
-    display:block;
-  }
+}
 
 
   .logo strong{
@@ -479,12 +473,7 @@ LAYOUT = """
   <div class="wrap">
     <nav class="nav">
       <a class="logo" href="{{ url_for('home') }}">
-        <span class="logo-badge">
-            <svg class="logo-icon" viewBox="0 0 24 24" fill="none">
-              <path d="M4 7C4 6.44772 4.44772 6 5 6H19C19.5523 6 20 6.44772 20 7V9C18.8954 9 18 9.89543 18 11C18 12.1046 18.8954 13 20 13V15C20 15.5523 19.5523 16 19 16H5C4.44772 16 4 15.5523 4 15V13C5.10457 13 6 12.1046 6 11C6 9.89543 5.10457 9 4 9V7Z"
-                    fill="white"/>
-            </svg>
-        </span>
+        <span class="logo-badge">🎟️</span>
         <strong>Get My Number</strong>
       </a>
       <div class="nav-links">
