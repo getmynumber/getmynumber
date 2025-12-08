@@ -608,7 +608,7 @@ def home():
     charities = Charity.query.order_by(Charity.name.asc()).all()
     body = """
     <h2>Pick a charity</h2>
-    <p class="muted">Choose a raffle to support:</p>
+    <p class="muted">Choose a charity to support:</p>
     <div>
       {% for c in charities %}
         <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}"><strong>{{ c.name }}</strong></a>
