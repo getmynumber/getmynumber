@@ -734,14 +734,17 @@ def hold_success(slug):
         <strong>£{{ entry.number }}</strong>.
       </p>
       <div class="row" style="margin-top:12px">
-        <a class="btn" href="{{ url_for('confirm_payment', entry_id=entry.id) }}">
-          Confirm &amp; Pay £{{ entry.number }}
-        </a>
+        <form action="{{ url_for('confirm_payment', entry_id=entry.id) }}" method="GET">
+          <button class="btn" type="submit">
+            Confirm &amp; Pay £{{ entry.number }}
+          </button>
+        </form>
       </div>
       <p class="muted" style="margin-top:8px">
-        Once you have confirmed, we’ll charge £{{ entry.number }} from the existing hold
+        When you confirm, we’ll charge £{{ entry.number }} from the existing hold
         and your bank will release the remaining amount.
       </p>
+
     </div>
     """
     return render(
