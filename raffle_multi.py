@@ -603,7 +603,7 @@ def charity_page(slug):
       {% endif %}
       <p>
         We place a temporary hold on your card before giving you a number.
-        Once your donation is confirmed, the hold will be released or not captured.
+        Once your donation is confirmed, the remaing hold will be released.
       </p>
 
       <div class="row" style="margin-top:10px">
@@ -625,7 +625,7 @@ def charity_page(slug):
           <p class="muted">Taken: {{ taken }} / {{ total }} ({{ pct }}%)</p>
           <div class="progress"><i style="width:{{ pct }}%"></i></div>
           <p class="muted" style="margin-top:8px">
-            You’ll be given a random number still available.
+            You will be given a random number still available.
             Your donation amount equals your number.
           </p>
         </div>
@@ -739,7 +739,7 @@ def hold_success(slug):
         </a>
       </div>
       <p class="muted" style="margin-top:8px">
-        When you confirm, we’ll charge £{{ entry.number }} from the existing hold
+        Once you have confirmed, we’ll charge £{{ entry.number }} from the existing hold
         and your bank will release the remaining amount.
       </p>
     </div>
