@@ -168,18 +168,26 @@ LAYOUT = """
     color:var(--text);
   }
 
-  .logo-badge{
+ .logo-badge{
     width:34px;
     height:34px;
     border-radius:11px;
     display:grid;
     place-items:center;
+
     background:linear-gradient(135deg,var(--brand),var(--brand-2));
-    color:#ffffff;
-    font-weight:900;
-    font-size:16px;
-    box-shadow:0 8px 18px rgba(0,184,169,0.35);
-  }
+    color:white;
+
+    font-size:18px;
+
+    /* Clean teal glow */
+    box-shadow:
+      0 8px 18px rgba(0,184,169,0.35),
+      0 0 10px rgba(0,184,169,0.45);
+
+    /* No animation, no movement */
+    transition:box-shadow .25s ease;
+}
 
   .logo strong{
     letter-spacing:0.03em;
@@ -464,7 +472,7 @@ LAYOUT = """
   <div class="wrap">
     <nav class="nav">
       <a class="logo" href="{{ url_for('home') }}">
-        <span class="logo-badge">GMN</span>
+        <span class="logo-badge">🎟️</span>
         <strong>Get My Number</strong>
       </a>
       <div class="nav-links">
