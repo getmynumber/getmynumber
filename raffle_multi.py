@@ -177,7 +177,7 @@ LAYOUT = """
     background:linear-gradient(135deg,var(--brand),var(--brand-2));
     color:#ffffff;
     font-weight:900;
-    font-size:20px;
+    font-size:16px;
     box-shadow:0 8px 18px rgba(0,184,169,0.35);
   }
 
@@ -464,7 +464,7 @@ LAYOUT = """
   <div class="wrap">
     <nav class="nav">
       <a class="logo" href="{{ url_for('home') }}">
-        <span class="logo-badge">#</span>
+        <span class="logo-badge">GMN</span>
         <strong>Get My Number</strong>
       </a>
       <div class="nav-links">
@@ -726,7 +726,7 @@ def hold_success(slug):
       <h1>Thank you{{ ", %s" % name if name else "" }} 🎉</h1>
       <p>Your raffle number for <strong>{{ charity.name }}</strong> is:</p>
       <h2 style="margin:10px 0;">
-        <span class="badge" style="font-size:22px">#{{ entry.number }}</span>
+        <span class="badge" style="font-size:22px">{{ entry.number }}</span>
       </h2>
       <p class="muted">
         We’ve placed a temporary hold on your card.<br>
@@ -875,7 +875,7 @@ def success(slug):
     <div class="hero">
       <h1>Thank you{{ ", %s" % name if name else "" }} 🎉</h1>
       <p>Your raffle number for <strong>{{ charity.name }}</strong> is:</p>
-      <h2 style="margin:10px 0;"><span class="badge" style="font-size:22px">#{{ num }}</span></h2>
+      <h2 style="margin:10px 0;"><span class="badge" style="font-size:22px">{{ num }}</span></h2>
       <p class="muted">Please donate <strong>£{{ num }}</strong> to complete your entry.</p>
       <div class="row" style="margin-top:12px">
         <a class="btn" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Go to donation page</a>
