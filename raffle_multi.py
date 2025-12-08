@@ -837,24 +837,24 @@ def confirm_payment(entry_id):
         useWorker: true
       });
 
-      // Big burst instantly
-      myConfetti({
-        particleCount: 150,
-        spread: 80,
-        startVelocity: 45,
-        origin: { y: 0.7 }
-      });
+      // Continuous confetti loop for 6 seconds
+      let duration = 600000;
+      let end = Date.now() + duration;
 
-      // Second wave after 1 second
-      setTimeout(() => {
-        myConfetti({
-          particleCount: 120,
-          spread: 100,
-          startVelocity: 40,
-          origin: { y: 0.6 }
-        });
-       }, 1000);
-     </script>
+      (function frame() {
+       myConfetti({
+         particleCount: 6,
+         spread: 70,
+         startVelocity: 30,
+         origin: { x: Math.random(), y: 0 }
+       });
+
+       if (Date.now() < end) {
+         requestAnimationFrame(frame);
+       }
+     })();
+   </script>
+
      """
     return render(
         body,
