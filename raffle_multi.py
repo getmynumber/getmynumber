@@ -1004,13 +1004,13 @@ def confirm_payment(entry_id):
 
       {% if receipt_url %}
         <div class="row" style="margin-top:16px">
-          <a class="btn" href="{{ receipt_url }}" target="_blank" rel="noopener">
-            View Stripe receipt
-          </a>
+          <form action="{{ receipt_url }}" method="GET" target="_blank">
+            <button class="btn" type="submit">
+              View receipt
+            </button>
+          </form>
         </div>
-        <p class="muted" style="margin-top:4px">
-          This opens your Stripe receipt in a new tab.
-          You can print or save it as a PDF from your browser.
+        <p class="muted" style="margin-top:6px">
         </p>
       {% endif %}
     </div>
