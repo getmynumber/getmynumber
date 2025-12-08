@@ -928,6 +928,7 @@ def confirm_payment(entry_id):
         equal to the raffle number in pounds.
       - The rest of the authorised amount is automatically released
         by Stripe / the card issuer.
+      - Fetches the Stripe receipt URL so the user can view/print it.
     """
     entry = Entry.query.get_or_404(entry_id)
     charity = Charity.query.get_or_404(entry.charity_id)
@@ -952,7 +953,7 @@ def confirm_payment(entry_id):
 
     # Capture from the original hold
     try:
-        stripe.PaymentIntent.capture(
+        captured_pi = stripe.PaymentIntent.capture(
             entry.payment_intent_id,
             amount_to_capture=amount_pence,
         )
@@ -966,12 +967,24 @@ def confirm_payment(entry_id):
         )
         return redirect(url_for("charity_page", slug=charity.slug))
 
+    # Try to get the Stripe receipt URL from the first charge
+    receipt_url = None
+    try:
+        # captured_pi is a Stripe PaymentIntent object
+        if captured_pi.charges and captured_pi.charges.data:
+            charge = captured_pi.charges.data[0]
+            receipt_url = getattr(charge, "receipt_url", None)
+    except Exception as e:
+        app.logger.warning(
+            f"Could not extract receipt_url for entry {entry.id}: {e}"
+        )
+
     # Mark entry as paid
     entry.paid = True
     entry.paid_at = datetime.utcnow()
     db.session.commit()
 
-    # Final confirmation page
+    # Final confirmation page (now with Stripe receipt link)
     body = """
     <div class="hero">
       <h1>All set 🎉</h1>
@@ -985,6 +998,18 @@ def confirm_payment(entry_id):
         Your raffle number is <strong>#{{ entry.number }}</strong>.
         Any remaining hold on your card will be released by your bank.
       </p>
+
+      {% if receipt_url %}
+        <div class="row" style="margin-top:16px">
+          <a class="btn" href="{{ receipt_url }}" target="_blank" rel="noopener">
+            View Stripe receipt
+          </a>
+        </div>
+        <p class="muted" style="margin-top:4px">
+          This opens your Stripe receipt page in a new tab.
+          You can print or save it as a PDF from your browser.
+        </p>
+      {% endif %}
     </div>
 
     <!-- Confetti canvas -->
@@ -1002,30 +1027,31 @@ def confirm_payment(entry_id):
       });
 
       // Continuous confetti loop for 6 seconds
-      let duration = 600000;
+      let duration = 60000;
       let end = Date.now() + duration;
 
       (function frame() {
-       myConfetti({
-         particleCount: 6,
-         spread: 70,
-         startVelocity: 30,
-         origin: { x: Math.random(), y: 0 }
-       });
+        myConfetti({
+          particleCount: 6,
+          spread: 70,
+          startVelocity: 30,
+          origin: { x: Math.random(), y: 0 }
+        });
 
-       if (Date.now() < end) {
-         requestAnimationFrame(frame);
-       }
-     })();
-   </script>
-
-     """
+        if (Date.now() < end) {
+          requestAnimationFrame(frame);
+        }
+      })();
+    </script>
+    """
     return render(
         body,
         charity=charity,
         entry=entry,
         title=f"{charity.name} – Thank you",
+        receipt_url=receipt_url,
     )
+
 
 
 @app.route("/<slug>/success")
