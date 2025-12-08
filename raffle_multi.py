@@ -922,13 +922,12 @@ def hold_success(slug):
 @app.route("/confirm-payment/<int:entry_id>")
 def confirm_payment(entry_id):
     """
-    Option B:
-      - Called when user clicks 'Confirm & Pay' after their number is assigned.
-      - Captures part of the original PaymentIntent (the hold),
-        equal to the raffle number in pounds.
-      - The rest of the authorised amount is automatically released
-        by Stripe / the card issuer.
-      - Fetches the Stripe receipt URL so the user can view/print it.
+    Called when user clicks 'Confirm & Pay' after their number is assigned.
+
+    - Captures part of the original PaymentIntent (the hold),
+      equal to the raffle number in pounds.
+    - The rest of the authorised amount is released by the bank.
+    - Then fetches the related Charge from Stripe to get a receipt_url.
     """
     entry = Entry.query.get_or_404(entry_id)
     charity = Charity.query.get_or_404(entry.charity_id)
@@ -951,7 +950,7 @@ def confirm_payment(entry_id):
         flash("Something went wrong with your raffle amount. Please contact us.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Capture from the original hold
+    # 1) Capture from the original hold
     try:
         captured_pi = stripe.PaymentIntent.capture(
             entry.payment_intent_id,
@@ -967,24 +966,28 @@ def confirm_payment(entry_id):
         )
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Try to get the Stripe receipt URL from the first charge
+    # 2) Fetch the Charge explicitly, then get receipt_url
     receipt_url = None
     try:
-        # captured_pi is a Stripe PaymentIntent object
-        if captured_pi.charges and captured_pi.charges.data:
-            charge = captured_pi.charges.data[0]
-            receipt_url = getattr(charge, "receipt_url", None)
+        charges = stripe.Charge.list(
+            payment_intent=entry.payment_intent_id,
+            limit=1,
+        )
+        if charges.data:
+            charge = charges.data[0]
+            receipt_url = charge.get("receipt_url") or getattr(charge, "receipt_url", None)
+            app.logger.info(f"Stripe receipt_url for entry {entry.id}: {receipt_url}")
     except Exception as e:
         app.logger.warning(
-            f"Could not extract receipt_url for entry {entry.id}: {e}"
+            f"Could not fetch charge/receipt_url for entry {entry.id}: {e}"
         )
 
-    # Mark entry as paid
+    # 3) Mark entry as paid in your DB
     entry.paid = True
     entry.paid_at = datetime.utcnow()
     db.session.commit()
 
-    # Final confirmation page (now with Stripe receipt link)
+    # 4) Final confirmation page with optional Stripe receipt button
     body = """
     <div class="hero">
       <h1>All set 🎉</h1>
@@ -1006,7 +1009,7 @@ def confirm_payment(entry_id):
           </a>
         </div>
         <p class="muted" style="margin-top:4px">
-          This opens your Stripe receipt page in a new tab.
+          This opens your Stripe receipt in a new tab.
           You can print or save it as a PDF from your browser.
         </p>
       {% endif %}
