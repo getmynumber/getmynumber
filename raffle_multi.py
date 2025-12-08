@@ -811,16 +811,51 @@ def confirm_payment(entry_id):
     body = """
     <div class="hero">
       <h1>All set 🎉</h1>
+
       <p>
         We’ve captured <strong>£{{ entry.number }}</strong> from your card
         for <strong>{{ charity.name }}</strong>.
       </p>
+
       <p class="muted">
         Your raffle number is <strong>#{{ entry.number }}</strong>.
         Any remaining hold on your card will be released by your bank.
       </p>
     </div>
-    """
+
+    <!-- Confetti canvas -->
+    <canvas id="confetti-canvas"
+            style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;"></canvas>
+
+    <!-- Confetti Script -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+      const confettiCanvas = document.getElementById('confetti-canvas');
+      const myConfetti = confetti.create(confettiCanvas, {
+        resize: true,
+        useWorker: true
+      });
+
+      // Big burst instantly
+      myConfetti({
+        particleCount: 150,
+        spread: 80,
+        startVelocity: 45,
+        origin: { y: 0.7 }
+      });
+
+      // Second wave after 1 second
+      setTimeout(() => {
+        myConfetti({
+          particleCount: 120,
+          spread: 100,
+          startVelocity: 40,
+          origin: { y: 0.6 }
+        });
+       }, 1000);
+     </script>
+     """
     return render(
         body,
         charity=charity,
