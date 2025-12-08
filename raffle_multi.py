@@ -161,6 +161,17 @@ LAYOUT = """
     backdrop-filter:blur(12px);
   }
 
+@media (max-width:600px){
+  .nav{
+    padding-inline:12px;
+    border-radius:16px;
+
+    /* override sticky for mobile */
+    position:static;
+    top:auto;
+  }
+}
+
   .logo{
     display:flex;
     gap:10px;
@@ -221,7 +232,6 @@ LAYOUT = """
       padding-inline:12px;
       border-radius:16px;
     }
-    .logo strong{display:none;}
   }
 
   .card{
