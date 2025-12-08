@@ -187,7 +187,7 @@ LAYOUT = """
 
     /* No animation, no movement */
     transition:box-shadow .25s ease;
-}
+   }
 
 
   .logo strong{
@@ -447,71 +447,71 @@ LAYOUT = """
     transition:width 220ms ease-out;
   }
 
-.steps-grid{
-  margin-top:18px;
-  display:grid;
-  gap:14px;
-}
+  .steps-grid{
+    margin-top:18px;
+    display:grid;
+    gap:14px;
+  }
 
-@media (min-width:720px){
+  @media (min-width:720px){
   .steps-grid{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
-}
+  }
 
-@media (min-width:1040px){
+ @media (min-width:1040px){
   .steps-grid{
     grid-template-columns:repeat(4,minmax(0,1fr));
   }
-}
+ }
 
-.step-card{
-  background:var(--card);
-  border-radius:20px;
-  padding:14px 14px 16px;
-  border:1px solid rgba(207,227,234,0.8);
-  box-shadow:0 10px 30px rgba(3,46,66,0.08);
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
+ .step-card{
+   background:var(--card);
+   border-radius:20px;
+   padding:14px 14px 16px;
+   border:1px solid rgba(207,227,234,0.8);
+   box-shadow:0 10px 30px rgba(3,46,66,0.08);
+   display:flex;
+   flex-direction:column;
+   gap:8px;
+ }
 
-.step-header{
+ .step-header{
   display:flex;
   align-items:center;
   gap:8px;
-}
+ }
 
-.step-icon{
-  width:32px;
-  height:32px;
-  border-radius:999px;
-  display:grid;
-  place-items:center;
-  background:var(--bg-soft);
-  color:var(--brand);
-  font-size:18px;
-  flex-shrink:0;
-}
+ .step-icon{
+   width:32px;
+   height:32px;
+   border-radius:999px;
+   display:grid;
+   place-items:center;
+   background:var(--bg-soft);
+   color:var(--brand);
+   font-size:18px;
+   flex-shrink:0;
+ }
 
-.step-label{
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:0.06em;
-  color:var(--muted);
-}
+ .step-label{
+   font-size:11px;
+   text-transform:uppercase;
+   letter-spacing:0.06em;
+   color:var(--muted);
+ }
 
-.step-title{
-  font-size:14px;
-  font-weight:600;
-  color:var(--text);
-}
+ .step-title{
+   font-size:14px;
+   font-weight:600;
+   color:var(--text);
+ }
 
-.step-body{
-  font-size:13px;
-  color:var(--muted);
-  line-height:1.5;
-}
+ .step-body{
+   font-size:13px;
+   color:var(--muted);
+   line-height:1.5;
+ }
 
   .footer{
     color:var(--muted);
@@ -520,33 +520,33 @@ LAYOUT = """
     font-size:12px;
     opacity:0.85;
   }
-</style>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('form[data-safe-submit]').forEach(f => {
-      f.addEventListener('submit', () => {
-        const btn = f.querySelector('button[type="submit"]');
-        if (btn) {
-          btn.disabled = true;
-          btn.textContent = 'Working…';
-        }
-      });
-    });
-  });
-</script>
-</head>
-<body>
-  <div class="wrap">
-    <nav class="nav">
-      <a class="logo" href="{{ url_for('home') }}">
-        <span class="logo-badge">🎟️</span>
-        <strong>Get My Number</strong>
-      </a>
-      <div class="nav-links">
-        <a href="{{ url_for('admin_charities') }}">Admin</a>
-        <a href="{{ url_for('partner_login') }}">Partner</a>
-      </div>
-    </nav>
+ </style>
+   <script>
+     document.addEventListener('DOMContentLoaded', () => {
+       document.querySelectorAll('form[data-safe-submit]').forEach(f => {
+         f.addEventListener('submit', () => {
+           const btn = f.querySelector('button[type="submit"]');
+           if (btn) {
+             btn.disabled = true;
+             btn.textContent = 'Working…';
+           }
+         });
+       });
+     });
+   </script>
+   </head>
+   <body>
+     <div class="wrap">
+       <nav class="nav">
+         <a class="logo" href="{{ url_for('home') }}">
+           <span class="logo-badge">🎟️</span>
+           <strong>Get My Number</strong>
+         </a>
+         <div class="nav-links">
+           <a href="{{ url_for('admin_charities') }}">Admin</a>
+           <a href="{{ url_for('partner_login') }}">Partner</a>
+         </div>
+       </nav>
 
     <section class="card">
       {% with messages = get_flashed_messages() %}
@@ -597,105 +597,105 @@ def partner_guard(slug):
 def home():
     charities = Charity.query.order_by(Charity.name.asc()).all()
     body = """
-<h2>Pick a charity</h2>
-<p class="muted">Choose a raffle to support:</p>
-<div>
-  {% for c in charities %}
-    <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}"><strong>{{ c.name }}</strong></a>
-  {% else %}
-    <p class="muted">
-      No charities yet. Use <a href="{{ url_for('admin_charities') }}">Admin</a> to add one.
-    </p>
-  {% endfor %}
-</div>
+   <h2>Pick a charity</h2>
+   <p class="muted">Choose a raffle to support:</p>
+   <div>
+     {% for c in charities %}
+       <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}"><strong>{{ c.name }}</strong></a>
+     {% else %}
+       <p class="muted">
+         No charities yet. Use <a href="{{ url_for('admin_charities') }}">Admin</a> to add one.
+       </p>
+     {% endfor %}
+   </div>
 
-<hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
+   <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
-<div class="hero">
-  <h1>How Get My Number works</h1>
-  <p class="muted">
-    A simple, transparent raffle where your card is held for a maximum amount first,
-    and you only pay the value of the ticket number you receive.
-  </p>
-</div>
+   <div class="hero">
+    <h1>How Get My Number works</h1>
+     <p class="muted">
+       A simple, transparent raffle where your card is held for a maximum amount first,
+       and you only pay the value of the ticket number you receive.
+     </p>
+   </div>
 
-<div class="steps-grid">
+   <div class="steps-grid">
 
-  <div class="step-card">
-    <div class="step-header">
-      <div class="step-icon">👤</div>
-      <div>
-        <div class="step-label">Step 1</div>
-        <div class="step-title">Enter your details</div>
-      </div>
-    </div>
-    <div class="step-body">
-      Choose your charity and enter your name, email and (optionally) phone number.
-      We use this to send you your raffle ticket number and any updates about the draw.
-    </div>
-  </div>
+     <div class="step-card">
+       <div class="step-header">
+         <div class="step-icon">👤</div>
+         <div>
+           <div class="step-label">Step 1</div>
+           <div class="step-title">Enter your details</div>
+         </div>
+       </div>
+       <div class="step-body">
+         Choose your charity and enter your name, email and (optionally) phone number.
+         We use this to send you your raffle ticket number and any updates about the draw.
+       </div>
+     </div>
 
-  <div class="step-card">
-    <div class="step-header">
-      <div class="step-icon">💳</div>
-      <div>
-        <div class="step-label">Step 2</div>
-        <div class="step-title">£200 temporary card hold</div>
-      </div>
-    </div>
-    <div class="step-body">
-      You are redirected to our secure Stripe checkout where a temporary hold
-      of up to <strong>£200</strong> is placed on your card. This is an authorisation only –
-      no money is taken at this point.
-    </div>
-  </div>
+     <div class="step-card">
+       <div class="step-header">
+         <div class="step-icon">💳</div>
+         <div>
+           <div class="step-label">Step 2</div>
+           <div class="step-title">£200 temporary card hold</div>
+         </div>
+       </div>
+       <div class="step-body">
+         You are redirected to our secure Stripe checkout where a temporary hold
+         of up to <strong>£200</strong> is placed on your card. This is an authorisation only –
+         no money is taken at this point.
+       </div>
+     </div>
 
-  <div class="step-card">
-    <div class="step-header">
-      <div class="step-icon">🎟️</div>
-      <div>
-        <div class="step-label">Step 3</div>
-        <div class="step-title">Receive your raffle ticket number</div>
-      </div>
-    </div>
-    <div class="step-body">
-      Once the hold is confirmed, you are brought back to Get My Number and assigned
-      a unique raffle ticket number for your chosen charity. This number is shown on screen
-      and stored against your entry.
-    </div>
-  </div>
+     <div class="step-card">
+       <div class="step-header">
+         <div class="step-icon">🎟️</div>
+         <div>
+           <div class="step-label">Step 3</div>
+           <div class="step-title">Receive your raffle ticket number</div>
+         </div>
+       </div>
+       <div class="step-body">
+         Once the hold is confirmed, you are brought back to Get My Number and assigned
+         a unique raffle ticket number for your chosen charity. This number is shown on screen
+         and stored against your entry.
+       </div>
+     </div>
 
-  <div class="step-card">
-    <div class="step-header">
-      <div class="step-icon">✅</div>
-      <div>
-        <div class="step-label">Step 4</div>
-        <div class="step-title">Pay your ticket amount</div>
-      </div>
-    </div>
-    <div class="step-body">
-      You confirm payment for an amount equal to your ticket number
-      (for example, ticket <strong>57</strong> = <strong>£57</strong>). We capture only this amount
-      from the original card hold.
-    </div>
-  </div>
+     <div class="step-card">
+       <div class="step-header">
+         <div class="step-icon">✅</div>
+         <div>
+           <div class="step-label">Step 4</div>
+           <div class="step-title">Pay your ticket amount</div>
+         </div>
+       </div>
+       <div class="step-body">
+         You confirm payment for an amount equal to your ticket number
+         (for example, ticket <strong>57</strong> = <strong>£57</strong>). We capture only this amount
+         from the original card hold.
+       </div>
+     </div>
 
-  <div class="step-card">
-    <div class="step-header">
-      <div class="step-icon">💷</div>
-      <div>
-        <div class="step-label">Step 5</div>
-        <div class="step-title">Remaining hold is released</div>
-      </div>
-    </div>
-    <div class="step-body">
-      Any difference between the original £200 hold and your ticket amount is released
-      by your bank. You are only charged the value of your final raffle ticket number.
-    </div>
-  </div>
+     <div class="step-card">
+       <div class="step-header">
+         <div class="step-icon">💷</div>
+         <div>
+           <div class="step-label">Step 5</div>
+           <div class="step-title">Remaining hold is released</div>
+         </div>
+       </div>
+       <div class="step-body">
+         Any difference between the original £200 hold and your ticket amount is released
+         by your bank. You are only charged the value of your final raffle ticket number.
+       </div>
+     </div>
 
-</div>
-"""
+   </div>
+   """
 
 return render(body, charities=charities, title="Get My Number")
 
