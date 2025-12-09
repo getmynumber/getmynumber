@@ -1236,28 +1236,31 @@ def admin_charities():
         except Exception:
             session.clear(); ok = False
 
-    if request.method == "POST":
+        if request.method == "POST":
         if not ok:
+            # Handle admin login
             if (request.form.get("username") == admin_user and
                 request.form.get("password") == admin_pw and admin_pw):
                 session.permanent = True
                 session["admin_ok"] = True
                 session["admin_login_time"] = datetime.utcnow().isoformat()
-                ok = True; flash("Logged in successfully.")
+                ok = True
+                flash("Logged in successfully.")
             else:
                 msg = "Invalid username or password."
-                else:
-            slug = request.form.get("slug","").strip().lower()
-            name = request.form.get("name","").strip()
-            url  = request.form.get("donation_url","").strip()
+        else:
+            # Already logged in – handle creating/saving a charity
+            slug = request.form.get("slug", "").strip().lower()
+            name = request.form.get("name", "").strip()
+            url  = request.form.get("donation_url", "").strip()
             try:
-                maxn = int(request.form.get("max_number","500") or 500)
+                maxn = int(request.form.get("max_number", "500") or 500)
             except ValueError:
                 maxn = 500
 
             # New: optional draw date/time
             draw_at = None
-            draw_raw = request.form.get("draw_at","").strip()
+            draw_raw = request.form.get("draw_at", "").strip()
             if draw_raw:
                 try:
                     draw_at = datetime.fromisoformat(draw_raw)
@@ -1269,7 +1272,7 @@ def admin_charities():
             elif Charity.query.filter_by(slug=slug).first():
                 msg = "Slug already exists."
             elif msg:
-                # keep validation message (e.g. invalid draw date/time)
+                # keep validation message, e.g. invalid draw date
                 pass
             else:
                 c = Charity(
@@ -1279,7 +1282,8 @@ def admin_charities():
                     max_number=maxn,
                     draw_at=draw_at,
                 )
-                db.session.add(c); db.session.commit()
+                db.session.add(c)
+                db.session.commit()
                 msg = f"Saved. Public page: /{slug}"
 
     charities = Charity.query.order_by(Charity.name.asc()).all()
