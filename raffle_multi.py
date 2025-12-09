@@ -945,7 +945,7 @@ def charity_page(slug):
         taken=taken,
         pct=pct,
         title=charity.name,
-        kehilla_logo=kehilla_logo
+        kehilla_logo=kehilla_logo,
         draw_iso=draw_iso,
     )
 
