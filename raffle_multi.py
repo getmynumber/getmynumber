@@ -66,6 +66,7 @@ class Charity(db.Model):
     name = db.Column(db.String(200), nullable=False)
     donation_url = db.Column(db.String(500), nullable=False)
     max_number = db.Column(db.Integer, nullable=False, default=500)     # 1..max
+    draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)    
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -523,6 +524,64 @@ LAYOUT = """
    line-height:1.5;
  }
 
+   .countdown-card{
+    margin-top:12px;
+    padding:12px 14px;
+    border-radius:16px;
+    border:1px dashed rgba(0,184,169,0.45);
+    background:var(--bg-soft);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+
+  .countdown-label{
+    font-size:13px;
+    color:var(--text-soft);
+  }
+
+  .countdown-label .step-label{
+    margin-bottom:2px;
+  }
+
+  .countdown-timer{
+    display:flex;
+    gap:8px;
+  }
+
+  .cd-part{
+    min-width:58px;
+    padding:6px 8px;
+    border-radius:12px;
+    background:#ffffff;
+    text-align:center;
+    box-shadow:0 4px 12px rgba(3,46,66,0.08);
+  }
+
+  .cd-value{
+    font-weight:600;
+    font-size:15px;
+    color:var(--text);
+  }
+
+  .cd-caption{
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  @media (max-width:600px){
+    .countdown-card{
+      align-items:flex-start;
+    }
+    .countdown-timer{
+      width:100%;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+    }
+  }
+
   .footer{
     color:var(--muted);
     text-align:center;
@@ -769,18 +828,50 @@ def charity_page(slug):
     # Only show embedded logo on /thekehilla
     kehilla_logo = KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
 
+    # Raffle draw datetime (for countdown)
+    draw_iso = charity.draw_at.isoformat() if charity.draw_at else None
+
     body = """
+
     <div class="hero">
       <h1>{{ charity.name }}</h1>
       {% if kehilla_logo %}
         <img src="{{ kehilla_logo }}" alt="{{ charity.name }} logo" style="max-width:180px;margin:12px 0;border-radius:12px;">
       {% endif %}
-      <p>
+            <p>
         We place a temporary hold on your card before giving you a number.
-        Once your donation is confirmed, the remaing hold will be released.
+        Once your donation is confirmed, the hold will be released.
       </p>
 
+      {% if draw_iso %}
+      <div class="countdown-card">
+        <div class="countdown-label">
+          <div class="step-label">Raffle draw</div>
+          <div>Time left until the draw closes</div>
+        </div>
+        <div class="countdown-timer" data-target="{{ draw_iso }}">
+          <div class="cd-part">
+            <div class="cd-value" data-unit="days">--</div>
+            <div class="cd-caption">days</div>
+          </div>
+          <div class="cd-part">
+            <div class="cd-value" data-unit="hours">--</div>
+            <div class="cd-caption">hours</div>
+          </div>
+          <div class="cd-part">
+            <div class="cd-value" data-unit="minutes">--</div>
+            <div class="cd-caption">mins</div>
+          </div>
+          <div class="cd-part">
+            <div class="cd-value" data-unit="seconds">--</div>
+            <div class="cd-caption">secs</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       <div class="row" style="margin-top:10px">
+
         <div style="flex:2;min-width:260px">
           <form method="post" data-safe-submit>
             <label>Your name <input type="text" name="name" required placeholder="e.g. Sarah Cohen"></label>
@@ -804,6 +895,46 @@ def charity_page(slug):
           </p>
         </div>
       </div>
+    {% if draw_iso %}
+    <script>
+      (function(){
+        const el = document.querySelector('.countdown-timer');
+        if (!el) return;
+        const targetStr = el.dataset.target;
+        const target = new Date(targetStr);
+
+        function pad(n){ return n < 10 ? '0' + n : '' + n; }
+
+        function update(){
+          const now = new Date();
+          let diff = target - now;
+          if (diff <= 0){
+            el.innerHTML = '<span class="muted">The raffle draw time has passed.</span>';
+            clearInterval(timer);
+            return;
+          }
+          const totalSeconds = Math.floor(diff / 1000);
+          const days = Math.floor(totalSeconds / 86400);
+          const hours = Math.floor((totalSeconds % 86400) / 3600);
+          const mins = Math.floor((totalSeconds % 3600) / 60);
+          const secs = totalSeconds % 60;
+
+          const dEl = el.querySelector('[data-unit="days"]');
+          const hEl = el.querySelector('[data-unit="hours"]');
+          const mEl = el.querySelector('[data-unit="minutes"]');
+          const sEl = el.querySelector('[data-unit="seconds"]');
+
+          if (dEl) dEl.textContent = days;
+          if (hEl) hEl.textContent = pad(hours);
+          if (mEl) mEl.textContent = pad(mins);
+          if (sEl) sEl.textContent = pad(secs);
+        }
+
+        update();
+        const timer = setInterval(update, 1000);
+      })();
+    </script>
+    {% endif %}
     </div>
     """
     return render(
@@ -815,8 +946,8 @@ def charity_page(slug):
         pct=pct,
         title=charity.name,
         kehilla_logo=kehilla_logo
+        draw_iso=draw_iso,
     )
-
 
 @app.route("/<slug>/hold-success")
 def hold_success(slug):
@@ -1115,18 +1246,39 @@ def admin_charities():
                 ok = True; flash("Logged in successfully.")
             else:
                 msg = "Invalid username or password."
-        else:
+                else:
             slug = request.form.get("slug","").strip().lower()
             name = request.form.get("name","").strip()
             url  = request.form.get("donation_url","").strip()
-            try: maxn = int(request.form.get("max_number","500") or 500)
-            except ValueError: maxn = 500
+            try:
+                maxn = int(request.form.get("max_number","500") or 500)
+            except ValueError:
+                maxn = 500
+
+            # New: optional draw date/time
+            draw_at = None
+            draw_raw = request.form.get("draw_at","").strip()
+            if draw_raw:
+                try:
+                    draw_at = datetime.fromisoformat(draw_raw)
+                except ValueError:
+                    msg = "Invalid draw date/time."
+
             if not slug or not name or not url:
                 msg = "All fields are required."
             elif Charity.query.filter_by(slug=slug).first():
                 msg = "Slug already exists."
+            elif msg:
+                # keep validation message (e.g. invalid draw date/time)
+                pass
             else:
-                c = Charity(slug=slug, name=name, donation_url=url, max_number=maxn)
+                c = Charity(
+                    slug=slug,
+                    name=name,
+                    donation_url=url,
+                    max_number=maxn,
+                    draw_at=draw_at,
+                )
                 db.session.add(c); db.session.commit()
                 msg = f"Saved. Public page: /{slug}"
 
@@ -1151,6 +1303,9 @@ def admin_charities():
         <label>Name <input type="text" name="name" placeholder="The Kehilla" required></label>
         <label>Donation URL <input type="url" name="donation_url" placeholder="https://www.charityextra.com/charity/kehilla" required></label>
         <label>Max number <input type="number" name="max_number" value="500" min="1"></label>
+        <label>Draw date &amp; time (optional)
+          <input type="datetime-local" name="draw_at">
+        </label>
         <div style="margin-top:8px"><button class="btn">Add / Save</button></div>
       </form>
       <table>
@@ -1186,13 +1341,33 @@ def edit_charity(slug):
     if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     msg = None
+
     if request.method == "POST":
         charity.name = request.form.get("name", charity.name).strip()
         charity.donation_url = request.form.get("donation_url", charity.donation_url).strip()
-        try: charity.max_number = int(request.form.get("max_number", charity.max_number))
-        except ValueError: msg = "Invalid number format."
+
+        # New: update draw_at
+        draw_raw = request.form.get("draw_at", "").strip()
+        if draw_raw:
+            try:
+                charity.draw_at = datetime.fromisoformat(draw_raw)
+            except ValueError:
+                msg = "Invalid draw date/time format."
         else:
-            db.session.commit(); msg = "Charity updated successfully."
+            charity.draw_at = None
+
+        try:
+            charity.max_number = int(request.form.get("max_number", charity.max_number))
+        except ValueError:
+            msg = "Invalid number format."
+        else:
+            db.session.commit()
+            if not msg:
+                msg = "Charity updated successfully."
+
+    # Pre-populate datetime-local value
+    draw_value = charity.draw_at.strftime("%Y-%m-%dT%H:%M") if charity.draw_at else ""
+
     body = """
     <h2>Edit Charity</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
@@ -1200,11 +1375,14 @@ def edit_charity(slug):
       <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
       <label>Donation URL <input type="url" name="donation_url" value="{{ charity.donation_url }}" required></label>
       <label>Max number <input type="number" name="max_number" value="{{ charity.max_number }}" min="1"></label>
+      <label>Draw date &amp; time (optional)
+        <input type="datetime-local" name="draw_at" value="{{ draw_value }}">
+      </label>
       <div style="margin-top:8px"><button class="btn">Save Changes</button></div>
     </form>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
     """
-    return render(body, charity=charity, msg=msg, title=f"Edit {charity.name}")
+    return render(body, charity=charity, msg=msg, draw_value=draw_value, title=f"Edit {charity.name}")
 
 # ====== ADMIN: ENTRIES / CSV / BULK ==========================================
 
@@ -1686,6 +1864,11 @@ def admin_migrate():
             conn.exec_driver_sql("ALTER TABLE entry ADD COLUMN paid_at DATETIME")
     except Exception as e:
         print("paid_at column:", e)
+    try:
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN draw_at DATETIME")
+    except Exception as e:
+        print("draw_at column:", e)
     return "Migration attempted. Go back to Entries and refresh."
 
 # ====== DB INIT / SEED ========================================================
