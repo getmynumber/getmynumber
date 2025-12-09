@@ -1240,7 +1240,7 @@ def admin_charities():
             if not ok:
                 # Handle admin login
                 if (request.form.get("username") == admin_user and
-                    request.form.get("password") == admin_pw and admin_pw):
+                    request.form.get("password") == admin_pw):
                     session.permanent = True
                     session["admin_ok"] = True
                     session["admin_login_time"] = datetime.utcnow().isoformat()
