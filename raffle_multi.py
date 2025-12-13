@@ -66,7 +66,9 @@ class Charity(db.Model):
     name = db.Column(db.String(200), nullable=False)
     donation_url = db.Column(db.String(500), nullable=False)
     max_number = db.Column(db.Integer, nullable=False, default=500)     # 1..max
-    draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)    
+    draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)
+    is_live = db.Column(db.Boolean, nullable=False, default=True)  # campaign on/off
+    
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -628,15 +630,62 @@ LAYOUT = """
       {{ body|safe }}
     </section>
 
-    <p class="footer">© {{ datetime.utcnow().year }} Get My Number • Secure raffle donations</p>
+    <footer class="footer" style="margin-top:18px">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:center">
+        <span>© {{ datetime.utcnow().year }} Get My Number. All rights reserved.</span>
+        <a href="{{ url_for('terms') }}">Terms</a>
+        <span class="muted">•</span>
+        <a href="{{ url_for('privacy') }}">Privacy</a>
+      </div>
+
+      <div style="margin-top:10px;display:flex;justify-content:center">
+        <a href="//www.dmca.com/Protection/Status.aspx?ID=6025ab3b-b51b-49b6-bfbb-c4640ef3d229"
+           title="DMCA.com Protection Status" class="dmca-badge">
+          <img src="https://images.dmca.com/Badges/dmca_protected_sml_120n.png?ID=6025ab3b-b51b-49b6-bfbb-c4640ef3d229"
+               alt="DMCA.com Protection Status" />
+        </a>
+      </div>
+    </footer>
+
+    <script src="https://images.dmca.com/Badges/DMCABadgeHelper.min.js"></script>
   </div>
+   <script>
+     (function () {
+       const allowCopy = {{ 'true' if allow_copy else 'false' }};
+       if (allowCopy) return;
+
+       // Disable right-click
+       document.addEventListener('contextmenu', function (e) {
+         e.preventDefault();
+       });
+
+       // Disable common copy shortcuts (Ctrl/Cmd+C, Ctrl/Cmd+U, Ctrl/Cmd+S)
+       document.addEventListener('keydown', function (e) {
+         const key = (e.key || '').toLowerCase();
+         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+         const mod = isMac ? e.metaKey : e.ctrlKey;
+
+         if (mod && (key === 'c' || key === 'u' || key === 's' || key === 'p')) {
+           e.preventDefault();
+         }
+       });
+
+       // Disable copy/cut (still allows your button that uses navigator.clipboard)
+       document.addEventListener('copy', function (e) { e.preventDefault(); });
+       document.addEventListener('cut', function (e) { e.preventDefault(); });
+     })();
+   </script>
 </body></html>
 """
-
-
 def render(body, **ctx):
+    # Allow copy on admin/partner pages only (switchable here)
+    path = request.path or ""
+    allow_copy = path.startswith("/admin") or path.startswith("/partner")
+    ctx.setdefault("allow_copy", allow_copy)
+
     inner = render_template_string(body, request=request, datetime=datetime, **ctx)
     return render_template_string(LAYOUT, body=inner, request=request, datetime=datetime, **ctx)
+
 
 # ====== HELPERS ===============================================================
 
@@ -652,6 +701,20 @@ def available_numbers(c: Charity):
 def assign_number(c: Charity):
     avail = available_numbers(c)
     return random.choice(avail) if avail else None
+
+def refresh_campaign_live_status(c: Charity) -> None:
+    """
+    If campaign is live but has no remaining numbers, automatically set is_live=False.
+    Call this in places where tickets may be consumed.
+    """
+    try:
+        remaining = len(available_numbers(c))
+        if remaining <= 0 and getattr(c, "is_live", True):
+            c.is_live = False
+            db.session.commit()
+    except Exception:
+        # Don't break the flow if something goes wrong here
+        db.session.rollback()
 
 def partner_guard(slug):
     if not session.get("partner_ok"): return None
@@ -766,10 +829,92 @@ def home():
     """
     return render(body, charities=charities, title="Get My Number")
 
+@app.route("/terms")
+def terms():
+    body = """
+    <div class="hero">
+      <h1>Terms of Service</h1>
+      <p class="muted">Last updated: {{ datetime.utcnow().strftime('%Y-%m-%d') }}</p>
+    </div>
+
+    <div class="stack">
+      <p><strong>1) About the service</strong><br>
+      Get My Number provides a platform for running charity-linked raffle style campaigns (“Campaigns”).
+      Campaign availability may be paused, changed, or ended at any time.</p>
+
+      <p><strong>2) Payments</strong><br>
+      Where shown, we may place a temporary card authorisation (“hold”) via Stripe before issuing a number.
+      Your bank may show this as a pending amount. Holds may expire automatically depending on your bank.</p>
+
+      <p><strong>3) No guarantees</strong><br>
+      We do not guarantee uninterrupted availability, or that a Campaign will remain live until a specific time,
+      and we may stop a Campaign when tickets are sold out.</p>
+
+      <p><strong>4) Acceptable use</strong><br>
+      You agree not to misuse the site, attempt to access admin/partner areas without authorisation,
+      or interfere with security or performance.</p>
+
+      <p><strong>5) Contact</strong><br>
+      For questions, contact the Campaign organiser or site administrator.</p>
+
+      <p class="muted">This page is general information and is not legal advice.</p>
+    </div>
+    """
+    return render(body, title="Terms")
+
+
+@app.route("/privacy")
+def privacy():
+    body = """
+    <div class="hero">
+      <h1>Privacy Policy</h1>
+      <p class="muted">Last updated: {{ datetime.utcnow().strftime('%Y-%m-%d') }}</p>
+    </div>
+
+    <div class="stack">
+      <p><strong>1) What we collect</strong><br>
+      When you enter a Campaign we may collect your name, email address, phone number (optional),
+      and your assigned ticket number.</p>
+
+      <p><strong>2) Payments</strong><br>
+      Payments/authorisations are processed by Stripe. We do not store full card details on our servers.</p>
+
+      <p><strong>3) Why we use data</strong><br>
+      We use your details to administer Campaign entries, provide support, prevent fraud/abuse,
+      and keep an audit trail of entries.</p>
+
+      <p><strong>4) Sharing</strong><br>
+      We may share entry information with the relevant Campaign organiser/charity solely for Campaign administration,
+      and with service providers (e.g., Stripe) as required to operate the platform.</p>
+
+      <p><strong>5) Retention</strong><br>
+      We retain data only as long as necessary for Campaign administration, compliance, and dispute handling.</p>
+
+      <p><strong>6) Your rights</strong><br>
+      You may request access, correction, or deletion of your data where applicable.</p>
+
+      <p class="muted">This page is general information and is not legal advice.</p>
+    </div>
+    """
+    return render(body, title="Privacy")
 
 @app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
     charity = get_charity_or_404(slug)
+
+    # Auto-switch off if sold out
+    refresh_campaign_live_status(charity)
+
+    # If campaign is manually inactive (or sold out), block entries
+    if not getattr(charity, "is_live", True):
+        body = """
+        <div class="hero">
+          <h1>{{ charity.name }}</h1>
+          <p class="muted">This campaign is currently inactive or sold out.</p>
+          <a class="pill" href="{{ url_for('home') }}">Back to charities</a>
+        </div>
+        """
+        return render(body, charity=charity, title=charity.name)
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -1323,12 +1468,19 @@ def admin_charities():
         <div style="margin-top:8px"><button class="btn">Add / Save</button></div>
       </form>
       <table>
-        <thead><tr><th>Slug</th><th>Name</th><th>Max</th><th>Remaining</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Slug</th><th>Name</th><th>Status</th><th>Max</th><th>Remaining</th><th>Actions</th></tr></thead>
         <tbody>
           {% for c in charities %}
             <tr>
               <td>{{ c.slug }}</td>
               <td>{{ c.name }}</td>
+              <td>
+                {% if c.is_live %}
+                  <span class="badge ok">LIVE</span>
+                {% else %}
+                  <span class="badge warn">INACTIVE</span>
+                {% endif %}
+              </td>
               <td>{{ c.max_number }}</td>
               <td>{{ remaining[c.id] }}</td>
               <td>
@@ -1336,6 +1488,16 @@ def admin_charities():
                 <a class="pill" href="{{ url_for('edit_charity', slug=c.slug) }}">Edit</a>
                 <a class="pill" href="{{ url_for('admin_charity_entries', slug=c.slug) }}">Entries</a>
                 <a class="pill" href="{{ url_for('admin_charity_users', slug=c.slug) }}">Users</a>
+                <form method="post" action="{{ url_for('admin_toggle_charity_live', slug=c.slug) }}" style="display:inline">
+                  <button class="pill" type="submit">
+                    {% if c.is_live %}Set Inactive{% else %}Set Live{% endif %}
+                  </button>
+                </form>
+
+                <form method="post" action="{{ url_for('admin_delete_charity', slug=c.slug) }}"
+                      style="display:inline" onsubmit="return confirm('Delete this campaign and all its entries/users? This cannot be undone.');">
+                  <button class="pill" type="submit">Delete</button>
+                </form>
               </td>
             </tr>
           {% endfor %}
@@ -1351,6 +1513,41 @@ def admin_charities():
         remaining=remaining,
         title="Manage Charities",
     )
+
+@app.post("/admin/charities/<slug>/toggle-live")
+def admin_toggle_charity_live(slug):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    c = Charity.query.filter_by(slug=slug).first()
+    if not c:
+        flash("Charity not found.")
+        return redirect(url_for("admin_charities"))
+
+    c.is_live = not getattr(c, "is_live", True)
+    db.session.commit()
+    flash(f"Campaign '{c.slug}' is now {'LIVE' if c.is_live else 'INACTIVE'}.")
+    return redirect(url_for("admin_charities"))
+
+
+@app.post("/admin/charities/<slug>/delete")
+def admin_delete_charity(slug):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    c = Charity.query.filter_by(slug=slug).first()
+    if not c:
+        flash("Charity not found.")
+        return redirect(url_for("admin_charities"))
+
+    # Delete dependent rows first (no cascade defined)
+    Entry.query.filter_by(charity_id=c.id).delete(synchronize_session=False)
+    CharityUser.query.filter_by(charity_id=c.id).delete(synchronize_session=False)
+
+    db.session.delete(c)
+    db.session.commit()
+    flash(f"Deleted campaign '{slug}'.")
+    return redirect(url_for("admin_charities"))
 
 @app.route("/admin/logout")
 def admin_logout():
@@ -1890,6 +2087,22 @@ def admin_migrate():
             conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN draw_at DATETIME")
     except Exception as e:
         print("draw_at column:", e)
+    try:
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN is_live BOOLEAN DEFAULT 1")
+    except Exception as e:
+        print("is_live column:", e)
+    # Auto-migrate charity table (draw_at / is_live) if missing
+    try:
+        insp = inspect(db.engine)
+        charity_cols = {c['name'] for c in insp.get_columns('charity')}
+        with db.engine.begin() as conn:
+            if 'draw_at' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN draw_at DATETIME"))
+            if 'is_live' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN is_live BOOLEAN DEFAULT 1"))
+    except Exception as e:
+        print("Charity auto-migration check failed:", e)
     return "Migration attempted. Go back to Entries and refresh."
 
 # ====== DB INIT / SEED ========================================================
