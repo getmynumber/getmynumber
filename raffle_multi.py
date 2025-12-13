@@ -1027,6 +1027,8 @@ def charity_page(slug):
                 "phone": phone,
             }
             try:
+                app.logger.info(f"Stripe key prefix: {STRIPE_SECRET_KEY[:8]}... len={len(STRIPE_SECRET_KEY)}")
+                app.logger.info("Creating Stripe Checkout Session now...")                
                 checkout_session = stripe.checkout.Session.create(
                     mode="payment",
                     line_items=[{
