@@ -18,6 +18,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint, inspect, text
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
+from urllib.parse import urlparse
 
 import stripe
 
@@ -51,6 +52,80 @@ else:
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
+
+# --- Hotlink protection (lightweight) ---
+# Blocks other domains from embedding your image/static files directly.
+# Note: This only affects files served by YOUR app (e.g. /static/... or *.png endpoints).
+ALLOWED_HOTLINK_HOSTS = set(
+    h.strip().lower()
+    for h in os.getenv("HOTLINK_ALLOWED_HOSTS", "").split(",")
+    if h.strip()
+)
+
+def _same_site_referer_ok() -> bool:
+    ref = request.headers.get("Referer", "")
+    if not ref:
+        # If no Referer, allow (some browsers/extensions strip it)
+        return True
+    try:
+        ref_host = (urlparse(ref).netloc or "").lower()
+        host = (request.host or "").lower()
+        # allow same host or explicitly allowed hosts
+        return (ref_host == host) or (ref_host in ALLOWED_HOTLINK_HOSTS)
+    except Exception:
+        return True
+
+@app.before_request
+def block_hotlinking():
+    path = (request.path or "").lower()
+
+    # Only apply to likely "asset" paths
+    is_asset = (
+        path.startswith("/static/")
+        or path.endswith(".png") or path.endswith(".jpg") or path.endswith(".jpeg")
+        or path.endswith(".gif") or path.endswith(".webp") or path.endswith(".svg")
+        or path.endswith(".ico")
+    )
+
+    if is_asset and not _same_site_referer_ok():
+        # Return 403 to stop hotlinking
+        return ("Hotlinking not allowed.", 403)
+
+# --- Security headers (CSP, etc.) ---
+@app.after_request
+def add_security_headers(resp):
+    # IMPORTANT: Because your app uses inline <style> / <script> inside LAYOUT,
+    # we must allow 'unsafe-inline'. If you later move scripts/styles to files,
+    # you can tighten this significantly.
+
+    csp = [
+        "default-src 'self'",
+        # Allow Stripe + DMCA scripts
+        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://images.dmca.com",
+        # Allow inline CSS (your LAYOUT uses inline styles) + optional Google fonts if you ever add later
+        "style-src 'self' 'unsafe-inline'",
+        # Images: self + data: (for embedded images) + DMCA badge host
+        "img-src 'self' data: https://images.dmca.com",
+        # Stripe API calls
+        "connect-src 'self' https://api.stripe.com",
+        # Stripe may open in frame/popup flows depending on product; safe to allow Stripe frames
+        "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+        # Prevent your site being iframed by others
+        "frame-ancestors 'self'",
+        # Form posts only to your site (Stripe checkout is initiated server-side anyway)
+        "form-action 'self'",
+        # Lock down base-uri
+        "base-uri 'self'",
+    ]
+
+    resp.headers["Content-Security-Policy"] = "; ".join(csp)
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    resp.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    # Clickjacking protection (extra)
+    resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+
+    return resp
 
 # Embedded logo only for /thekehilla.
 # Replace this with your actual bitmap data URI when ready, e.g.:
@@ -844,7 +919,7 @@ def terms():
 
       <p><strong>2) Payments</strong><br>
       Where shown, we may place a temporary card authorisation (“hold”) via Stripe before issuing a number.
-      Your bank may show this as a pending amount. Holds may expire automatically depending on your bank.</p>
+      Your bank may show this as a pending amount.</p>
 
       <p><strong>3) No guarantees</strong><br>
       We do not guarantee uninterrupted availability, or that a Campaign will remain live until a specific time,
@@ -854,10 +929,31 @@ def terms():
       You agree not to misuse the site, attempt to access admin/partner areas without authorisation,
       or interfere with security or performance.</p>
 
+      <h2>Use of Site Content</h2>
+      <p>
+        All content on this website, including text, branding, layout, design, logos, graphics,
+        and underlying code, is owned by or licensed to Get My Number.
+      </p>
+
+      <h2>No Cloning, Scraping or Mirroring</h2>
+      <p>
+        You may not copy, reproduce, distribute, mirror, frame, scrape, reverse engineer,
+        or create derivative works of any part of this site (including using automated tools,
+        AI tools, or “website builders” that attempt to recreate a site from a URL),
+        especially for the purpose of creating a competing product or service, without our
+        prior written consent.
+      </p>
+
+      <h2>Prohibited Activities</h2>
+      <ul>
+        <li>Automated scraping, crawling, mirroring, or downloading of site content</li>
+        <li>Attempting to bypass security controls or access restricted areas</li>
+        <li>Interfering with site performance, integrity, or security</li>
+        <li>Impersonating Get My Number or any campaign</li>
+      </ul>
+
       <p><strong>5) Contact</strong><br>
       For questions, contact the Campaign organiser or site administrator.</p>
-
-      <p class="muted">This page is general information and is not legal advice.</p>
     </div>
     """
     return render(body, title="Terms")
@@ -893,7 +989,6 @@ def privacy():
       <p><strong>6) Your rights</strong><br>
       You may request access, correction, or deletion of your data where applicable.</p>
 
-      <p class="muted">This page is general information and is not legal advice.</p>
     </div>
     """
     return render(body, title="Privacy")
