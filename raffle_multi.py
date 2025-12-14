@@ -1023,7 +1023,7 @@ def terms():
         integrity, or security. Impersonating Get My Number or any campaign.<p>
 
       <p><strong>8) Contact</strong><br>
-      For questions, contact the Campaign organiser or site administrator.</p>
+        For questions, contact the Campaign organiser or site administrator.</p>
     </div>
     """
     return render(body, title="Terms")
