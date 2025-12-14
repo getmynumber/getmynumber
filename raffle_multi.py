@@ -738,10 +738,23 @@ LAYOUT = """
   }
 
   /* quick spin while waiting for API */
-  .wheel-spinning{
-    animation: wheelSpin .55s linear infinite;
+  /* Casino-style spin (with wobble) */
+  .wheel.wheel-spinning{
+    animation:
+      wheelSpinFast .6s linear infinite,
+      wheelWobble .9s ease-in-out infinite;
+    will-change: transform;
   }
-  @keyframes wheelSpin { to { transform: rotate(360deg); } }
+
+  @keyframes wheelSpinFast {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes wheelWobble {
+    0%   { filter: brightness(1); }
+    50%  { filter: brightness(1.05); }
+    100% { filter: brightness(1); }
+  }
  </style>
    <script>
      document.addEventListener('DOMContentLoaded', () => {
@@ -1408,10 +1421,16 @@ def hold_success(slug):
      const result = document.getElementById("result");
 
      function spinTo(deg) {
-       // big multi-turn spin + land on deg
-       wheel.style.transition = "transform 2.2s cubic-bezier(.12,.85,.12,1)";
-       wheel.style.transform = `rotate(${(360*6) + deg}deg)`;
-     }
+       // stop continuous spin animation
+       wheel.classList.remove("wheel-spinning");
+
+      // force layout so animation removal is applied
+      void wheel.offsetWidth;
+
+     // long deceleration spin with easing
+     wheel.style.transition = "transform 3.2s cubic-bezier(0.12, 0.75, 0.18, 1)";
+     wheel.style.transform = `rotate(${(360 * 7) + deg}deg)`;
+   }
 
      btn.addEventListener("click", async () => {
        btn.disabled = true;
@@ -1421,6 +1440,8 @@ def hold_success(slug):
        // start a quick continuous spin while we wait for server
        wheel.style.transition = "none";
        wheel.style.transform = "rotate(0deg)";
+      // force browser to apply the transform before starting the animation
+       void wheel.offsetWidth;
        wheel.classList.add("wheel-spinning");
 
        let data = null;
@@ -1441,7 +1462,8 @@ def hold_success(slug):
        wheel.classList.remove("wheel-spinning");
 
       // Choose a landing angle based on ticket number (so it feels “deterministic”)
-      const landing = (data.ticket_number * 19) % 360; // any mapping is fine
+      // Offset slightly so it stops just under the pointer
+      const landing = ((data.ticket_number * 23) % 360) + 6;
       // let browser apply class removal first
       requestAnimationFrame(() => spinTo(landing));
 
