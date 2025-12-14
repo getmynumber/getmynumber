@@ -10,7 +10,7 @@
 
 from flask import (
     Flask, render_template_string, request, redirect,
-    url_for, session, flash, abort, send_file
+    url_for, session, flash, abort, send_file, jsonify
 )
 import os, random, csv, io
 from datetime import datetime, timedelta
@@ -664,6 +664,84 @@ LAYOUT = """
     font-size:12px;
     opacity:0.85;
   }
+
+  .step-kicker { font-size:12px; letter-spacing:.08em; text-transform:uppercase; opacity:.75; margin-bottom:6px; }
+
+  .big-number { font-size:58px; font-weight:800; letter-spacing:.02em; }
+
+  .hold-ok{
+    display:flex; gap:10px; justify-content:center; align-items:flex-start;
+    padding:12px 14px; border-radius:14px;
+    background: rgba(0,0,0,.05);
+    max-width:520px; margin-left:auto; margin-right:auto;
+  }
+  .tick{
+    width:26px; height:26px; border-radius:999px;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-weight:900; background: rgba(0,0,0,.12);
+  }
+
+  /* Nicer wheel with pointer */
+  .wheel-wrap{
+    position:relative;
+    width:220px; height:220px;
+    margin:0 auto;
+  }
+  .wheel{
+    position:absolute; inset:0;
+    border-radius:999px;
+    border:10px solid rgba(0,0,0,.10);
+    box-shadow: 0 18px 40px rgba(0,0,0,.12);
+    background:
+      conic-gradient(
+        rgba(0,0,0,.08) 0 20deg,
+        rgba(0,0,0,.02) 20deg 40deg,
+        rgba(0,0,0,.08) 40deg 60deg,
+        rgba(0,0,0,.02) 60deg 80deg,
+        rgba(0,0,0,.08) 80deg 100deg,
+        rgba(0,0,0,.02) 100deg 120deg,
+        rgba(0,0,0,.08) 120deg 140deg,
+        rgba(0,0,0,.02) 140deg 160deg,
+        rgba(0,0,0,.08) 160deg 180deg,
+        rgba(0,0,0,.02) 180deg 200deg,
+        rgba(0,0,0,.08) 200deg 220deg,
+        rgba(0,0,0,.02) 220deg 240deg,
+        rgba(0,0,0,.08) 240deg 260deg,
+        rgba(0,0,0,.02) 260deg 280deg,
+        rgba(0,0,0,.08) 280deg 300deg,
+        rgba(0,0,0,.02) 300deg 320deg,
+        rgba(0,0,0,.08) 320deg 340deg,
+        rgba(0,0,0,.02) 340deg 360deg
+      );
+    transform: rotate(0deg);
+  }
+  .wheel-center{
+    position:absolute;
+    width:72px; height:72px;
+    left:50%; top:50%;
+    transform: translate(-50%,-50%);
+    border-radius:999px;
+    background: rgba(255,255,255,.85);
+    border:8px solid rgba(0,0,0,.10);
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,.05);
+  }
+  .wheel-pointer{
+    position:absolute;
+    left:50%; top:-4px;
+    transform: translateX(-50%);
+    width:0; height:0;
+    border-left:14px solid transparent;
+    border-right:14px solid transparent;
+    border-bottom:26px solid rgba(0,0,0,.35);
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,.18));
+    z-index:5;
+  }
+
+  /* quick spin while waiting for API */
+  .wheel-spinning{
+    animation: wheelSpin .55s linear infinite;
+  }
+  @keyframes wheelSpin { to { transform: rotate(360deg); } }
  </style>
    <script>
      document.addEventListener('DOMContentLoaded', () => {
@@ -756,6 +834,7 @@ def render(body, **ctx):
     allow_copy = path.startswith("/admin") or path.startswith("/partner")
     ctx.setdefault("allow_copy", allow_copy)
 
+    ctx.setdefault("HOLD_AMOUNT_PENCE", HOLD_AMOUNT_PENCE)    
     inner = render_template_string(body, request=request, datetime=datetime, **ctx)
     return render_template_string(LAYOUT, body=inner, request=request, datetime=datetime, **ctx)
 
@@ -927,30 +1006,23 @@ def terms():
       You agree not to misuse the site, attempt to access admin/partner areas without authorisation,
       or interfere with security or performance.</p>
 
-      <h2>Use of Site Content</h2>
-      <p>
+      <p><strong>5) Use of Site Content</strong><br>
         All content on this website, including text, branding, layout, design, logos, graphics,
-        and underlying code, is owned by or licensed to Get My Number.
-      </p>
+        and underlying code, is owned by or licensed to Get My Number.</p>
 
-      <h2>No Cloning, Scraping or Mirroring</h2>
-      <p>
+      <p><strong>6) No Cloning, Scraping or Mirroring</strong><br>
         You may not copy, reproduce, distribute, mirror, frame, scrape, reverse engineer,
         or create derivative works of any part of this site (including using automated tools,
         AI tools, or “website builders” that attempt to recreate a site from a URL),
         especially for the purpose of creating a competing product or service, without our
-        prior written consent.
-      </p>
+        prior written consent.</p>
 
-      <h2>Prohibited Activities</h2>
-      <ul>
-        <li>Automated scraping, crawling, mirroring, or downloading of site content</li>
-        <li>Attempting to bypass security controls or access restricted areas</li>
-        <li>Interfering with site performance, integrity, or security</li>
-        <li>Impersonating Get My Number or any campaign</li>
-      </ul>
+      <p><strong>7) Prohibited Activities</strong><br>
+        Automated scraping, crawling, mirroring, or downloading of site content. Attempting to 
+        bypass security controls or access restricted areas.Interfering with site performance, 
+        integrity, or security. Impersonating Get My Number or any campaign.<p>
 
-      <p><strong>5) Contact</strong><br>
+      <p><strong>8) Contact</strong><br>
       For questions, contact the Campaign organiser or site administrator.</p>
     </div>
     """
@@ -1002,9 +1074,22 @@ def charity_page(slug):
     if not getattr(charity, "is_live", True):
         body = """
         <div class="hero">
-          <h1>{{ charity.name }}</h1>
-          <p class="muted">This campaign is currently inactive or sold out.</p>
-          <a class="pill" href="{{ url_for('home') }}">Back to charities</a>
+          <div class="step-kicker">Step 1 of 3</div>
+          <h1>Enter your details</h1>
+
+          <p class="muted" style="margin-top:8px;">
+            Campaign: <strong>{{ charity.name }}</strong>
+          </p>
+
+          {% if kehilla_logo %}
+            <img src="{{ kehilla_logo }}" alt="{{ charity.name }} logo"
+                 style="max-width:180px;margin:12px 0;border-radius:12px;">
+          {% endif %}
+
+          <p style="margin-top:10px;">
+            We’ll place a temporary <strong>£{{ HOLD_AMOUNT_PENCE // 100 }}</strong> hold on your card first.
+            Then you’ll return here to reveal your ticket number.
+          </p>
         </div>
         """
         return render(body, charity=charity, title=charity.name)
@@ -1257,6 +1342,7 @@ def hold_success(slug):
         )
         db.session.add(entry)
         db.session.commit()
+        session["reveal_entry_id"] = entry.id
     except IntegrityError:
         db.session.rollback()
         flash("That number was just taken—please try again.")
@@ -1266,39 +1352,138 @@ def hold_success(slug):
     session.pop("pending_entry", None)
 
     # Show a page with their number and a 'Confirm & Pay' button
-    body = """
-    <div class="hero">
-      <h1>Thank you{{ ", %s" % name if name else "" }} 🎉</h1>
-      <p>Your raffle number for <strong>{{ charity.name }}</strong> is:</p>
-      <h2 style="margin:10px 0;">
-        <span class="badge" style="font-size:22px">{{ entry.number }}</span>
-      </h2>
-      <p class="muted">
-        We’ve placed a temporary hold on your card.<br>
-        To complete your entry, please confirm the payment of
-        <strong>£{{ entry.number }}</strong>.
-      </p>
-      <div class="row" style="margin-top:12px">
-        <form action="{{ url_for('confirm_payment', entry_id=entry.id) }}" method="GET">
-          <button class="btn" type="submit">
-            Confirm &amp; Pay £{{ entry.number }}
-          </button>
-        </form>
-      </div>
-      <p class="muted" style="margin-top:8px">
-        When you confirm, we’ll charge £{{ entry.number }} from the existing hold
-        and your bank will release the remaining amount.
-      </p>
+     body = """
+     <div class="hero">
+       <div class="step-kicker">Step 2 of 3</div>
+       <h1>Raffle ticket number</h1>
+       <p class="muted">Press the button to reveal your number.</p>
+     </div>
 
-    </div>
-    """
-    return render(
+     <div class="card" style="text-align:center;">
+       <button id="reveal-btn" class="btn" type="button">Get My Number</button>
+
+     <div id="wheel-zone" style="display:none; margin:18px auto 0; width:220px;">
+       <div class="wheel-wrap">
+         <div class="wheel-pointer"></div>
+         <div class="wheel" id="wheel"></div>
+         <div class="wheel-center"></div>
+       </div>
+       <div class="muted" style="margin-top:10px;">Spinning…</div>
+     </div>
+
+     <div id="result" style="display:none; margin-top:18px;">
+       <div class="big-number" id="ticket-num"></div>
+
+       <div class="muted" style="margin-top:6px;">
+         Ticket number = <strong>£<span id="ticket-val"></span></strong>
+       </div>
+
+       <div class="hold-ok" style="margin-top:14px;">
+         <span class="tick">✓</span>
+         <div style="text-align:left;">
+           <div><strong>Hold confirmed</strong></div>
+           <div class="muted">
+             £<span id="hold-amt"></span> held, you will pay £<span id="pay-amt"></span>
+           </div>
+         </div>
+       </div>
+
+       <div style="margin-top:18px;">
+         <a class="btn" href="{{ url_for('confirm_payment', entry_id=entry.id) }}">Continue</a>
+       </div>
+
+       <p class="muted" style="margin-top:10px">
+         When you confirm, we’ll charge £<span id="pay-amt-2"></span> from the existing hold
+         and your bank will release the remaining amount.
+       </p>
+     </div>
+   </div>
+
+   <script>
+   (function() {
+     const entryId = {{ entry.id|int }};
+     const btn = document.getElementById("reveal-btn");
+     const zone = document.getElementById("wheel-zone");
+     const wheel = document.getElementById("wheel");
+     const result = document.getElementById("result");
+
+     function spinTo(deg) {
+       // big multi-turn spin + land on deg
+       wheel.style.transition = "transform 2.2s cubic-bezier(.12,.85,.12,1)";
+       wheel.style.transform = `rotate(${(360*6) + deg}deg)`;
+     }
+
+     btn.addEventListener("click", async () => {
+       btn.disabled = true;
+       btn.textContent = "Working…";
+       zone.style.display = "block";
+
+       // start a quick continuous spin while we wait for server
+       wheel.style.transition = "none";
+       wheel.style.transform = "rotate(0deg)";
+       wheel.classList.add("wheel-spinning");
+
+       let data = null;
+       try {
+         const resp = await fetch(`/api/reveal-number/${entryId}`, { credentials: "same-origin" });
+         data = await resp.json();
+         if (!data.ok) throw new Error(data.error || "Could not reveal number");
+       } catch (e) {
+         wheel.classList.remove("wheel-spinning");
+         zone.style.display = "none";
+         btn.disabled = false;
+         btn.textContent = "Get My Number";
+         alert(e.message || "Could not reveal number.");
+         return;
+       }
+
+       // stop the continuous spin, then do a dramatic final landing
+       wheel.classList.remove("wheel-spinning");
+
+      // Choose a landing angle based on ticket number (so it feels “deterministic”)
+      const landing = (data.ticket_number * 19) % 360; // any mapping is fine
+      // let browser apply class removal first
+      requestAnimationFrame(() => spinTo(landing));
+
+      // Reveal after the landing finishes
+      setTimeout(() => {
+        zone.style.display = "none";
+
+        document.getElementById("ticket-num").textContent = data.ticket_number;
+        document.getElementById("ticket-val").textContent = data.ticket_value;
+        document.getElementById("hold-amt").textContent = data.hold_amount;
+        document.getElementById("pay-amt").textContent = data.ticket_value;
+        document.getElementById("pay-amt-2").textContent = data.ticket_value;
+
+        result.style.display = "block";
+        btn.style.display = "none";
+      }, 2300);
+    });
+  })();
+  </script>
+  """
+   return render(
         body,
         charity=charity,
         entry=entry,
         name=name,
         title=charity.name,
     )
+
+@app.get("/api/reveal-number/<int:entry_id>")
+def api_reveal_number(entry_id):
+    # Only allow reveal for the entry created in THIS browser session
+    if session.get("reveal_entry_id") != entry_id:
+        return jsonify({"ok": False, "error": "Not authorised"}), 403
+
+    e = Entry.query.get_or_404(entry_id)
+
+    return jsonify({
+        "ok": True,
+        "ticket_number": int(e.number),
+        "ticket_value": int(e.number),
+        "hold_amount": int(HOLD_AMOUNT_PENCE // 100),
+    })
 
 @app.route("/confirm-payment/<int:entry_id>")
 def confirm_payment(entry_id):
@@ -1369,62 +1554,57 @@ def confirm_payment(entry_id):
     db.session.commit()
 
     # 4) Final confirmation page with optional Stripe receipt button
+        # 4) Final confirmation page with optional Stripe receipt button
     body = """
     <div class="hero">
-      <h1>All set 🎉</h1>
-
-      <p>
-        We’ve captured <strong>£{{ entry.number }}</strong> from your card
-        for <strong>{{ charity.name }}</strong>.
-      </p>
-
-      <p class="muted">
-        Your raffle number is <strong>#{{ entry.number }}</strong>.
-        Any remaining hold on your card will be released by your bank.
-      </p>
-
-      {% if receipt_url %}
-        <div class="row" style="margin-top:16px">
-          <form action="{{ receipt_url }}" method="GET" target="_blank">
-            <button class="btn" type="submit">
-              View receipt
-            </button>
-          </form>
-        </div>
-        <p class="muted" style="margin-top:6px">
-        </p>
-      {% endif %}
+      <div class="step-kicker">Step 3 of 3</div>
+      <h1>Confirmed payment</h1>
+      <p class="muted">You’re all set — good luck.</p>
     </div>
 
-    <!-- Confetti canvas -->
+    <div class="card" style="padding:18px; max-width:720px; margin:0 auto;">
+      <div class="hold-ok" style="justify-content:flex-start; max-width:none;">
+        <span class="tick">✓</span>
+        <div style="text-align:left;">
+          <div><strong>Payment confirmed</strong></div>
+          <div class="muted" style="margin-top:2px;">
+            Ticket <strong>#{{ entry.number }}</strong> • Paid <strong>£{{ entry.number }}</strong> to <strong>{{ charity.name }}</strong>
+          </div>
+          <div class="muted" style="margin-top:6px;">
+            Any remaining amount from the £{{ HOLD_AMOUNT_PENCE // 100 }} hold will be released by your bank.
+          </div>
+        </div>
+      </div>
+
+      {% if receipt_url %}
+        <div class="row" style="margin-top:16px; gap:10px; justify-content:flex-start;">
+          <form action="{{ receipt_url }}" method="GET" target="_blank" style="margin:0;">
+            <button class="btn" type="submit">View receipt</button>
+          </form>
+        </div>
+      {% endif %}
+
+      <div class="row" style="margin-top:16px; gap:10px; justify-content:flex-start;">
+        <a class="btn" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to campaign</a>
+        <a class="btn" href="{{ url_for('home') }}">Back to home</a>
+      </div>
+    </div>
+
+    <!-- Optional confetti (keep it, but make it subtle) -->
     <canvas id="confetti-canvas"
-            style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;"></canvas>
+            style="position:fixed; inset:0; pointer-events:none; z-index:9999;"></canvas>
 
-    <!-- Confetti Script -->
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <script>
-      const confettiCanvas = document.getElementById('confetti-canvas');
-      const myConfetti = confetti.create(confettiCanvas, {
-        resize: true,
-        useWorker: true
-      });
+      (function(){
+        const canvas = document.getElementById('confetti-canvas');
+        const myConfetti = confetti.create(canvas, { resize: true, useWorker: true });
+        const end = Date.now() + 1200; // short + subtle
 
-      // Continuous confetti loop for 6 seconds
-      let duration = 60000;
-      let end = Date.now() + duration;
-
-      (function frame() {
-        myConfetti({
-          particleCount: 6,
-          spread: 70,
-          startVelocity: 30,
-          origin: { x: Math.random(), y: 0 }
-        });
-
-        if (Date.now() < end) {
-          requestAnimationFrame(frame);
-        }
+        (function frame() {
+          myConfetti({ particleCount: 4, spread: 65, startVelocity: 28, origin: { x: Math.random(), y: 0 } });
+          if (Date.now() < end) requestAnimationFrame(frame);
+        })();
       })();
     </script>
     """
