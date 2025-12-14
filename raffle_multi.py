@@ -1352,7 +1352,7 @@ def hold_success(slug):
     session.pop("pending_entry", None)
 
     # Show a page with their number and a 'Confirm & Pay' button
-     body = """
+    body = """
      <div class="hero">
        <div class="step-kicker">Step 2 of 3</div>
        <h1>Raffle ticket number</h1>
