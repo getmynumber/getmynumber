@@ -113,7 +113,7 @@ def add_security_headers(resp):
         # Prevent your site being iframed by others
         "frame-ancestors 'self'",
         # Form posts only to your site (Stripe checkout is initiated server-side anyway)
-        "form-action 'self'",
+        "form-action 'self' https://getmynumber.co.uk https://www.getmynumber.co.uk",
         # Lock down base-uri
         "base-uri 'self'",
     ]
