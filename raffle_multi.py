@@ -1462,7 +1462,7 @@ def hold_success(slug):
   })();
   </script>
   """
-   return render(
+    return render(
         body,
         charity=charity,
         entry=entry,
