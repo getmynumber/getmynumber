@@ -1655,6 +1655,11 @@ def confirm_payment(entry_id):
 @app.route("/<slug>/success")
 def success(slug):
     charity = get_charity_or_404(slug)
+
+    charity_logo = getattr(charity, "logo_data", None) or (
+        KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
+    )
+
     if session.get("last_slug") != charity.slug or "last_num" not in session:
         return redirect(url_for("charity_page", slug=charity.slug))
     num = session.get("last_num"); name = session.get("last_name", "Friend")
@@ -2223,6 +2228,11 @@ def partner_logout():
 def partner_entries(slug):
     charity = partner_guard(slug)
     if not charity: return redirect(url_for("partner_login"))
+
+    charity_logo = getattr(charity, "logo_data", None) or (
+        KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
+    )
+
     flt = request.args.get("filter")
     q = Entry.query.filter_by(charity_id=charity.id)
     if flt == "paid": q = q.filter(Entry.paid.is_(True))
