@@ -1846,7 +1846,6 @@ def admin_charities():
         charities=charities,
         remaining=remaining,
         title="Manage Charities",
-        charity_logo=charity_logo,
     )
 
 @app.post("/admin/charities/<slug>/toggle-live")
