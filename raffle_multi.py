@@ -2167,7 +2167,7 @@ def admin_charity_users(slug):
     </table>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back</a></p>
     """
-    return render(body, charity=charity, users=users, msg=msg, title=f"Users – {charity.name}", charity_logo=charity_logo)
+    return render(body, charity=charity, users=users, msg=msg, title=f"Users – {charity.name}")
 
 @app.route("/admin/charity/<slug>/users/<int:uid>/delete", methods=["POST"])
 def admin_delete_user(slug, uid):
@@ -2293,7 +2293,7 @@ def partner_entries(slug):
       </table>
     </form>
     """
-    return render(body, charity=charity, entries=entries, title=f"{charity.name} – Entries", charity_logo=charity_logo)
+    return render(body, charity=charity, entries=entries, title=f"{charity.name} – Entries")
 
 @app.route("/partner/<slug>/entries/new", methods=["GET","POST"])
 def partner_new_entry(slug):
@@ -2337,7 +2337,7 @@ def partner_new_entry(slug):
       <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
-    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}", charity_logo=charity_logo)
+    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}")
 
 @app.route("/partner/<slug>/entry/<int:entry_id>/edit", methods=["GET","POST"])
 def partner_edit_entry(slug, entry_id):
@@ -2377,7 +2377,7 @@ def partner_edit_entry(slug, entry_id):
       <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
-    return render(body, charity=charity, e=e, msg=msg, title=f"Edit Entry – {charity.name}", charity_logo=charity_logo)
+    return render(body, charity=charity, e=e, msg=msg, title=f"Edit Entry – {charity.name}")
 
 @app.route("/partner/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
 def partner_delete_entry(slug, entry_id):
