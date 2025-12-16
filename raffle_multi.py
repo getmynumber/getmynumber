@@ -1934,7 +1934,7 @@ def edit_charity(slug):
     </form>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
     """
-    return render(body, charity=charity, msg=msg, draw_value=draw_value, title=f"Edit {charity.name}", charity_logo=charity_logo)
+    return render(body, charity=charity, msg=msg, draw_value=draw_value, title=f"Edit {charity.name}")
 
 # ====== ADMIN: ENTRIES / CSV / BULK ==========================================
 
