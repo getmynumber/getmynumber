@@ -996,7 +996,7 @@ def home():
 
     </div>
     """
-    return render(body, charities=charities, title="Get My Number", charity_logo=charity_logo)
+    return render(body, charities=charities, title="Get My Number")
 
 @app.route("/terms")
 def terms():
