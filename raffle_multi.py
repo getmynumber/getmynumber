@@ -20,6 +20,8 @@ from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 from urllib.parse import urlparse
 
+import base64
+
 import stripe
 
 # Stripe config
@@ -141,6 +143,7 @@ class Charity(db.Model):
     max_number = db.Column(db.Integer, nullable=False, default=500)     # 1..max
     draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)
     is_live = db.Column(db.Boolean, nullable=False, default=True)  # campaign on/off
+    logo_data = db.Column(db.Text, nullable=True)  # data URI for uploaded logo
     
 
 class Entry(db.Model):
@@ -154,6 +157,7 @@ class Entry(db.Model):
     paid = db.Column(db.Boolean, nullable=False, default=False)
     paid_at = db.Column(db.DateTime, nullable=True)
     payment_intent_id = db.Column(db.String(255))   # ← NEW
+    hold_amount_pence = db.Column(db.Integer, nullable=True)  # authorised hold amount for this entry
 
     __table_args__ = (UniqueConstraint("charity_id", "number", name="uq_charity_number"),)
     charity = db.relationship("Charity", backref="entries")
@@ -992,7 +996,7 @@ def home():
 
     </div>
     """
-    return render(body, charities=charities, title="Get My Number")
+    return render(body, charities=charities, title="Get My Number", charity_logo=charity_logo)
 
 @app.route("/terms")
 def terms():
@@ -1079,6 +1083,7 @@ def privacy():
 @app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
     charity = get_charity_or_404(slug)
+    charity_logo = getattr(charity, "logo_data", None) or (KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None)
 
     # Auto-switch off if sold out
     refresh_campaign_live_status(charity)
@@ -1094,18 +1099,18 @@ def charity_page(slug):
             Campaign: <strong>{{ charity.name }}</strong>
           </p>
 
-          {% if kehilla_logo %}
-            <img src="{{ kehilla_logo }}" alt="{{ charity.name }} logo"
+          {% if charity_logo %}
+            <img src="{{ charity_logo }}" alt="{{ charity.name }} logo"
                  style="max-width:180px;margin:12px 0;border-radius:12px;">
           {% endif %}
 
           <p style="margin-top:10px;">
-            We’ll place a temporary <strong>£{{ HOLD_AMOUNT_PENCE // 100 }}</strong> hold on your card first.
+            We’ll place a temporary <strong>£{{ charity.max_number }}</strong> hold on your card first.
             Then you’ll return here to reveal your ticket number.
           </p>
         </div>
         """
-        return render(body, charity=charity, title=charity.name)
+        return render(body, charity=charity, title=charity.name, charity_logo=charity_logo)
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -1116,24 +1121,26 @@ def charity_page(slug):
             flash("Name and Email are required.")
         else:
             # Store user details temporarily so we can create the entry AFTER authorisation
+            hold_amount_pence = int(charity.max_number) * 100
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
                 "email": email,
                 "phone": phone,
+                "hold_amount_pence": hold_amount_pence,
             }
             try:
                 app.logger.info(f"Stripe key prefix: {STRIPE_SECRET_KEY[:8]}... len={len(STRIPE_SECRET_KEY)}")
-                app.logger.info("Creating Stripe Checkout Session now...")                
+                app.logger.info("Creating Stripe Checkout Session now...")            
                 checkout_session = stripe.checkout.Session.create(
                     mode="payment",
                     line_items=[{
                         "price_data": {
                             "currency": "gbp",
                             "product_data": {
-                                "name": f"Temporary hold £{HOLD_AMOUNT_PENCE / 100:.0f} – {charity.name}",
+                                "name": f"Temporary hold £{hold_amount_pence / 100:.0f} – {charity.name}",
                             },
-                            "unit_amount": HOLD_AMOUNT_PENCE,  # e.g. £10 hold
+                            "unit_amount": hold_amount_pence,  # e.g. £10 hold
                         },
                         "quantity": 1,
                     }],
@@ -1285,6 +1292,7 @@ def charity_page(slug):
         title=charity.name,
         kehilla_logo=kehilla_logo,
         draw_iso=draw_iso,
+        charity_logo=charity_logo,
     )
 
 @app.route("/<slug>/hold-success")
@@ -1351,7 +1359,8 @@ def hold_success(slug):
             email=email,
             phone=phone,
             number=num,
-            payment_intent_id=payment_intent.get("id"),  # store Session A's PI ID
+            payment_intent_id=payment_intent.get("id"),   # store Session A's PI ID
+            hold_amount_pence = int(payment_intent.get("amount") or 0)
         )
         db.session.add(entry)
         db.session.commit()
@@ -1490,6 +1499,7 @@ def hold_success(slug):
         entry=entry,
         name=name,
         title=charity.name,
+        charity_logo=charity_logo,
     )
 
 @app.get("/api/reveal-number/<int:entry_id>")
@@ -1504,7 +1514,7 @@ def api_reveal_number(entry_id):
         "ok": True,
         "ticket_number": int(e.number),
         "ticket_value": int(e.number),
-        "hold_amount": int(HOLD_AMOUNT_PENCE // 100),
+        "hold_amount": int((e.hold_amount_pence or HOLD_AMOUNT_PENCE) // 100),
     })
 
 @app.route("/confirm-payment/<int:entry_id>")
@@ -1531,10 +1541,13 @@ def confirm_payment(entry_id):
     amount_pence = entry.number * 100
 
     # Basic safety checks: positive and within the held amount
-    if amount_pence <= 0 or amount_pence > HOLD_AMOUNT_PENCE:
-        app.logger.error(
-            f"Invalid amount_to_capture for entry {entry.id}: {amount_pence}"
-        )
+    held = int(entry.hold_amount_pence or 0)
+    if held <= 0:
+        held = HOLD_AMOUNT_PENCE  # fallback
+
+    if amount_pence <= 0 or amount_pence > held:
+
+        app.logger.error(f"Invalid amount_to_capture for entry {entry.id}: {amount_pence} (held={held})")
         flash("Something went wrong with your raffle amount. Please contact us.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
@@ -1593,7 +1606,7 @@ def confirm_payment(entry_id):
             Ticket <strong>#{{ entry.number }}</strong> • Paid <strong>£{{ entry.number }}</strong> to <strong>{{ charity.name }}</strong>
           </div>
           <div class="muted" style="margin-top:6px;">
-            Any remaining amount from the £{{ HOLD_AMOUNT_PENCE // 100 }} hold will be released by your bank.
+            Any remaining amount from the £{{ charity.max_number }} hold will be released by your bank.
           </div>
         </div>
       </div>
@@ -1636,9 +1649,8 @@ def confirm_payment(entry_id):
         entry=entry,
         title=f"{charity.name} – Thank you",
         receipt_url=receipt_url,
+        charity_logo=charity_logo,
     )
-
-
 
 @app.route("/<slug>/success")
 def success(slug):
@@ -1659,7 +1671,7 @@ def success(slug):
       </div>
     </div>
     """
-    return render(body, charity=charity, num=num, name=name, title=charity.name)
+    return render(body, charity=charity, num=num, name=name, title=charity.name, charity_logo=charity_logo)
 
 # ====== ADMIN (env guarded) ===================================================
 
@@ -1718,13 +1730,29 @@ def admin_charities():
                     draw_at = datetime.fromisoformat(draw_raw)
                 except ValueError:
                     msg = "Invalid draw date/time."
+            logo_data = None
+            f = request.files.get("logo_file")
+            if f and f.filename:
+                raw = f.read()
+                if raw:
+                    mime = f.mimetype or "image/png"
+                    b64 = base64.b64encode(raw).decode("ascii")
+                    logo_data = f"data:{mime};base64,{b64}"
 
             if not slug or not name or not url:
                 msg = "All fields are required."
-            elif Charity.query.filter_by(slug=slug).first():
-                msg = "Slug already exists."
+            existing = Charity.query.filter_by(slug=slug).first()
+            if existing:
+                existing.name = name
+                existing.donation_url = url
+                existing.max_number = maxn
+                existing.draw_at = draw_at
+                if logo_data:
+                    existing.logo_data = logo_data
+                db.session.commit()
+                msg = f"Updated. Public page: /{slug}"
+
             elif msg:
-                # keep validation message (e.g. invalid draw date)
                 pass
             else:
                 c = Charity(
@@ -1733,6 +1761,7 @@ def admin_charities():
                     donation_url=url,
                     max_number=maxn,
                     draw_at=draw_at,
+                    logo_data=logo_data,
                 )
                 db.session.add(c)
                 db.session.commit()
@@ -1754,13 +1783,16 @@ def admin_charities():
       <div class="row" style="margin-bottom:10px">
         <a class="pill" href="{{ url_for('admin_logout') }}">Log out</a>
       </div>
-      <form method="post" style="margin-bottom:12px">
+        <form method="post" enctype="multipart/form-data" style="margin-bottom:12px">
         <label>Slug <input type="text" name="slug" placeholder="thekehilla" required></label>
         <label>Name <input type="text" name="name" placeholder="The Kehilla" required></label>
         <label>Donation URL <input type="url" name="donation_url" placeholder="https://www.charityextra.com/charity/kehilla" required></label>
         <label>Max number <input type="number" name="max_number" value="500" min="1"></label>
         <label>Draw date &amp; time (optional)
           <input type="datetime-local" name="draw_at">
+        </label>
+        <label>Logo (optional)
+          <input type="file" name="logo_file" accept="image/*">
         </label>
         <div style="margin-top:8px"><button class="btn">Add / Save</button></div>
       </form>
@@ -1809,6 +1841,7 @@ def admin_charities():
         charities=charities,
         remaining=remaining,
         title="Manage Charities",
+        charity_logo=charity_logo,
     )
 
 @app.post("/admin/charities/<slug>/toggle-live")
@@ -1897,7 +1930,7 @@ def edit_charity(slug):
     </form>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
     """
-    return render(body, charity=charity, msg=msg, draw_value=draw_value, title=f"Edit {charity.name}")
+    return render(body, charity=charity, msg=msg, draw_value=draw_value, title=f"Edit {charity.name}", charity_logo=charity_logo)
 
 # ====== ADMIN: ENTRIES / CSV / BULK ==========================================
 
@@ -1970,7 +2003,7 @@ def admin_charity_entries(slug):
       </table>
     </form>
     """
-    return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}")
+    return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}", charity_logo=charity_logo)
 
 @app.route("/admin/charity/<slug>/entries/new", methods=["GET","POST"])
 def admin_new_entry(slug):
@@ -2035,7 +2068,7 @@ def admin_new_entry(slug):
       </div>
     </form>
     """
-    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}")
+    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}", charity_logo=charity_logo)
 
 
 @app.route("/admin/charity/<slug>/entries.csv")
@@ -2130,7 +2163,7 @@ def admin_charity_users(slug):
     </table>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back</a></p>
     """
-    return render(body, charity=charity, users=users, msg=msg, title=f"Users – {charity.name}")
+    return render(body, charity=charity, users=users, msg=msg, title=f"Users – {charity.name}", charity_logo=charity_logo)
 
 @app.route("/admin/charity/<slug>/users/<int:uid>/delete", methods=["POST"])
 def admin_delete_user(slug, uid):
@@ -2251,7 +2284,7 @@ def partner_entries(slug):
       </table>
     </form>
     """
-    return render(body, charity=charity, entries=entries, title=f"{charity.name} – Entries")
+    return render(body, charity=charity, entries=entries, title=f"{charity.name} – Entries", charity_logo=charity_logo)
 
 @app.route("/partner/<slug>/entries/new", methods=["GET","POST"])
 def partner_new_entry(slug):
@@ -2295,7 +2328,7 @@ def partner_new_entry(slug):
       <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
-    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}")
+    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}", charity_logo=charity_logo)
 
 @app.route("/partner/<slug>/entry/<int:entry_id>/edit", methods=["GET","POST"])
 def partner_edit_entry(slug, entry_id):
@@ -2335,7 +2368,7 @@ def partner_edit_entry(slug, entry_id):
       <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
-    return render(body, charity=charity, e=e, msg=msg, title=f"Edit Entry – {charity.name}")
+    return render(body, charity=charity, e=e, msg=msg, title=f"Edit Entry – {charity.name}", charity_logo=charity_logo)
 
 @app.route("/partner/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
 def partner_delete_entry(slug, entry_id):
@@ -2387,6 +2420,11 @@ def admin_migrate():
     try:
         with db.engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN is_live BOOLEAN DEFAULT 1")
+    try:
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN logo_data TEXT")
+    except Exception as e:
+        print("logo_data column:", e)
     except Exception as e:
         print("is_live column:", e)
     # Auto-migrate charity table (draw_at / is_live) if missing
@@ -2398,6 +2436,10 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN draw_at DATETIME"))
             if 'is_live' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN is_live BOOLEAN DEFAULT 1"))
+            if 'logo_data' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN logo_data TEXT"))
+            if 'hold_amount_pence' not in entry_cols:
+                conn.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
     except Exception as e:
         print("Charity auto-migration check failed:", e)
     return "Migration attempted. Go back to Entries and refresh."
@@ -2434,13 +2476,6 @@ with app.app_context():
         u.set_password("change_me_now")
         db.session.add(u); db.session.commit()
         print("Seeded charity user: username=kehilla / password=change_me_now")
-
-# ====== LOCAL RUNNER ==========================================================
-
-if __name__ == "__main__":
-    app.run(debug=True)
-
-
 
 # ====================== PUBLIC PAGES ADDED LATER ======================
 @app.route("/charities", methods=["GET"])
@@ -2492,5 +2527,12 @@ def how_it_works():
 def admin_root():
     # Send anyone hitting /admin to the real dashboard
     return redirect("/admin/charities")
+
+# ====== LOCAL RUNNER ==========================================================
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+
 
 
