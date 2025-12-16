@@ -2420,6 +2420,8 @@ def admin_migrate():
     try:
         with db.engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN is_live BOOLEAN DEFAULT 1")
+    except Exception as e:
+        print("is_live column:", e)
     try:
         with db.engine.begin() as conn:
             conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN logo_data TEXT")
