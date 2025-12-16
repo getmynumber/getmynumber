@@ -1499,7 +1499,6 @@ def hold_success(slug):
         entry=entry,
         name=name,
         title=charity.name,
-        charity_logo=charity_logo,
     )
 
 @app.get("/api/reveal-number/<int:entry_id>")
@@ -1649,7 +1648,6 @@ def confirm_payment(entry_id):
         entry=entry,
         title=f"{charity.name} – Thank you",
         receipt_url=receipt_url,
-        charity_logo=charity_logo,
     )
 
 @app.route("/<slug>/success")
@@ -1676,7 +1674,7 @@ def success(slug):
       </div>
     </div>
     """
-    return render(body, charity=charity, num=num, name=name, title=charity.name, charity_logo=charity_logo)
+    return render(body, charity=charity, num=num, name=name, title=charity.name)
 
 # ====== ADMIN (env guarded) ===================================================
 
@@ -2007,7 +2005,7 @@ def admin_charity_entries(slug):
       </table>
     </form>
     """
-    return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}", charity_logo=charity_logo)
+    return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}")
 
 @app.route("/admin/charity/<slug>/entries/new", methods=["GET","POST"])
 def admin_new_entry(slug):
