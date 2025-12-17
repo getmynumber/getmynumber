@@ -1180,8 +1180,9 @@ def charity_page(slug):
 
     <div class="hero">
       <h1>{{ charity.name }}</h1>
-      {% if kehilla_logo %}
-        <img src="{{ kehilla_logo }}" alt="{{ charity.name }} logo" style="max-width:180px;margin:12px 0;border-radius:12px;">
+      {% if charity_logo %}
+        <img src="{{ charity_logo }}" alt="{{ charity.name }} logo"
+             style="max-width:180px;margin:12px 0;border-radius:12px;">
       {% endif %}
             <p>
         We place a temporary hold on your card before giving you a number.
@@ -1411,11 +1412,11 @@ def hold_success(slug):
        </div>
 
        <div style="margin-top:18px;">
-         <a class="btn" href="{{ url_for('confirm_payment', entry_id=entry.id) }}">Continue</a>
+         <a class="btn" href="{{ url_for('confirm_payment', entry_id=entry.id) }}">Confirm</a>
        </div>
 
        <p class="muted" style="margin-top:10px">
-         When you confirm, we’ll charge £<span id="pay-amt-2"></span> from the existing hold
+         Once you confirm, we’ll charge £<span id="pay-amt-2"></span> from the existing hold
          and your bank will release the remaining amount.
        </p>
      </div>
@@ -1896,6 +1897,15 @@ def edit_charity(slug):
         charity.name = request.form.get("name", charity.name).strip()
         charity.donation_url = request.form.get("donation_url", charity.donation_url).strip()
 
+        # Optional: replace logo if a new one is uploaded
+        f = request.files.get("logo_file")
+        if f and f.filename:
+            raw = f.read()
+            if raw:
+                mime = f.mimetype or "image/png"
+                b64 = base64.b64encode(raw).decode("ascii")
+                charity.logo_data = f"data:{mime};base64,{b64}"
+
         # New: update draw_at
         draw_raw = request.form.get("draw_at", "").strip()
         if draw_raw:
@@ -1921,13 +1931,23 @@ def edit_charity(slug):
     body = """
     <h2>Edit Charity</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-    <form method="post" data-safe-submit>
+    <form method="post" enctype="multipart/form-data" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
       <label>Donation URL <input type="url" name="donation_url" value="{{ charity.donation_url }}" required></label>
       <label>Max number <input type="number" name="max_number" value="{{ charity.max_number }}" min="1"></label>
       <label>Draw date &amp; time (optional)
         <input type="datetime-local" name="draw_at" value="{{ draw_value }}">
       </label>
+      <label>Replace logo (optional)
+        <input type="file" name="logo_file" accept="image/*">
+      </label>
+      {% if charity.logo_data %}
+        <div style="margin-top:10px">
+          <div class="muted" style="font-size:12px;margin-bottom:6px">Current logo preview:</div>
+          <img src="{{ charity.logo_data }}" alt="Current logo"
+               style="max-width:180px;border-radius:12px;">
+        </div>
+      {endif %}
       <div style="margin-top:8px"><button class="btn">Save Changes</button></div>
     </form>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
