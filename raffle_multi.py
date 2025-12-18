@@ -144,7 +144,10 @@ class Charity(db.Model):
     draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)
     is_live = db.Column(db.Boolean, nullable=False, default=True)  # campaign on/off
     logo_data = db.Column(db.Text, nullable=True)  # data URI for uploaded logo
-    
+    campaign_status = db.Column(db.String(20), nullable=False, default="live")    
+    hold_amount_pence = db.Column(db.Integer, nullable=False, default=20000)
+    is_sold_out = db.Column(db.Boolean, nullable=False, default=False)
+    is_coming_soon = db.Column(db.Boolean, nullable=False, default=False)
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -239,6 +242,11 @@ LAYOUT = """
     border:1px solid var(--border);
     box-shadow:0 16px 35px rgba(3,46,66,0.15);
     backdrop-filter:blur(12px);
+  }
+
+  .banner-remaining{
+    background: rgba(0,0,0,.06);
+    border: 1px solid rgba(0,0,0,.08);
   }
 
 @media (max-width:600px){
@@ -669,6 +677,28 @@ LAYOUT = """
     opacity:0.85;
   }
 
+  .banner{
+    padding:14px 16px;
+    border-radius:16px;
+    text-align:center;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    margin: 12px auto 18px;
+    max-width: 720px;
+ }
+ .banner-soldout{ background: rgba(0,0,0,.10); }
+ .banner-comingsoon{ background: rgba(0,0,0,.08); }
+
+ .form-disabled{
+   opacity:.55;
+   filter: grayscale(0.15);
+ }
+ .form-disabled input,
+ .form-disabled button{
+   pointer-events:none;
+ }
+
   .step-kicker { font-size:12px; letter-spacing:.08em; text-transform:uppercase; opacity:.75; margin-bottom:6px; }
 
   .big-number { font-size:58px; font-weight:800; letter-spacing:.02em; }
@@ -871,18 +901,17 @@ def assign_number(c: Charity):
     avail = available_numbers(c)
     return random.choice(avail) if avail else None
 
-def refresh_campaign_live_status(c: Charity) -> None:
+def refresh_campaign_status(c: Charity) -> None:
     """
-    If campaign is live but has no remaining numbers, automatically set is_live=False.
-    Call this in places where tickets may be consumed.
+    Automatically set campaign_status='sold_out' once all tickets are taken.
+    Do NOT auto-change is_live; that remains a manual toggle.
     """
     try:
         remaining = len(available_numbers(c))
-        if remaining <= 0 and getattr(c, "is_live", True):
-            c.is_live = False
+        if remaining <= 0 and getattr(c, "campaign_status", "live") != "sold_out":
+            c.campaign_status = "sold_out"
             db.session.commit()
     except Exception:
-        # Don't break the flow if something goes wrong here
         db.session.rollback()
 
 def partner_guard(slug):
@@ -891,6 +920,16 @@ def partner_guard(slug):
     c = Charity.query.filter_by(slug=slug).first()
     if not c or session.get("partner_charity_id") != c.id: return None
     return c
+
+def refresh_campaign_status(c: Charity) -> None:
+    """Auto-set sold_out if no tickets remain. Never auto-change other statuses."""
+    try:
+        remaining = len(available_numbers(c))
+        if remaining <= 0 and (getattr(c, "campaign_status", "live") != "sold_out"):
+            c.campaign_status = "sold_out"
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 # ====== PUBLIC ================================================================
 
@@ -1024,23 +1063,23 @@ def terms():
       or interfere with security or performance.</p>
 
       <p><strong>5) Use of Site Content</strong><br>
-        All content on this website, including text, branding, layout, design, logos, graphics,
-        and underlying code, is owned by or licensed to Get My Number.</p>
+      All content on this website, including text, branding, layout, design, logos, graphics,
+      and underlying code, is owned by or licensed to Get My Number.</p>
 
       <p><strong>6) No Cloning, Scraping or Mirroring</strong><br>
-        You may not copy, reproduce, distribute, mirror, frame, scrape, reverse engineer,
-        or create derivative works of any part of this site (including using automated tools,
-        AI tools, or “website builders” that attempt to recreate a site from a URL),
-        especially for the purpose of creating a competing product or service, without our
-        prior written consent.</p>
+      You may not copy, reproduce, distribute, mirror, frame, scrape, reverse engineer,
+      or create derivative works of any part of this site (including using automated tools,
+      AI tools, or “website builders” that attempt to recreate a site from a URL),
+      especially for the purpose of creating a competing product or service, without our
+      prior written consent.</p>
 
       <p><strong>7) Prohibited Activities</strong><br>
-        Automated scraping, crawling, mirroring, or downloading of site content. Attempting to 
-        bypass security controls or access restricted areas.Interfering with site performance, 
-        integrity, or security. Impersonating Get My Number or any campaign.<p>
+      Automated scraping, crawling, mirroring, or downloading of site content. Attempting to 
+      bypass security controls or access restricted areas.Interfering with site performance, 
+      integrity, or security. Impersonating Get My Number or any campaign.<p>
 
       <p><strong>8) Contact</strong><br>
-        For questions, contact the Campaign organiser or site administrator.</p>
+      For questions, contact the Campaign organiser or site administrator.</p>
     </div>
     """
     return render(body, title="Terms")
@@ -1083,36 +1122,35 @@ def privacy():
 @app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
     charity = get_charity_or_404(slug)
-    charity_logo = getattr(charity, "logo_data", None) or (KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None)
+    charity_logo = getattr(charity, "logo_data", None) or (
+        KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
+    )
 
-    # Auto-switch off if sold out
-    refresh_campaign_live_status(charity)
+    # Auto-switch to sold out if no tickets remain
+    refresh_campaign_status(charity)
 
-    # If campaign is manually inactive (or sold out), block entries
-    if not getattr(charity, "is_live", True):
-        body = """
-        <div class="hero">
-          <div class="step-kicker">Step 1 of 3</div>
-          <h1>Enter your details</h1>
+    status = (getattr(charity, "campaign_status", "live") or "live").strip()
+    is_blocked = status in ("inactive", "sold_out", "coming_soon")
 
-          <p class="muted" style="margin-top:8px;">
-            Campaign: <strong>{{ charity.name }}</strong>
-          </p>
+    # Tickets remaining banner (only when live)
+    total = charity.max_number
+    remaining = len(available_numbers(charity))
+    taken = total - remaining
+    pct = int((taken / total) * 100) if total else 0
 
-          {% if charity_logo %}
-            <img src="{{ charity_logo }}" alt="{{ charity.name }} logo"
-                 style="max-width:180px;margin:12px 0;border-radius:12px;">
-          {% endif %}
+    remaining_banner = None
+    if status == "live" and remaining > 0:
+        if remaining <= 25:
+            remaining_banner = f"Only {remaining} ticket{'s' if remaining != 1 else ''} left"
 
-          <p style="margin-top:10px;">
-            We’ll place a temporary <strong>£{{ charity.max_number }}</strong> hold on your card first.
-            Then you’ll return here to reveal your ticket number.
-          </p>
-        </div>
-        """
-        return render(body, charity=charity, title=charity.name, charity_logo=charity_logo)
-
+    # --------------------
+    # POST: start Stripe hold
+    # --------------------
     if request.method == "POST":
+        if is_blocked:
+            flash("This campaign is not currently accepting entries.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+
         name = request.form.get("name", "").strip()
         email = request.form.get("email", "").strip()
         phone = request.form.get("phone", "").strip()
@@ -1120,7 +1158,6 @@ def charity_page(slug):
         if not name or not email:
             flash("Name and Email are required.")
         else:
-            # Store user details temporarily so we can create the entry AFTER authorisation
             hold_amount_pence = int(charity.max_number) * 100
             session["pending_entry"] = {
                 "slug": charity.slug,
@@ -1130,8 +1167,6 @@ def charity_page(slug):
                 "hold_amount_pence": hold_amount_pence,
             }
             try:
-                app.logger.info(f"Stripe key prefix: {STRIPE_SECRET_KEY[:8]}... len={len(STRIPE_SECRET_KEY)}")
-                app.logger.info("Creating Stripe Checkout Session now...")            
                 checkout_session = stripe.checkout.Session.create(
                     mode="payment",
                     line_items=[{
@@ -1140,46 +1175,53 @@ def charity_page(slug):
                             "product_data": {
                                 "name": f"Temporary hold £{hold_amount_pence / 100:.0f} – {charity.name}",
                             },
-                            "unit_amount": hold_amount_pence,  # e.g. £10 hold
+                            "unit_amount": hold_amount_pence,
                         },
                         "quantity": 1,
                     }],
-                    payment_intent_data={
-                        "capture_method": "manual",  # <-- authorise only, capture later if you choose
-                    },
+                    payment_intent_data={"capture_method": "manual"},
                     success_url=url_for(
-                        "hold_success",
-                        slug=charity.slug,
-                        _external=True
+                        "hold_success", slug=charity.slug, _external=True
                     ) + "?session_id={CHECKOUT_SESSION_ID}",
-                    cancel_url=url_for(
-                        "charity_page",
-                        slug=charity.slug,
-                        _external=True
-                    ),
+                    cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
                 )
-                # Redirect the browser to Stripe Checkout
                 return redirect(checkout_session.url, code=303)
             except Exception as e:
                 app.logger.error(f"Stripe error creating Checkout Session: {e}")
                 flash("There was a problem starting the card hold. Please try again.")
 
-    # GET: same stats as before
+    # --------------------
+    # GET: stats + page render
+    # --------------------
     total = charity.max_number
     remaining = len(available_numbers(charity))
+    remaining_banner = None
+    if status == "live":
+        if remaining <= 0:
+            remaining_banner = None  # sold_out banner will handle this
+        elif remaining <= 10:
+            remaining_banner = f"Only {remaining} ticket{'s' if remaining != 1 else ''} left"
+
     taken = total - remaining
     pct = int((taken / total) * 100) if total else 0
-
-    # Only show embedded logo on /thekehilla
-    kehilla_logo = KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
-
-    # Raffle draw datetime (for countdown)
     draw_iso = charity.draw_at.isoformat() if charity.draw_at else None
 
     body = """
 
     <div class="hero">
       <h1>{{ charity.name }}</h1>
+      {% if status == "sold_out" %}
+        <div class="banner banner-soldout">Sold out</div>
+      {% elif status == "coming_soon" %}
+        <div class="banner banner-comingsoon">Coming soon</div>
+      {% elif status == "inactive" %}
+        <div class="banner banner-inactive">Inactive</div>
+      {% endif %}
+
+      {% if remaining_banner %}
+        <div class="banner banner-remaining">{{ remaining_banner }}</div>
+      {% endif %}
+
       {% if charity_logo %}
         <img src="{{ charity_logo }}" alt="{{ charity.name }} logo"
              style="max-width:180px;margin:12px 0;border-radius:12px;">
@@ -1217,14 +1259,23 @@ def charity_page(slug):
       {% endif %}
 
       <div class="row" style="margin-top:10px">
-
         <div style="flex:2;min-width:260px">
+        <div class="{% if is_blocked %}form-disabled{% endif %}">
           <form method="post" data-safe-submit>
-            <label>Your name <input type="text" name="name" required placeholder="e.g. Sarah Cohen"></label>
-            <label>Email <input type="email" name="email" required placeholder="name@example.com"></label>
-            <label>Phone (optional) <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx"></label>
+            <label>Your name
+              <input type="text" name="name" required placeholder="e.g. Sarah Cohen" {% if is_blocked %}disabled{% endif %}>
+            </label>
+
+            <label>Email
+              <input type="email" name="email" required placeholder="name@example.com" {% if is_blocked %}disabled{% endif %}>
+            </label>
+
+            <label>Phone (optional)
+              <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
+            </label>
+
             <div class="row" style="margin-top:8px">
-              <button class="btn" type="submit">
+              <button class="btn" type="submit" {% if is_blocked %}disabled{% endif %}>
                 Place hold &amp; get my number
               </button>
               <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
@@ -1288,12 +1339,14 @@ def charity_page(slug):
         charity=charity,
         total=total,
         remaining=remaining,
+        remaining_banner=remaining_banner,
         taken=taken,
         pct=pct,
         title=charity.name,
-        kehilla_logo=kehilla_logo,
         draw_iso=draw_iso,
         charity_logo=charity_logo,
+        status=status,
+        is_blocked=is_blocked
     )
 
 @app.route("/<slug>/hold-success")
@@ -1655,9 +1708,7 @@ def confirm_payment(entry_id):
 def success(slug):
     charity = get_charity_or_404(slug)
 
-    charity_logo = getattr(charity, "logo_data", None) or (
-        KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
-    )
+    charity_logo = getattr(charity, "logo_data", None) 
 
     if session.get("last_slug") != charity.slug or "last_num" not in session:
         return redirect(url_for("charity_page", slug=charity.slug))
@@ -1847,6 +1898,23 @@ def admin_charities():
         title="Manage Charities",
     )
 
+@app.post("/admin/charity/<slug>/status")
+def admin_set_campaign_status(slug):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = get_charity_or_404(slug)
+    new_status = (request.form.get("status") or "").strip()
+
+    if new_status not in ("live", "inactive", "sold_out", "coming_soon"):
+        flash("Invalid status.")
+        return redirect(url_for("edit_charity", slug=slug))
+
+    charity.campaign_status = new_status
+    db.session.commit()
+    flash(f"Status set to: {new_status.replace('_',' ')}")
+    return redirect(url_for("edit_charity", slug=slug))
+
 @app.post("/admin/charities/<slug>/toggle-live")
 def admin_toggle_charity_live(slug):
     if not session.get("admin_ok"):
@@ -1924,6 +1992,14 @@ def edit_charity(slug):
             db.session.commit()
             if not msg:
                 msg = "Charity updated successfully."
+        charity.is_live = bool(request.form.get("is_live"))
+        charity.is_sold_out = bool(request.form.get("is_sold_out"))
+        charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
+
+        try:
+            charity.hold_amount_pence = int(request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence)
+        except ValueError:
+            msg = "Invalid hold amount."
 
     # Pre-populate datetime-local value
     draw_value = charity.draw_at.strftime("%Y-%m-%dT%H:%M") if charity.draw_at else ""
@@ -1941,13 +2017,39 @@ def edit_charity(slug):
       <label>Replace logo (optional)
         <input type="file" name="logo_file" accept="image/*">
       </label>
+      <label>Hold amount (pence)
+        <input type="number" name="hold_amount_pence" value="{{ charity.hold_amount_pence }}" min="0" step="100">
+      </label>
+
+      <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <input type="checkbox" name="is_sold_out" {% if charity.is_sold_out %}checked{% endif %}>
+        Sold out (shows banner, disables form)
+      </label>
+
+      <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <input type="checkbox" name="is_coming_soon" {% if charity.is_coming_soon %}checked{% endif %}>
+        Coming soon (shows banner, disables form)
+      </label>
+
+      <h3 style="margin-top:16px;">Campaign status</h3>
+
+      <form method="post" enctype="multipart/form-data" "{{ url_for('admin_set_campaign_status', slug=charity.slug) }}" style="display:flex; gap:8px; flex-         wrap:wrap;">
+        <button class="btn" name="status" value="live" type="submit">Set Live</button>
+        <button class="btn" name="status" value="inactive" type="submit">Set Inactive</button>
+        <button class="btn" name="status" value="coming_soon" type="submit">Set Coming Soon</button>
+        <button class="btn" name="status" value="sold_out" type="submit">Set Sold Out</button>
+      </form>
+
+      <p class="muted" style="margin-top:8px;">
+        Current: <strong>{{ charity.campaign_status or 'live' }}</strong>
+      </p>
       {% if charity.logo_data %}
         <div style="margin-top:10px">
           <div class="muted" style="font-size:12px;margin-bottom:6px">Current logo preview:</div>
           <img src="{{ charity.logo_data }}" alt="Current logo"
                style="max-width:180px;border-radius:12px;">
         </div>
-      {endif %}
+      {% endif %}
       <div style="margin-top:8px"><button class="btn">Save Changes</button></div>
     </form>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
@@ -2246,9 +2348,7 @@ def partner_entries(slug):
     charity = partner_guard(slug)
     if not charity: return redirect(url_for("partner_login"))
 
-    charity_logo = getattr(charity, "logo_data", None) or (
-        KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
-    )
+    charity_logo = getattr(charity, "logo_data", None) 
 
     flt = request.args.get("filter")
     q = Entry.query.filter_by(charity_id=charity.id)
@@ -2454,8 +2554,11 @@ def admin_migrate():
             conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN logo_data TEXT")
     except Exception as e:
         print("logo_data column:", e)
+    try:
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql("ALTER TABLE charity ADD COLUMN campaign_status VARCHAR(20) DEFAULT 'live'")
     except Exception as e:
-        print("is_live column:", e)
+        print("campaign_status column:", e)
     # Auto-migrate charity table (draw_at / is_live) if missing
     try:
         insp = inspect(db.engine)
@@ -2463,11 +2566,13 @@ def admin_migrate():
         with db.engine.begin() as conn:
             if 'draw_at' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN draw_at DATETIME"))
+            if 'campaign_status' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN campaign_status VARCHAR(20) DEFAULT 'live'"))
             if 'is_live' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN is_live BOOLEAN DEFAULT 1"))
             if 'logo_data' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN logo_data TEXT"))
-            if 'hold_amount_pence' not in entry_cols:
+            if 'hold_amount_pence' not in cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
     except Exception as e:
         print("Charity auto-migration check failed:", e)
