@@ -1859,11 +1859,17 @@ def admin_charities():
               <td>{{ c.slug }}</td>
               <td>{{ c.name }}</td>
               <td>
-                {% if c.is_live %}
+                {% set st = (c.campaign_status or 'live') %}
+                {% if st == 'live' %}
                   <span class="badge ok">LIVE</span>
+                {% elif st == 'sold_out' %}
+                  <span class="badge warn">SOLD OUT</span>
+                {% elif st == 'coming_soon' %}
+                  <span class="badge warn">COMING SOON</span>
                 {% else %}
                   <span class="badge warn">INACTIVE</span>
                 {% endif %}
+
               </td>
               <td>{{ c.max_number }}</td>
               <td>{{ remaining[c.id] }}</td>
@@ -1872,11 +1878,6 @@ def admin_charities():
                 <a class="pill" href="{{ url_for('edit_charity', slug=c.slug) }}">Edit</a>
                 <a class="pill" href="{{ url_for('admin_charity_entries', slug=c.slug) }}">Entries</a>
                 <a class="pill" href="{{ url_for('admin_charity_users', slug=c.slug) }}">Users</a>
-                <form method="post" action="{{ url_for('admin_toggle_charity_live', slug=c.slug) }}" style="display:inline">
-                  <button class="pill" type="submit">
-                    {% if c.is_live %}Set Inactive{% else %}Set Live{% endif %}
-                  </button>
-                </form>
 
                 <form method="post" action="{{ url_for('admin_delete_charity', slug=c.slug) }}"
                       style="display:inline" onsubmit="return confirm('Delete this campaign and all its entries/users? This cannot be undone.');">
@@ -2033,16 +2034,32 @@ def edit_charity(slug):
 
       <h3 style="margin-top:16px;">Campaign status</h3>
 
-      <form method="post" enctype="multipart/form-data" "{{ url_for('admin_set_campaign_status', slug=charity.slug) }}" style="display:flex; gap:8px; flex-         wrap:wrap;">
-        <button class="btn" name="status" value="live" type="submit">Set Live</button>
-        <button class="btn" name="status" value="inactive" type="submit">Set Inactive</button>
-        <button class="btn" name="status" value="coming_soon" type="submit">Set Coming Soon</button>
-        <button class="btn" name="status" value="sold_out" type="submit">Set Sold Out</button>
-      </form>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn" type="submit"
+                formmethod="post"
+                formaction="{{ url_for('admin_set_campaign_status', slug=charity.slug) }}"
+                name="status" value="live">Set Live</button>
+
+        <button class="btn" type="submit"
+                formmethod="post"
+                formaction="{{ url_for('admin_set_campaign_status', slug=charity.slug) }}"
+                name="status" value="inactive">Set Inactive</button>
+
+        <button class="btn" type="submit"
+                formmethod="post"
+                formaction="{{ url_for('admin_set_campaign_status', slug=charity.slug) }}"
+                name="status" value="coming_soon">Set Coming Soon</button>
+ 
+        <button class="btn" type="submit"
+                formmethod="post"
+                formaction="{{ url_for('admin_set_campaign_status', slug=charity.slug) }}"
+                name="status" value="sold_out">Set Sold Out</button>
+      </div>
 
       <p class="muted" style="margin-top:8px;">
         Current: <strong>{{ charity.campaign_status or 'live' }}</strong>
       </p>
+
       {% if charity.logo_data %}
         <div style="margin-top:10px">
           <div class="muted" style="font-size:12px;margin-bottom:6px">Current logo preview:</div>
