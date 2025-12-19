@@ -2104,23 +2104,28 @@ def edit_charity(slug):
         else:
             charity.draw_at = None
 
+                # --- numbers / toggles (set everything first, commit once) ---
         try:
             charity.max_number = int(request.form.get("max_number", charity.max_number))
         except ValueError:
             msg = "Invalid number format."
-        else:
-            db.session.commit()
-            if not msg:
-                msg = "Charity updated successfully."
+
         charity.is_live = bool(request.form.get("is_live"))
         charity.is_sold_out = bool(request.form.get("is_sold_out"))
         charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
         charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
 
         try:
-            charity.hold_amount_pence = int(request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence)
+            charity.hold_amount_pence = int(
+                request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence
+            )
         except ValueError:
             msg = "Invalid hold amount."
+
+        # Commit at the end so toggles persist
+        if not msg:
+            db.session.commit()
+            msg = "Charity updated successfully."
 
     # Pre-populate datetime-local value
     draw_value = charity.draw_at.strftime("%Y-%m-%dT%H:%M") if charity.draw_at else ""
