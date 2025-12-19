@@ -1473,19 +1473,8 @@ def hold_success(slug):
 
        <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
 
-         {% if charity.free_entry_enabled %}
-           <div class="banner banner-remaining" style="margin-bottom:10px;">
-             <strong>Optional donation</strong> — donating does <strong>not</strong> improve your chances of winning.
-             You may donate <strong>£0</strong> and still keep your entry.
-           </div>
-         {% else %}
-           <div class="banner banner-remaining" style="margin-bottom:10px;">
-             <strong>Donation required</strong> — this campaign does not offer a free entry route.
-           </div>
-         {% endif %}
-
-         <label>
-           Donation amount (GBP)
+         <label style="display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;">
+           <span>Donation amount (GBP)</span>
            <input
              id="donation-amount"
              name="amount_gbp"
@@ -1493,8 +1482,11 @@ def hold_success(slug):
              min="{% if charity.free_entry_enabled %}0{% else %}1{% endif %}"
              step="1"
              required
-            >
-          </label>
+             style="max-width:140px; width:140px; text-align:center;"
+             {% if not charity.free_entry_enabled %}readonly{% endif %}
+           >
+         </label>
+
 
           <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:10px;">
             <button type="button" class="pill" id="btn-default">
@@ -1531,14 +1523,23 @@ def hold_success(slug):
          function setAmount(v){
            const n = Math.max(0, parseInt(v || 0, 10) || 0);
            amount.value = String(n);
-           payAmt.textContent = String(n);
-           payAmt2.textContent = String(n);
+           payAmt.textContent = String(n);     // this is the amount that will be captured
+           // IMPORTANT: do NOT change payAmt2 here (pay-amt-2 should always show the ticket number)
          }
 
-         // When your reveal JS fills ticket-val/pay-amt, seed the input.
+         const FREE = {{ 'true' if charity.free_entry_enabled else 'false' }};
+
          const observer = new MutationObserver(() => {
            const n = parseInt(ticketVal.textContent || '0', 10) || 0;
+
+           // Always seed the capture amount to ticket number initially
            if (!amount.value) setAmount(n);
+
+           // If NO free entry: force and lock it to ticket value
+           if (!FREE) {
+             setAmount(n);
+             amount.readOnly = true;
+           }
          });
          observer.observe(ticketVal, { childList:true, subtree:true });
 
@@ -1672,12 +1673,16 @@ def confirm_payment(entry_id):
         flash("We could not find the original card authorisation. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Amount is now user-confirmed (optional donation)
-    raw = (request.form.get("amount_gbp", "") or "").strip()
-    try:
-        amount_gbp = int(raw)
-    except ValueError:
-        amount_gbp = -1
+    # Amount is user-confirmed only if free entry is enabled.
+    # If free entry is NOT enabled, we force the capture amount to the ticket number.
+    if not charity.free_entry_enabled:
+        amount_gbp = int(entry.number or 0)
+    else:
+        raw = (request.form.get("amount_gbp", "") or "").strip()
+        try:
+            amount_gbp = int(raw)
+        except ValueError:
+            amount_gbp = -1
 
     amount_pence = amount_gbp * 100
 
@@ -1700,7 +1705,7 @@ def confirm_payment(entry_id):
         flash("Please enter a valid amount (0 or more).")
         return redirect(url_for("hold_success", slug=charity.slug))
     # If £0 donation, cancel the PaymentIntent to release the authorisation
-    if amount_pence == 0:
+    if charity.free_entry_enabled and amount_pence == 0:
         try:
             stripe.PaymentIntent.cancel(entry.payment_intent_id)
             entry.paid = True
