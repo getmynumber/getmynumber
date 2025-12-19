@@ -148,6 +148,7 @@ class Charity(db.Model):
     hold_amount_pence = db.Column(db.Integer, nullable=False, default=20000)
     is_sold_out = db.Column(db.Boolean, nullable=False, default=False)
     is_coming_soon = db.Column(db.Boolean, nullable=False, default=False)
+    free_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1273,8 +1274,14 @@ def charity_page(slug):
             <label>Phone (optional)
               <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
             </label>
-
             <div class="row" style="margin-top:8px">
+
+              {% if charity.free_entry_enabled %}
+                <div class="banner" style="margin-top:10px;">
+                  <strong>Free entry available</strong> — you can enter without donating. Optional donations don’t improve your chances.
+                </div>
+              {% endif %}
+
               <button class="btn" type="submit" {% if is_blocked %}disabled{% endif %}>
                 Place hold &amp; get my number
               </button>
@@ -1464,9 +1471,83 @@ def hold_success(slug):
          </div>
        </div>
 
-       <div style="margin-top:18px;">
-         <a class="btn" href="{{ url_for('confirm_payment', entry_id=entry.id) }}">Confirm</a>
-       </div>
+       <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
+
+         {% if charity.free_entry_enabled %}
+           <div class="banner banner-remaining" style="margin-bottom:10px;">
+             <strong>Optional donation</strong> — donating does <strong>not</strong> improve your chances of winning.
+             You may donate <strong>£0</strong> and still keep your entry.
+           </div>
+         {% else %}
+           <div class="banner banner-remaining" style="margin-bottom:10px;">
+             <strong>Donation required</strong> — this campaign does not offer a free entry route.
+           </div>
+         {% endif %}
+
+         <label>
+           Donation amount (GBP)
+           <input
+             id="donation-amount"
+             name="amount_gbp"
+             type="number"
+             min="{% if charity.free_entry_enabled %}0{% else %}1{% endif %}"
+             step="1"
+             required
+            >
+          </label>
+
+          <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:10px;">
+            <button type="button" class="pill" id="btn-default">
+              Use my number (£<span id="pay-amt-2"></span>)
+            </button>
+
+            {% if charity.free_entry_enabled %}
+              <button type="button" class="pill" id="btn-zero">
+                No donation (£0)
+              </button>
+            {% endif %}
+          </div>
+
+          <button class="btn" type="submit" style="width:100%; margin-top:12px;">
+            {% if charity.free_entry_enabled %}Confirm donation{% else %}Confirm &amp; pay{% endif %}
+          </button>
+
+          <p class="muted" style="margin-top:10px">
+            We’ll only capture the amount you confirm. Any remaining authorised amount is released by your bank.
+          </p>
+        </form>
+
+
+       <script>
+       (function(){
+         const amount = document.getElementById('donation-amount');
+         const payAmt = document.getElementById('pay-amt');
+         const payAmt2 = document.getElementById('pay-amt-2');
+         const ticketVal = document.getElementById('ticket-val');
+
+         const btnDefault = document.getElementById('btn-default');
+         const btnZero = document.getElementById('btn-zero');
+
+         function setAmount(v){
+           const n = Math.max(0, parseInt(v || 0, 10) || 0);
+           amount.value = String(n);
+           payAmt.textContent = String(n);
+           payAmt2.textContent = String(n);
+         }
+
+         // When your reveal JS fills ticket-val/pay-amt, seed the input.
+         const observer = new MutationObserver(() => {
+           const n = parseInt(ticketVal.textContent || '0', 10) || 0;
+           if (!amount.value) setAmount(n);
+         });
+         observer.observe(ticketVal, { childList:true, subtree:true });
+
+         amount.addEventListener('input', () => setAmount(amount.value));
+         btnDefault.addEventListener('click', () => setAmount(ticketVal.textContent));
+         btnZero.addEventListener('click', () => setAmount(0));
+       })();
+       </script>
+
 
        <p class="muted" style="margin-top:10px">
          Once you confirm, we’ll charge £<span id="pay-amt-2"></span> from the existing hold
@@ -1570,7 +1651,7 @@ def api_reveal_number(entry_id):
         "hold_amount": int((e.hold_amount_pence or HOLD_AMOUNT_PENCE) // 100),
     })
 
-@app.route("/confirm-payment/<int:entry_id>")
+@app.route("/confirm-payment/<int:entry_id>", methods=["POST"])
 def confirm_payment(entry_id):
     """
     Called when user clicks 'Confirm & Pay' after their number is assigned.
@@ -1591,14 +1672,47 @@ def confirm_payment(entry_id):
         flash("We could not find the original card authorisation. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    amount_pence = entry.number * 100
+    # Amount is now user-confirmed (optional donation)
+    raw = (request.form.get("amount_gbp", "") or "").strip()
+    try:
+        amount_gbp = int(raw)
+    except ValueError:
+        amount_gbp = -1
+
+    amount_pence = amount_gbp * 100
+
+    if (not charity.free_entry_enabled) and amount_gbp < 1:
+        flash("This campaign requires a minimum donation of £1.")
+        return redirect(url_for("hold_success", slug=charity.slug))
+    
+    max_gbp = int((entry.hold_amount_pence or 0) // 100)
+    if amount_gbp > max_gbp:
+        flash(f"Donation cannot exceed £{max_gbp}.")
+        return redirect(url_for("hold_success", slug=charity.slug))
 
     # Basic safety checks: positive and within the held amount
     held = int(entry.hold_amount_pence or 0)
     if held <= 0:
         held = HOLD_AMOUNT_PENCE  # fallback
 
-    if amount_pence <= 0 or amount_pence > held:
+    if amount_pence < 0 or amount_pence > held:
+        app.logger.error(f"Invalid amount_to_capture for entry {entry.id}: {amount_pence} (held={held})")
+        flash("Please enter a valid amount (0 or more).")
+        return redirect(url_for("hold_success", slug=charity.slug))
+    # If £0 donation, cancel the PaymentIntent to release the authorisation
+    if amount_pence == 0:
+        try:
+            stripe.PaymentIntent.cancel(entry.payment_intent_id)
+            entry.paid = True
+            entry.paid_at = datetime.utcnow()
+            db.session.commit()
+            flash("Entry confirmed with no donation. Thank you!")
+            return redirect(url_for("charity_page", slug=charity.slug))
+        except Exception as e:
+            app.logger.exception(e)
+            flash("We couldn't release the hold automatically. Please contact support.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+
 
         app.logger.error(f"Invalid amount_to_capture for entry {entry.id}: {amount_pence} (held={held})")
         flash("Something went wrong with your raffle amount. Please contact us.")
@@ -1996,6 +2110,7 @@ def edit_charity(slug):
         charity.is_live = bool(request.form.get("is_live"))
         charity.is_sold_out = bool(request.form.get("is_sold_out"))
         charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
+        charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
 
         try:
             charity.hold_amount_pence = int(request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence)
@@ -2030,6 +2145,11 @@ def edit_charity(slug):
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
         <input type="checkbox" name="is_coming_soon" {% if charity.is_coming_soon %}checked{% endif %}>
         Coming soon (shows banner, disables form)
+      </label>
+
+      <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <input type="checkbox" name="free_entry_enabled" {% if charity.free_entry_enabled %}checked{% endif %}>
+        Free entry available (optional donation)
       </label>
 
       <h3 style="margin-top:16px;">Campaign status</h3>
@@ -2589,6 +2709,8 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN is_live BOOLEAN DEFAULT 1"))
             if 'logo_data' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN logo_data TEXT"))
+            if 'free_entry_enabled' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN free_entry_enabled BOOLEAN DEFAULT 0"))
             if 'hold_amount_pence' not in cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
     except Exception as e:
