@@ -1859,12 +1859,11 @@ def confirm_payment(entry_id):
         body,
         charity=charity,
         entry=entry,
-        receipt_url-receipt_url,
+        receipt_url=receipt_url,
         paid_gbp=paid_gbp,
         held_gbp=held_gbp,
         released_gbp=released_gbp,
-        title=f"{charity.name} – Confirmed Payment",
-        receipt_url=receipt_url,
+        title=f"{charity.name} – Thank you",
     )
 
 @app.route("/<slug>/success")
