@@ -1180,7 +1180,9 @@ def charity_page(slug):
         if not name or not email:
             flash("Name and Email are required.")
         else:
-            hold_amount_pence = int(charity.max_number) * 100
+            hold_amount_pence = int(getattr(charity, "hold_amount_pence", 0) or 0)
+            if hold_amount_pence <= 0:
+                hold_amount_pence = int(charity.max_number or 0) * 100  # last resort fallback
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
@@ -1601,6 +1603,13 @@ def hold_success(slug):
          Ticket number = <strong>&pound;<span id="ticket-val"></span></strong>
        </div>
 
+       {% if charity.free_entry_enabled %}
+         <div class="muted" style="margin-top:10px; line-height:1.45;">
+           You have been allocated number <strong><span id="nudge-num"></span></strong>.
+           Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
+         </div>
+       {% endif %}
+
        <div class="hold-ok" style="margin-top:14px;">
          <span class="tick">&#10003;</span>
          <div style="text-align:left;">
@@ -1628,6 +1637,18 @@ def hold_success(slug):
            >
          </label>
 
+         {% if charity.free_entry_enabled %}
+           <div id="match-nudge" class="card" style="display:none; margin:12px auto 0; max-width:520px; padding:12px;">
+             <div class="muted" style="margin:0; line-height:1.45;">
+               <div style="margin-bottom:6px;">
+                 Most supporters choose to match their number in full.
+               </div>
+             <div>
+               <strong>&pound;<span id="match-amt"></span></strong> keeps your entry aligned with your number.
+             </div>
+           </div>
+         </div>
+       {% endif %}
 
           <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:10px;">
             <button type="button" class="pill" id="btn-default">
@@ -1652,6 +1673,27 @@ def hold_success(slug):
          const ticketVal = document.getElementById('ticket-val');  // revealed ticket value (£ticket)
          const holdAmt = document.getElementById('hold-amt');      // revealed hold (£max)
          const releaseAmt = document.getElementById('release-amt');// NEW: released amount
+         const freeEnabled = {{ 'true' if charity.free_entry_enabled else 'false' }};
+         const nudgeNum = document.getElementById('nudge-num');
+         const nudgeAmt = document.getElementById('nudge-amt');
+         const matchNudge = document.getElementById('match-nudge');
+         const matchAmt = document.getElementById('match-amt');
+
+         function updateMatchNudge() {
+           if (!freeEnabled) return;
+           if (!matchNudge || !amount) return;
+
+           const ticket = parseInt((ticketVal && ticketVal.textContent) || "0", 10) || 0;
+           const current = parseInt(amount.value || "0", 10) || 0;
+
+           // Show only if user reduces below their allocated number (and ticket is known)
+           if (ticket > 0 && current < ticket) {
+             if (matchAmt) matchAmt.textContent = String(ticket);
+             matchNudge.style.display = "block";
+           } else {
+             matchNudge.style.display = "none";
+           }
+         }
 
          const btnDefault = document.getElementById('btn-default');
          const btnZero = document.getElementById('btn-zero');
@@ -1678,7 +1720,6 @@ def hold_success(slug):
              amount.value = String(t);
              payAmt.textContent = String(t);
              // IMPORTANT: the "Use my number" pill must ALWAYS show the ticket number (not the input)
-             payAmt2.textContent = String(t);
              updateReleased();
              return;
            }
@@ -1690,7 +1731,6 @@ def hold_success(slug):
 
            // IMPORTANT: keep the pill label tied to the ticket number, not the current input
            const t = intOr0(ticketVal && ticketVal.textContent);
-           payAmt2.textContent = String(t);
 
            updateReleased();
          }
@@ -1715,6 +1755,12 @@ def hold_success(slug):
          });
          observer.observe(ticketVal, { childList:true, subtree:true });
 
+         if (freeEnabled && amount) {
+           amount.addEventListener("input", () => {
+             updateMatchNudge();
+           });
+         }
+
          // Events
          if (freeEntryEnabled){
            amount.addEventListener('input', () => setAmount(amount.value));
@@ -1728,7 +1774,7 @@ def hold_success(slug):
        </script>
 
        <p class="muted" style="margin-top:10px">
-         Once you confirm, we’ll charge £<span id="pay-amt-2"></span> from the existing hold
+         Once you confirm, we’ll charge &pound;<span id="pay-amt"></span> from the existing hold
          and your bank will release the remaining amount.
        </p>
      </div>
@@ -1798,6 +1844,17 @@ def hold_success(slug):
         document.getElementById("hold-amt").textContent = data.hold_amount;
         document.getElementById("pay-amt").textContent = data.ticket_value;
         document.getElementById("pay-amt-2").textContent = data.ticket_value;
+
+        // Nudge #1 text (only exists when freeEnabled)
+        if (nudgeNum) nudgeNum.textContent = String(data.ticket_number);
+        if (nudgeAmt) nudgeAmt.textContent = String(data.ticket_value);
+
+        // Default donation amount should start as the ticket value (even if editable)
+        if (amount) amount.value = String(data.ticket_value);
+
+        // Evaluate nudges once on reveal
+        updateMatchNudge();
+
 
         result.style.display = "block";
         btn.style.display = "none";
@@ -1870,9 +1927,13 @@ def confirm_payment(entry_id):
         return redirect(url_for("hold_success", slug=charity.slug))
 
     paid_gbp = int(amount_pence // 100)
-    held_gbp = int(held // 100)
+
+    # Total held amount (pence) – this MUST exist before we use it
+    held_pence = int(entry.hold_amount_pence or HOLD_AMOUNT_PENCE or 0)
+    held_gbp = int(held_pence // 100)
+
     released_gbp = max(0, held_gbp - paid_gbp)
-    
+
     max_gbp = int((entry.hold_amount_pence or 0) // 100)
     if amount_gbp > max_gbp:
         flash(f"Donation cannot exceed £{max_gbp}.")
