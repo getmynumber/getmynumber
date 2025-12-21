@@ -1582,7 +1582,7 @@ def hold_success(slug):
        <div class="big-number" id="ticket-num"></div>
 
        <div class="muted" style="margin-top:6px;">
-         Ticket number = <strong>£<span id="ticket-val"></span></strong>
+         Ticket number = <strong>&pound;<span id="ticket-val"></span></strong>
        </div>
 
        <div class="hold-ok" style="margin-top:14px;">
