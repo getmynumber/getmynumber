@@ -1803,7 +1803,7 @@ def hold_success(slug):
 
      btn.addEventListener("click", async () => {
        btn.disabled = true;
-       btn.textContent = "Working…";
+       btn.textContent = "Working...";
        zone.style.display = "block";
 
        // start a quick continuous spin while we wait for server
@@ -1813,19 +1813,40 @@ def hold_success(slug):
        void wheel.offsetWidth;
        wheel.classList.add("wheel-spinning");
 
-       let data = null;
-       try {
-         const resp = await fetch(`/api/reveal-number/${entryId}`, { credentials: "same-origin" });
-         data = await resp.json();
-         if (!data.ok) throw new Error(data.error || "Could not reveal number");
-       } catch (e) {
-         wheel.classList.remove("wheel-spinning");
-         zone.style.display = "none";
-         btn.disabled = false;
-         btn.textContent = "Get My Number";
-         alert(e.message || "Could not reveal number.");
-         return;
-       }
+      let data = null;
+
+      // ---- NEW: fail-fast timeout so UI never gets stuck in "Working..."
+      const controller = new AbortController();
+      const timeoutMs = 12000; // 12s
+      const t = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const resp = await fetch(`/api/reveal-number/${entryId}`, {
+          credentials: "same-origin",
+          signal: controller.signal
+        });
+
+        // If Flask returns a non-JSON error page (500/502 etc), this prevents a "forever" wait feeling
+        if (!resp.ok) {
+          throw new Error(`Server error (${resp.status})`);
+        }
+
+        data = await resp.json();
+        if (!data.ok) throw new Error(data.error || "Could not reveal number");
+      } catch (e) {
+        wheel.classList.remove("wheel-spinning");
+        zone.style.display = "none";
+        btn.disabled = false;
+        btn.textContent = "Get My Number";
+        alert(e.name === "AbortError"
+          ? "This is taking longer than expected. Please try again."
+          : (e.message || "Could not reveal number.")
+        );
+        return;
+      } finally {
+        clearTimeout(t);
+      }
+
 
        // stop the continuous spin, then do a dramatic final landing
        wheel.classList.remove("wheel-spinning");
@@ -1865,7 +1886,7 @@ def hold_success(slug):
 
         if (result) result.style.display = "block";
         if (btn) btn.style.display = "none";
-      }, 2300);
+      }, 3400);
     });
   })();
   </script>
