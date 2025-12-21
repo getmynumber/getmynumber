@@ -1763,12 +1763,13 @@ def hold_success(slug):
 
          // Events
          if (freeEntryEnabled){
-           amount.addEventListener('input', () => setAmount(amount.value));
+           if (amount) amount.addEventListener('input', () => setAmount(amount.value));
            btnZero && btnZero.addEventListener('click', () => setAmount(0));
          }
 
          // "Use my number" should always set the amount to the TICKET NUMBER
-         btnDefault && btnDefault.addEventListener('click', () => setAmount(ticketVal.textContent));
+         if (btnDefault) btnDefault.addEventListener('click', () => setAmount(ticketVal.textContent));
+         if (btnZero) btnZero.addEventListener('click', () => setAmount(0));
 
        })();
        </script>
@@ -1839,11 +1840,17 @@ def hold_success(slug):
       setTimeout(() => {
         zone.style.display = "none";
 
-        document.getElementById("ticket-num").textContent = data.ticket_number;
-        document.getElementById("ticket-val").textContent = data.ticket_value;
-        document.getElementById("hold-amt").textContent = data.hold_amount;
-        document.getElementById("pay-amt").textContent = data.ticket_value;
-        document.getElementById("pay-amt-2").textContent = data.ticket_value;
+        // helper: set text only if the element exists
+        function setText(id, value) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = value;
+        }
+
+        setText("ticket-num", data.ticket_number);
+        setText("ticket-val", data.ticket_value);
+        setText("hold-amt", data.hold_amount);
+        setText("pay-amt", data.ticket_value);
+        setText("pay-amt-2", data.ticket_value);
 
         // Nudge #1 text (only exists when freeEnabled)
         if (nudgeNum) nudgeNum.textContent = String(data.ticket_number);
@@ -1856,8 +1863,8 @@ def hold_success(slug):
         updateMatchNudge();
 
 
-        result.style.display = "block";
-        btn.style.display = "none";
+        if (result) result.style.display = "block";
+        if (btn) btn.style.display = "none";
       }, 2300);
     });
   })();
