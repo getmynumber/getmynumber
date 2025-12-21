@@ -1614,12 +1614,32 @@ def hold_success(slug):
          <span class="tick">&#10003;</span>
          <div style="text-align:left;">
            <div><strong>Hold confirmed</strong></div>
-           <div class="muted">
-             &pound;<span id="hold-amt"></span> held &bull; you will pay &pound;<span id="pay-amt"></span> 
-             &bull; &pound;<span id="release-amt"></span>released
+           <div class="card" style="margin-top:14px">
+             <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
+
+               <div style="display:flex;align-items:center;gap:8px">
+                 <span class="tick">&#10003;</span>
+                 <span>
+                   &pound;<strong><span id="hold-amt"></span></strong> temporarily held on your card
+                 </span>
+               </div>
+
+               <div style="display:flex;align-items:center;gap:8px">
+                 <span class="tick">&#10003;</span>
+                 <span>
+                   You will pay &pound;<strong><span id="pay-amt"></span></strong>
+                 </span>
+               </div>
+
+               <div style="display:flex;align-items:center;gap:8px">
+                 <span class="tick">&#10003;</span>
+                 <span>
+                   &pound;<strong><span id="release-amt"></span></strong> will be released immediately
+                 </span>
+               </div>
+
+             </div>
            </div>
-         </div>
-       </div>
 
        <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
 
@@ -2057,16 +2077,31 @@ def confirm_payment(entry_id):
         <span class="tick">&#10003;</span>
         <div style="text-align:left;">
           <div><strong>Payment confirmed</strong></div>
-          <div class="muted" style="margin-top:2px;">
-            Ticket <strong>#{{ entry.number }}</strong> • Paid <strong>£{{ paid_gbp }}</strong> to <strong>{{ charity.name }}</strong>
-          </div>
-          <div class="muted" style="margin-top:6px;">
-            {% if released_gbp > 0 %}
-              £{{ held_gbp }} was held • £{{ released_gbp }} will be released by your bank.
-            {% else %}
-              There is no remaining hold amount to release.
-            {% endif %}
+          <div class="card" style="margin-top:16px">
+            <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
 
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="tick">&#10003;</span>
+                <span>
+                  Paid &pound;<strong>{{ paid_gbp }}</strong> to <strong>{{ charity.name }}</strong>
+                </span>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="tick">&#10003;</span>
+                <span>
+                  &pound;<strong>{{ held_gbp }}</strong> was temporarily held
+                </span>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="tick">&#10003;</span>
+                <span>
+                  &pound;<strong>{{ released_gbp }}</strong> will be released by your bank
+                </span>
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
