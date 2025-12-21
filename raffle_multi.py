@@ -1431,7 +1431,6 @@ def authorise_hold(slug):
     </div>
     """
     return render(body, charity=charity, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, title="Authorise hold")
-    """
 
 @app.route("/<slug>/start-hold", methods=["POST"])
 def start_hold(slug):
@@ -1590,7 +1589,8 @@ def hold_success(slug):
          <div style="text-align:left;">
            <div><strong>Hold confirmed</strong></div>
            <div class="muted">
-             £<span id="hold-amt"></span> held • you will pay £<span id="pay-amt"></span> • £<span id="release-amt"></span> released
+             &pound;<span id="hold-amt"></span> held &bull; you will pay &pound;<span id="pay-amt"></span> 
+             &bull; &pound;<span id="release-amt"></span>released
            </div>
          </div>
        </div>
