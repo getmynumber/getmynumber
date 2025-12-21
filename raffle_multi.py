@@ -1694,6 +1694,7 @@ def confirm_payment(entry_id):
     """
     entry = Entry.query.get_or_404(entry_id)
     charity = Charity.query.get_or_404(entry.charity_id)
+    held = int(entry.hold_amount_pence or 0)
 
     if entry.paid:
         flash("This entry is already marked as paid. Thank you!")
