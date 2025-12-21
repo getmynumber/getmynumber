@@ -1575,7 +1575,7 @@ def hold_success(slug):
          <div class="wheel" id="wheel"></div>
          <div class="wheel-center"></div>
        </div>
-       <div class="muted" style="margin-top:10px;">Spinning…</div>
+       <div class="muted" style="margin-top:10px;">Spinning...</div>
      </div>
 
      <div id="result" style="display:none; margin-top:18px;">
