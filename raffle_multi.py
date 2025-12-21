@@ -797,16 +797,34 @@ LAYOUT = """
    <script>
      document.addEventListener('DOMContentLoaded', () => {
        document.querySelectorAll('form[data-safe-submit]').forEach(f => {
-         f.addEventListener('submit', () => {
-           const btn = f.querySelector('button[type="submit"]');
-           if (btn) {
-             btn.disabled = true;
-             btn.textContent = 'Working…';
+         f.addEventListener('submit', (e) => {
+           // The button that was actually clicked (important when you have multiple submit buttons)
+           const submitter = e.submitter;
+
+           // If the clicked button has a name/value (e.g. name="status" value="live"),
+           // copy it into a hidden input BEFORE disabling the button,
+           // otherwise Flask won't receive it.
+           if (submitter && submitter.name) {
+             let hidden = f.querySelector(`input[type="hidden"][name="${submitter.name}"]`);
+             if (!hidden) {
+               hidden = document.createElement("input");
+               hidden.type = "hidden";
+               hidden.name = submitter.name;
+               f.appendChild(hidden);
+             }
+             hidden.value = submitter.value || "";
+           }
+
+           // Disable only the clicked button (not "the first submit button in the form")
+           if (submitter) {
+             submitter.disabled = true;
+             submitter.textContent = "Working...";
            }
          });
        });
      });
    </script>
+
    </head>
    <body>
      <div class="wrap">
@@ -1381,7 +1399,6 @@ def authorise_hold(slug):
 
     body = """
     <div class="hero">
-      <div class="badge">Step 2</div>
       <h1>Authorise a temporary hold</h1>
       <p class="muted" style="margin-top:6px">
         You will now be redirected to Stripe to place a temporary card authorisation.
