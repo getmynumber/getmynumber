@@ -1586,7 +1586,7 @@ def hold_success(slug):
        </div>
 
        <div class="hold-ok" style="margin-top:14px;">
-         <span class="tick">✓</span>
+         <span class="tick">&#10003;</span>
          <div style="text-align:left;">
            <div><strong>Hold confirmed</strong></div>
            <div class="muted">
@@ -1937,7 +1937,7 @@ def confirm_payment(entry_id):
 
     <div class="card" style="padding:18px; max-width:720px; margin:0 auto;">
       <div class="hold-ok" style="justify-content:flex-start; max-width:none;">
-        <span class="tick">✓</span>
+        <span class="tick">&#10003;</span>
         <div style="text-align:left;">
           <div><strong>Payment confirmed</strong></div>
           <div class="muted" style="margin-top:2px;">
