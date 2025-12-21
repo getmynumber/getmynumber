@@ -31,6 +31,8 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
+POSTAL_ENTRY_ADDRESS = "PO Box 12345, London, United Kingdom (replace this later)"
+
 # Amount to temporarily hold on the card (in pence) – e.g. 1000 = £10
 HOLD_AMOUNT_PENCE = 20000
 
@@ -149,6 +151,7 @@ class Charity(db.Model):
     is_sold_out = db.Column(db.Boolean, nullable=False, default=False)
     is_coming_soon = db.Column(db.Boolean, nullable=False, default=False)
     free_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    preauth_page_enabled = db.Column(db.Boolean, default=False)
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1167,6 +1170,11 @@ def charity_page(slug):
                 "phone": phone,
                 "hold_amount_pence": hold_amount_pence,
             }
+
+            # NEW: optional pre-authorisation info page
+            if getattr(charity, "preauth_page_enabled", False):
+                return redirect(url_for("authorise_hold", slug=charity.slug))
+
             try:
                 checkout_session = stripe.checkout.Session.create(
                     mode="payment",
@@ -1277,8 +1285,13 @@ def charity_page(slug):
             <div class="row" style="margin-top:8px">
 
               <button class="btn" type="submit" {% if is_blocked %}disabled{% endif %}>
-                Place hold &amp; get my number
+                {% if charity.preauth_page_enabled %}
+                  Continue
+                {% else %}
+                  Place hold &amp; get my number
+                {% endif %}
               </button>
+
               <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
             </div>
           </form>
@@ -1349,6 +1362,123 @@ def charity_page(slug):
         status=status,
         is_blocked=is_blocked
     )
+
+@app.route("/<slug>/authorise", methods=["GET"])
+def authorise_hold(slug):
+    charity = get_charity_or_404(slug)
+
+    pending = session.get("pending_entry")
+    if not pending or pending.get("slug") != charity.slug:
+        flash("We could not find your details. Please start again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    # Determine hold amount (GBP) shown on the page
+    hold_pence = int(pending.get("hold_amount_pence") or 0)
+    if hold_pence <= 0:
+        hold_pence = int(getattr(charity, "hold_amount_pence", 0) or 0)
+
+    hold_gbp = int(hold_pence // 100)
+
+    body = """
+    <div class="hero">
+      <div class="badge">Step 2</div>
+      <h1>Authorise a temporary hold</h1>
+      <p class="muted" style="margin-top:6px">
+        You will now be redirected to Stripe to place a temporary card authorisation.
+        <strong>This is an authorisation only — no money is taken at this point.</strong>
+      </p>
+
+      <div class="card" style="margin-top:14px">
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
+          <div>✅ <strong>A temporary hold of £{{ hold_gbp }}</strong> will be placed on your card</div>
+          <div>✅ You will only be charged your <strong>ticket number amount</strong></div>
+          <div>✅ The remaining hold is released <strong>immediately</strong> after you confirm</div>
+        </div>
+
+        <form method="post" action="{{ url_for('start_hold', slug=charity.slug) }}" style="margin-top:14px">
+          <button class="btn" type="submit">
+            Authorise a £{{ hold_gbp }} hold
+          </button>
+        </form>
+
+        <div class="muted" style="margin-top:10px;font-size:12px;text-align:center">
+          🔒 Secured by Stripe
+        </div>
+      </div>
+
+      <details style="margin-top:14px">
+        <summary class="pill" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px">
+          Free Postal Entry
+        </summary>
+        <div class="card" style="margin-top:10px">
+          <p class="muted" style="margin:0 0 10px 0">
+            You can enter for free by post. Your entry must be received before the closing time shown on this campaign page.
+          </p>
+
+          <p style="margin:0 0 10px 0"><strong>Send your postal entry to:</strong><br>
+          {{ postal_address }}</p>
+
+          <div class="muted" style="font-size:12px;line-height:1.5">
+            <strong>Postal entry terms (summary):</strong><br>
+            • Include your full name, email, phone (optional), and the campaign slug “{{ charity.slug }}”.<br>
+            • One postal entry per envelope. Multiple entries in one envelope may be rejected.<br>
+            • Entries must be legible and received before the draw time/closing date.<br>
+            • We will confirm receipt by email where possible.<br>
+            • No purchase or payment is required for postal entries.
+          </div>
+        </div>
+      </details>
+    </div>
+    """
+    return render(body, charity=charity, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, title="Authorise hold")
+    """
+
+@app.route("/<slug>/start-hold", methods=["POST"])
+def start_hold(slug):
+    charity = get_charity_or_404(slug)
+
+    pending = session.get("pending_entry")
+    if not pending or pending.get("slug") != charity.slug:
+        flash("We could not find your details. Please start again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    hold_amount_pence = int(pending.get("hold_amount_pence") or 0)
+    if hold_amount_pence <= 0:
+        # fallback: either charity.hold_amount_pence or last resort (max_number)
+        hold_amount_pence = int(getattr(charity, "hold_amount_pence", 0) or 0)
+        if hold_amount_pence <= 0:
+            hold_amount_pence = int(charity.max_number or 0) * 100
+
+    # Create Stripe Checkout Session for the hold (manual capture)
+    try:
+        checkout = stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            customer_email=pending.get("email") or None,
+            line_items=[{
+                "price_data": {
+                    "currency": "gbp",
+                    "product_data": {"name": f"{charity.name} – Temporary card authorisation"},
+                    "unit_amount": hold_amount_pence,
+                },
+                "quantity": 1,
+            }],
+            payment_intent_data={
+                "capture_method": "manual",
+                "metadata": {
+                    "charity_slug": charity.slug,
+                    "flow": "hold_then_capture",
+                }
+            },
+            success_url=url_for("hold_success", slug=charity.slug, _external=True) + "?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
+        )
+    except Exception as e:
+        app.logger.error(f"Stripe session create error (start_hold): {e}")
+        flash("We could not start the card authorisation. Please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    return redirect(checkout.url)
 
 @app.route("/<slug>/hold-success")
 def hold_success(slug):
@@ -2158,6 +2288,7 @@ def edit_charity(slug):
         charity.is_sold_out = bool(request.form.get("is_sold_out"))
         charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
         charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
+        charity.preauth_page_enabled = bool(request.form.get("preauth_page_enabled"))
 
         try:
             charity.hold_amount_pence = int(
@@ -2204,6 +2335,11 @@ def edit_charity(slug):
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
         <input type="checkbox" name="free_entry_enabled" {% if charity.free_entry_enabled %}checked{% endif %}>
         Free entry available (optional donation)
+      </label>
+
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <input type="checkbox" name="preauth_page_enabled" {% if charity.preauth_page_enabled %}checked{% endif %}>
+        Show “Authorise hold” page before Stripe
       </label>
 
       <h3 style="margin-top:16px;">Campaign status</h3>
@@ -2765,6 +2901,8 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN logo_data TEXT"))
             if 'free_entry_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN free_entry_enabled BOOLEAN DEFAULT 0"))
+            if 'preauth_page_enabled' not in cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN preauth_page_enabled BOOLEAN DEFAULT 0"))
             if 'hold_amount_pence' not in cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
     except Exception as e:
