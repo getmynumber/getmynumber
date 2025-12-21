@@ -1276,12 +1276,6 @@ def charity_page(slug):
             </label>
             <div class="row" style="margin-top:8px">
 
-              {% if charity.free_entry_enabled %}
-                <div class="banner" style="margin-top:10px;">
-                  <strong>Free entry available</strong> — you can enter without donating. Optional donations don’t improve your chances.
-                </div>
-              {% endif %}
-
               <button class="btn" type="submit" {% if is_blocked %}disabled{% endif %}>
                 Place hold &amp; get my number
               </button>
@@ -1466,7 +1460,7 @@ def hold_success(slug):
          <div style="text-align:left;">
            <div><strong>Hold confirmed</strong></div>
            <div class="muted">
-             £<span id="hold-amt"></span> held, you will pay £<span id="pay-amt"></span>
+             £<span id="hold-amt"></span> held • you will pay £<span id="pay-amt"></span> • £<span id="release-amt"></span> released
            </div>
          </div>
        </div>
@@ -1493,13 +1487,6 @@ def hold_success(slug):
               Use my number (£<span id="pay-amt-2"></span>)
             </button>
 
-            {% if charity.free_entry_enabled %}
-              <button type="button" class="pill" id="btn-zero">
-                No donation (£0)
-              </button>
-            {% endif %}
-          </div>
-
           <button class="btn" type="submit" style="width:100%; margin-top:12px;">
             {% if charity.free_entry_enabled %}Confirm donation{% else %}Confirm &amp; pay{% endif %}
           </button>
@@ -1513,42 +1500,85 @@ def hold_success(slug):
        <script>
        (function(){
          const amount = document.getElementById('donation-amount');
-         const payAmt = document.getElementById('pay-amt');
-         const payAmt2 = document.getElementById('pay-amt-2');
-         const ticketVal = document.getElementById('ticket-val');
+         const payAmt = document.getElementById('pay-amt');        // top "Hold confirmed" pay number
+         const payAmt2 = document.getElementById('pay-amt-2');     // the pill label "Use my number (£X)"
+         const ticketVal = document.getElementById('ticket-val');  // revealed ticket value (£ticket)
+         const holdAmt = document.getElementById('hold-amt');      // revealed hold (£max)
+         const releaseAmt = document.getElementById('release-amt');// NEW: released amount
 
          const btnDefault = document.getElementById('btn-default');
          const btnZero = document.getElementById('btn-zero');
 
-         function setAmount(v){
-           const n = Math.max(0, parseInt(v || 0, 10) || 0);
-           amount.value = String(n);
-           payAmt.textContent = String(n);     // this is the amount that will be captured
-           // IMPORTANT: do NOT change payAmt2 here (pay-amt-2 should always show the ticket number)
+         // Server decides whether free entry is enabled for THIS charity:
+         const freeEntryEnabled = {{ 'true' if charity.free_entry_enabled else 'false' }};
+
+         function intOr0(x){
+           const n = parseInt(String(x || '0').replace(/[^\d]/g,''), 10);
+           return Number.isFinite(n) ? n : 0;
          }
 
-         const FREE = {{ 'true' if charity.free_entry_enabled else 'false' }};
+         function updateReleased(){
+           const held = intOr0(holdAmt && holdAmt.textContent);
+           const pay  = intOr0(payAmt && payAmt.textContent);
+           const rel = Math.max(0, held - pay);
+           if (releaseAmt) releaseAmt.textContent = String(rel);
+         }
 
-         const observer = new MutationObserver(() => {
-           const n = parseInt(ticketVal.textContent || '0', 10) || 0;
-
-           // Always seed the capture amount to ticket number initially
-           if (!amount.value) setAmount(n);
-
-           // If NO free entry: force and lock it to ticket value
-           if (!FREE) {
-             setAmount(n);
-             amount.readOnly = true;
+         function setAmount(v){
+           // If free entry is NOT enabled, amount must equal the ticket number and be uneditable.
+           if (!freeEntryEnabled){
+             const t = intOr0(ticketVal && ticketVal.textContent);
+             amount.value = String(t);
+             payAmt.textContent = String(t);
+             // IMPORTANT: the "Use my number" pill must ALWAYS show the ticket number (not the input)
+             payAmt2.textContent = String(t);
+             updateReleased();
+             return;
            }
+
+           // Free entry enabled => user may edit down to £0.
+           const n = Math.max(0, intOr0(v));
+           amount.value = String(n);
+           payAmt.textContent = String(n);
+
+           // IMPORTANT: keep the pill label tied to the ticket number, not the current input
+           const t = intOr0(ticketVal && ticketVal.textContent);
+           payAmt2.textContent = String(t);
+
+           updateReleased();
+         }
+
+         // Once reveal fills ticket/hold, seed the input appropriately
+         const observer = new MutationObserver(() => {
+           const t = intOr0(ticketVal && ticketVal.textContent);
+           if (!amount.value) setAmount(t);
+
+           // lock the input if no free entry
+           if (!freeEntryEnabled){
+             amount.readOnly = true;
+             amount.setAttribute('aria-readonly', 'true');
+             // hide the £0 button if it exists
+             if (btnZero) btnZero.style.display = 'none';
+           } else {
+             amount.readOnly = false;
+             if (btnZero) btnZero.style.display = '';
+           }
+
+           updateReleased();
          });
          observer.observe(ticketVal, { childList:true, subtree:true });
 
-         amount.addEventListener('input', () => setAmount(amount.value));
-         btnDefault.addEventListener('click', () => setAmount(ticketVal.textContent));
-         btnZero.addEventListener('click', () => setAmount(0));
+         // Events
+         if (freeEntryEnabled){
+           amount.addEventListener('input', () => setAmount(amount.value));
+           btnZero && btnZero.addEventListener('click', () => setAmount(0));
+         }
+
+         // "Use my number" should always set the amount to the TICKET NUMBER
+         btnDefault && btnDefault.addEventListener('click', () => setAmount(ticketVal.textContent));
+
        })();
        </script>
-
 
        <p class="muted" style="margin-top:10px">
          Once you confirm, we’ll charge £<span id="pay-amt-2"></span> from the existing hold
@@ -1685,10 +1715,15 @@ def confirm_payment(entry_id):
             amount_gbp = -1
 
     amount_pence = amount_gbp * 100
+    paid_gbp = amount_gbp
 
     if (not charity.free_entry_enabled) and amount_gbp < 1:
         flash("This campaign requires a minimum donation of £1.")
         return redirect(url_for("hold_success", slug=charity.slug))
+
+    paid_gbp = int(amount_pence // 100)
+    held_gbp = int(held // 100)
+    released_gbp = max(0, held_gbp - paid_gbp)
     
     max_gbp = int((entry.hold_amount_pence or 0) // 100)
     if amount_gbp > max_gbp:
@@ -1775,10 +1810,15 @@ def confirm_payment(entry_id):
         <div style="text-align:left;">
           <div><strong>Payment confirmed</strong></div>
           <div class="muted" style="margin-top:2px;">
-            Ticket <strong>#{{ entry.number }}</strong> • Paid <strong>£{{ entry.number }}</strong> to <strong>{{ charity.name }}</strong>
+            Ticket <strong>#{{ entry.number }}</strong> • Paid <strong>£{{ paid_gbp }}</strong> to <strong>{{ charity.name }}</strong>
           </div>
           <div class="muted" style="margin-top:6px;">
-            Any remaining amount from the £{{ charity.max_number }} hold will be released by your bank.
+            {% if released_gbp > 0 %}
+              £{{ held_gbp }} was held • £{{ released_gbp }} will be released by your bank.
+            {% else %}
+              There is no remaining hold amount to release.
+            {% endif %}
+
           </div>
         </div>
       </div>
@@ -1819,7 +1859,11 @@ def confirm_payment(entry_id):
         body,
         charity=charity,
         entry=entry,
-        title=f"{charity.name} – Thank you",
+        receipt_url-receipt_url,
+        paid_gbp=paid_gbp,
+        held_gbp=held_gbp,
+        released_gbp=released_gbp,
+        title=f"{charity.name} – Confirmed Payment",
         receipt_url=receipt_url,
     )
 
