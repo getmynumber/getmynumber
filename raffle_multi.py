@@ -1859,33 +1859,44 @@ def hold_success(slug):
 
       // Reveal after the landing finishes
       setTimeout(() => {
-        zone.style.display = "none";
+        try {
+          zone.style.display = "none";
 
-        // helper: set text only if the element exists
-        function setText(id, value) {
-          const el = document.getElementById(id);
-          if (el) el.textContent = value;
+          function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+          }
+
+          setText("ticket-num", data.ticket_number);
+          setText("ticket-val", data.ticket_value);
+          setText("hold-amt", data.hold_amount);
+          setText("pay-amt", data.ticket_value);
+          setText("pay-amt-2", data.ticket_value);
+
+          // Nudge #1 text (only exists when freeEnabled)
+          if (nudgeNum) nudgeNum.textContent = String(data.ticket_number);
+          if (nudgeAmt) nudgeAmt.textContent = String(data.ticket_value);
+
+          // Default donation amount should start as the ticket value (even if editable)
+          if (amount) amount.value = String(data.ticket_value);
+
+          // ✅ guard this so it doesn't crash when free entry is OFF
+          if (typeof updateMatchNudge === "function") {
+            updateMatchNudge();
+          }
+
+          if (result) result.style.display = "block";
+          if (btn) btn.style.display = "none";
+        } catch (err) {
+          console.error("Reveal render failed:", err);
+          // fail-safe: don't dead-end the user
+          if (zone) zone.style.display = "none";
+          if (result) result.style.display = "block";
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Get My Number";
+          }
         }
-
-        setText("ticket-num", data.ticket_number);
-        setText("ticket-val", data.ticket_value);
-        setText("hold-amt", data.hold_amount);
-        setText("pay-amt", data.ticket_value);
-        setText("pay-amt-2", data.ticket_value);
-
-        // Nudge #1 text (only exists when freeEnabled)
-        if (nudgeNum) nudgeNum.textContent = String(data.ticket_number);
-        if (nudgeAmt) nudgeAmt.textContent = String(data.ticket_value);
-
-        // Default donation amount should start as the ticket value (even if editable)
-        if (amount) amount.value = String(data.ticket_value);
-
-        // Evaluate nudges once on reveal
-        updateMatchNudge();
-
-
-        if (result) result.style.display = "block";
-        if (btn) btn.style.display = "none";
       }, 3400);
     });
   })();
