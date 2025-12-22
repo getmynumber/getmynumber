@@ -19,6 +19,7 @@ from sqlalchemy import UniqueConstraint, inspect, text
 from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 from urllib.parse import urlparse
+from markupsafe import Markup
 
 import base64
 
@@ -897,6 +898,37 @@ LAYOUT = """
    </script>
 </body></html>
 """
+
+def build_ticks_block(items, wrap_card=True):
+    """
+    Shared UI partial: ticked lines stacked vertically.
+    items: list[str] of HTML strings (already escaped/controlled).
+    """
+    lines_html = "\n".join(
+        f"""
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="tick">&#10003;</span>
+          <span>{item}</span>
+        </div>
+        """.strip()
+        for item in items
+    )
+
+    inner = f"""
+    <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
+      {lines_html}
+    </div>
+    """.strip()
+
+    if not wrap_card:
+        return inner
+
+    return f"""
+    <div class="card" style="margin-top:14px">
+      {inner}
+    </div>
+    """.strip()
+
 def render(body, **ctx):
     # Allow copy on admin/partner pages only (switchable here)
     path = request.path or ""
@@ -952,6 +984,30 @@ def refresh_campaign_status(c: Charity) -> None:
             db.session.commit()
     except Exception:
         db.session.rollback()
+
+def build_tickbox(title: str, lines_html: list[str]) -> Markup:
+    """
+    Shared tick-box UI used across authorise / hold-success / confirm-payment.
+    lines_html should contain HTML strings (already escaped or using entities like &pound;).
+    """
+    items = "\n".join(
+        f'<div style="display:flex;align-items:flex-start;gap:10px;margin-top:8px;">'
+        f'  <span class="tick">&#10003;</span>'
+        f'  <div class="muted" style="margin:0;line-height:1.45;">{line}</div>'
+        f'</div>'
+        for line in lines_html
+    )
+
+    html = f"""
+    <div class="hold-ok" style="align-items:flex-start;">
+      <div style="text-align:left;">
+        <div><strong>{title}</strong></div>
+        {items}
+      </div>
+    </div>
+    """
+    return Markup(html)
+
 
 # ====== PUBLIC ================================================================
 
@@ -1399,6 +1455,13 @@ def authorise_hold(slug):
 
     hold_gbp = int(hold_pence // 100)
 
+    ticks_block = build_ticks_block([
+        f"&pound;<strong>A temporary hold of £{{hold_gbp}</strong> will be placed on your card",
+        "You will only be charged your <strong>ticket number amount</strong>",
+        "The remaining hold is <strong>released</strong> after you confirm",
+    ])
+
+
     body = """
     <div class="hero">
       <h1>Authorise a temporary hold</h1>
@@ -1409,9 +1472,7 @@ def authorise_hold(slug):
 
       <div class="card" style="margin-top:14px">
         <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
-          <div>✅ <strong>A temporary hold of £{{ hold_gbp }}</strong> will be placed on your card</div>
-          <div>✅ You will only be charged your <strong>ticket number amount</strong></div>
-          <div>✅ The remaining hold is released <strong>immediately</strong> after you confirm</div>
+          {{ ticks_block|safe }}
         </div>
 
         <form method="post" action="{{ url_for('start_hold', slug=charity.slug) }}" style="margin-top:14px">
@@ -1449,7 +1510,7 @@ def authorise_hold(slug):
       </details>
     </div>
     """
-    return render(body, charity=charity, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, title="Authorise hold")
+    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, title="Authorise hold")
 
 @app.route("/<slug>/start-hold", methods=["POST"])
 def start_hold(slug):
@@ -1634,7 +1695,7 @@ def hold_success(slug):
                <div style="display:flex;align-items:center;gap:8px">
                  <span class="tick">&#10003;</span>
                  <span>
-                   &pound;<strong><span id="release-amt"></span></strong> will be released immediately
+                   &pound;<strong><span id="release-amt"></span></strong> will be released
                  </span>
                </div>
 
