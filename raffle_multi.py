@@ -1574,11 +1574,17 @@ def authorise_hold(slug):
 
           <div class="muted" style="font-size:12px;line-height:1.5">
             <strong>Postal entry terms (summary):</strong><br>
-            • Include your full name, email, phone (optional), and the campaign slug “{{ charity.slug }}”.<br>
+            • Include your full name, email, phone (optional), and the campaign “{{ charity.slug }}”.<br>
             • One postal entry per envelope. Multiple entries in one envelope may be rejected.<br>
             • Entries must be legible and received before the draw time/closing date.<br>
             • We will confirm receipt by email where possible.<br>
             • No purchase or payment is required for postal entries.
+            <p class="small muted">
+              Postal entries are governed by our
+              <a href="/terms" target="_blank" rel="noopener noreferrer">
+                Terms &amp; Conditions, including Annex&nbsp;1 (Postal Entry)
+              </a>.
+            </p>
           </div>
         </div>
       </details>
