@@ -1456,7 +1456,7 @@ def authorise_hold(slug):
     hold_gbp = int(hold_pence // 100)
 
     ticks_block = build_ticks_block([
-        f"&pound;<strong>A temporary hold of £{{hold_gbp}</strong> will be placed on your card",
+        f"&pound;<strong>{hold_gbp}</strong> will be temporarily held on your card",
         "You will only be charged your <strong>ticket number amount</strong>",
         "The remaining hold is <strong>released</strong> after you confirm",
     ])
