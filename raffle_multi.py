@@ -375,7 +375,7 @@ LAYOUT = """
   }
 
   .pill,
-  button.btn{
+  .btn{
     display:inline-flex;
     align-items:center;
     justify-content:center;
@@ -404,20 +404,21 @@ LAYOUT = """
     box-shadow:0 10px 24px rgba(3,46,66,0.16);
   }
 
-  button.btn{
+  .btn{
     background:linear-gradient(135deg,var(--brand),var(--brand-2));
     border:none;
     color:#ffffff;
     font-weight:700;
     padding-inline:16px;
+    text-decoration:none; /* important for <a class="btn"> */
   }
 
-  button.btn:hover{
+  .btn:hover{
     box-shadow:0 10px 24px rgba(0,184,169,0.35);
     transform:translateY(-1px);
   }
 
-  button.btn.secondary{
+  .btn.secondary{
     background:transparent;
     border:1px solid var(--border);
     color:var(--brand);
@@ -744,8 +745,8 @@ LAYOUT = """
     align-items:center;
     justify-content:center;
     font-weight:900;
-    background: rgba(0,184,169,0.10);
-    border: 1px solid rgba(0,184,169,0.18);
+    background: rgba(0,184,169,0.06);
+    border: 1px solid rgba(0,184,169,0.10);
     color: var(--ok);
   }
 
@@ -826,6 +827,13 @@ LAYOUT = """
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+
+  /* Tighter button spacing on mobile (confirmation page) */
+  @media (max-width: 480px) {
+    .row{
+      gap:6px !important;
     }
   }
 
@@ -1481,8 +1489,6 @@ def charity_page(slug):
                   Place hold &amp; get my number
                 {% endif %}
               </button>
-
-              <a class="pill" href="{{ charity.donation_url }}" target="_blank" rel="noopener">Donation page</a>
             </div>
           </form>
         </div>
@@ -2319,7 +2325,7 @@ def confirm_payment(entry_id):
         </div>
       {% endif %}
 
-      <div class="row" style="margin-top:16px; gap:10px; justify-content:flex-start;">
+      <div class="row" style="margin-top:16px; gap:10px; justify-content:center;">
         <a class="btn" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
         <a class="btn" href="{{ url_for('home') }}">Back to Home</a>
       </div>
