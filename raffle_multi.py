@@ -1728,6 +1728,9 @@ def hold_success(slug):
 
      <div class="card" style="text-align:center;">
        <button id="reveal-btn" class="btn" type="button">Get My Number</button>
+     <div id="reveal-status" class="small muted" style="display:none;">
+       Revealing your number…
+     </div>
 
      <div id="wheel-zone" style="display:none; margin:18px auto 0; width:220px;">
        <div class="wheel-wrap">
@@ -1935,11 +1938,6 @@ def hold_success(slug):
 
        })();
        </script>
-
-       <p class="muted" style="margin-top:10px">
-         Once you confirm, we’ll charge &pound;<span id="pay-amt"></span> from the existing hold
-         and your bank will release the remaining amount.
-       </p>
      </div>
    </div>
 
@@ -1952,22 +1950,41 @@ def hold_success(slug):
      const result = document.getElementById("result");
      const nudgeNum = document.getElementById("nudge-num");
      const nudgeAmt = document.getElementById("nudge-amt");
+     const ticketNum = document.getElementById("ticket-num");
+
+     function alreadyRevealed() {
+       return ticketNum && ticketNum.textContent && ticketNum.textContent.trim() !== "";
+     }
+
 
      function spinTo(deg) {
-       // stop continuous spin animation
        wheel.classList.remove("wheel-spinning");
+       void wheel.offsetWidth;
+       wheel.style.transition = "transform 3.2s cubic-bezier(0.12, 0.75, 0.18, 1)";
+       wheel.style.transform = `rotate(${(360 * 7) + deg}deg)`;
+     }
 
-      // force layout so animation removal is applied
-      void wheel.offsetWidth;
-
-     // long deceleration spin with easing
-     wheel.style.transition = "transform 3.2s cubic-bezier(0.12, 0.75, 0.18, 1)";
-     wheel.style.transform = `rotate(${(360 * 7) + deg}deg)`;
-   }
+     let revealLocked = false;
 
      btn.addEventListener("click", async () => {
-       btn.disabled = true;
-       btn.textContent = "Working...";
+       // If already revealed, ensure button is gone and do nothing
+       const ticketNum = document.getElementById("ticket-num");
+       if (ticketNum && ticketNum.textContent && ticketNum.textContent.trim() !== "") {
+         if (btn) btn.remove();
+         return;
+       }
+
+       // Show status text and remove button immediately
+       const status = document.getElementById("reveal-status");
+       if (status) status.style.display = "block";
+       if (btn) btn.remove();
+
+       // Remove button immediately so it can’t be clicked again
+       btn.remove();
+
+       // Immediately disable so double-clicks can't re-trigger
+       btn.style.pointerEvents = "none";
+
        zone.style.display = "block";
 
        // start a quick continuous spin while we wait for server
@@ -2000,8 +2017,17 @@ def hold_success(slug):
       } catch (e) {
         wheel.classList.remove("wheel-spinning");
         zone.style.display = "none";
-        btn.disabled = false;
-        btn.textContent = "Get My Number";
+        revealLocked = false;
+        const status = document.getElementById("reveal-status");
+        if (status) status.style.display = "none";
+        btn.style.pointerEvents = "";
+        // If backend refused because it's already revealed (409), remove button permanently
+        const msg = (e && e.message) ? String(e.message) : "";
+        if (msg.includes("(409)")) {
+          if (btn) btn.remove();
+          return;
+        }
+
         alert(e.name === "AbortError"
           ? "This is taking longer than expected. Please try again."
           : (e.message || "Could not reveal number.")
@@ -2011,8 +2037,6 @@ def hold_success(slug):
         clearTimeout(t);
       }
 
-
-       // stop the continuous spin, then do a dramatic final landing
        wheel.classList.remove("wheel-spinning");
 
       // Choose a landing angle based on ticket number (so it feels “deterministic”)
@@ -2056,10 +2080,6 @@ def hold_success(slug):
           // fail-safe: don't dead-end the user
           if (zone) zone.style.display = "none";
           if (result) result.style.display = "block";
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = "Get My Number";
-          }
         }
       }, 3400);
     });
@@ -2080,7 +2100,13 @@ def api_reveal_number(entry_id):
     if session.get("reveal_entry_id") != entry_id:
         return jsonify({"ok": False, "error": "Not authorised"}), 403
 
+    # Block repeat reveals (prevents spamming / changing number attempts)
+    if session.get("revealed_entry_id") == entry_id:
+        return jsonify({"ok": False, "error": "Number already revealed"}), 409
+
     e = Entry.query.get_or_404(entry_id)
+
+    session["revealed_entry_id"] = entry_id
 
     return jsonify({
         "ok": True,
