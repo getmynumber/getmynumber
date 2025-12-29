@@ -1979,12 +1979,6 @@ def hold_success(slug):
        if (status) status.style.display = "block";
        if (btn) btn.remove();
 
-       // Remove button immediately so it can’t be clicked again
-       btn.remove();
-
-       // Immediately disable so double-clicks can't re-trigger
-       btn.style.pointerEvents = "none";
-
        zone.style.display = "block";
 
        // start a quick continuous spin while we wait for server
@@ -2017,6 +2011,8 @@ def hold_success(slug):
       } catch (e) {
         wheel.classList.remove("wheel-spinning");
         zone.style.display = "none";
+        const status = document.getElementById("reveal-status");
+        if (status) status.style.display = "none";
         revealLocked = false;
         const status = document.getElementById("reveal-status");
         if (status) status.style.display = "none";
@@ -2039,13 +2035,9 @@ def hold_success(slug):
 
        wheel.classList.remove("wheel-spinning");
 
-      // Choose a landing angle based on ticket number (so it feels “deterministic”)
-      // Offset slightly so it stops just under the pointer
       const landing = ((data.ticket_number * 23) % 360) + 6;
-      // let browser apply class removal first
       requestAnimationFrame(() => spinTo(landing));
 
-      // Reveal after the landing finishes
       setTimeout(() => {
         try {
           zone.style.display = "none";
