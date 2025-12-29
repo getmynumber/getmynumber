@@ -709,15 +709,36 @@ LAYOUT = """
   .big-number { font-size:58px; font-weight:800; letter-spacing:.02em; }
 
   .hold-ok{
-    display:flex; gap:10px; justify-content:center; align-items:flex-start;
-    padding:12px 14px; border-radius:14px;
-    background: rgba(0,0,0,.05);
-    max-width:520px; margin-left:auto; margin-right:auto;
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    align-items:flex-start;
+    padding:14px 16px;
+    border-radius:14px;
+
+    /* NEW: nicer “success” panel (no grey box) */
+    background: linear-gradient(180deg, rgba(0,184,169,0.12), rgba(255,255,255,0.92));
+    border: 1px solid rgba(0,184,169,0.22);
+    box-shadow: 0 12px 26px rgba(3,46,66,0.10);
+
+    max-width:520px;
+    margin-left:auto;
+    margin-right:auto;
   }
+
   .tick{
-    width:26px; height:26px; border-radius:999px;
-    display:inline-flex; align-items:center; justify-content:center;
-    font-weight:900; background: rgba(0,0,0,.12);
+    width:26px;
+    height:26px;
+    border-radius:999px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-weight:900;
+
+    /* NEW: teal tick badge instead of grey */
+    background: rgba(0,184,169,0.18);
+    border: 1px solid rgba(0,184,169,0.26);
+    color: var(--ok);
   }
 
   /* Nicer wheel with pointer */
