@@ -1949,12 +1949,7 @@ def hold_success(slug):
      const result = document.getElementById("result");
      const nudgeNum = document.getElementById("nudge-num");
      const nudgeAmt = document.getElementById("nudge-amt");
-     const ticketNum = document.getElementById("ticket-num");
-
-     function alreadyRevealed() {
-       return ticketNum && ticketNum.textContent && ticketNum.textContent.trim() !== "";
-     }
-
+     const amount   = document.getElementById("amount"); // if present on this page
 
      function spinTo(deg) {
        wheel.classList.remove("wheel-spinning");
@@ -1963,120 +1958,129 @@ def hold_success(slug):
        wheel.style.transform = `rotate(${(360 * 7) + deg}deg)`;
      }
 
+     function setText(id, value) {
+       const el = document.getElementById(id);
+       if (el) el.textContent = value;
+     }
+
+     function hideStatus() {
+       const status = document.getElementById("reveal-status");
+       if (status) status.style.display = "none";
+     }
+
+     function showStatus() {
+       const status = document.getElementById("reveal-status");
+       if (status) status.style.display = "block";
+     }
+
+     // If any core UI bits are missing, don't attach a broken handler
+     if (!btn) return;
+     if (!zone || !wheel) {
+       console.error("Reveal UI missing:", { zone, wheel });
+       return;
+     }
+
      let revealLocked = false;
 
      btn.addEventListener("click", async () => {
-       // If already revealed, ensure button is gone and do nothing
-       const ticketNum = document.getElementById("ticket-num");
-       if (ticketNum && ticketNum.textContent && ticketNum.textContent.trim() !== "") {
-         if (btn) btn.remove();
+       // Prevent double-trigger
+       if (revealLocked) return;
+       revealLocked = true;
+
+       // If already revealed, remove the button and ensure status is hidden
+       const ticketNumEl = document.getElementById("ticket-num");
+       if (ticketNumEl && ticketNumEl.textContent && ticketNumEl.textContent.trim() !== "") {
+         btn.remove();
+         hideStatus();
          return;
        }
 
-       // Show status text and remove button immediately
-       const status = document.getElementById("reveal-status");
-       if (status) status.style.display = "block";
-       if (btn) btn.remove();
+       // Remove button immediately on click (your requirement)
+       showStatus();
+       btn.remove();
 
+       // Show spinner / wheel
        zone.style.display = "block";
-
-       // start a quick continuous spin while we wait for server
        wheel.style.transition = "none";
        wheel.style.transform = "rotate(0deg)";
-      // force browser to apply the transform before starting the animation
        void wheel.offsetWidth;
        wheel.classList.add("wheel-spinning");
 
-      let data = null;
+       let data = null;
 
-      // ---- NEW: fail-fast timeout so UI never gets stuck in "Working..."
-      const controller = new AbortController();
-      const timeoutMs = 12000; // 12s
-      const t = setTimeout(() => controller.abort(), timeoutMs);
+       const controller = new AbortController();
+       const timeoutMs = 12000;
+       const t = setTimeout(() => controller.abort(), timeoutMs);
 
-      try {
-        const resp = await fetch(`/api/reveal-number/${entryId}`, {
-          credentials: "same-origin",
-          signal: controller.signal
-        });
+       try {
+         const resp = await fetch(`/api/reveal-number/${entryId}`, {
+           credentials: "same-origin",
+           signal: controller.signal
+         });
 
-        // If Flask returns a non-JSON error page (500/502 etc), this prevents a "forever" wait feeling
-        if (!resp.ok) {
-          throw new Error(`Server error (${resp.status})`);
-        }
+         if (!resp.ok) {
+           throw new Error(`Server error (${resp.status})`);
+         }
 
-        data = await resp.json();
-        if (!data.ok) throw new Error(data.error || "Could not reveal number");
-      } catch (e) {
-        wheel.classList.remove("wheel-spinning");
-        zone.style.display = "none";
-        const status = document.getElementById("reveal-status");
-        if (status) status.style.display = "none";
-        revealLocked = false;
-        btn.style.pointerEvents = "";
-        // If backend refused because it's already revealed (409), remove button permanently
-        const msg = (e && e.message) ? String(e.message) : "";
-        if (msg.includes("(409)")) {
-          if (btn) btn.remove();
-          return;
-        }
+         data = await resp.json();
+         if (!data.ok) throw new Error(data.error || "Could not reveal number");
 
-        alert(e.name === "AbortError"
-          ? "This is taking longer than expected. Please try again."
-          : (e.message || "Could not reveal number.")
-        );
-        return;
-      } finally {
-        clearTimeout(t);
-      }
+       } catch (e) {
+         clearTimeout(t);
 
+         wheel.classList.remove("wheel-spinning");
+         zone.style.display = "none";
+         hideStatus();
+         revealLocked = false;
+
+         alert(e.name === "AbortError"
+           ? "This is taking longer than expected. Please try again."
+           : (e.message || "Could not reveal number.")
+         );
+         return;
+
+       } finally {
+         clearTimeout(t);
+       }
+
+       // Stop continuous spin and land
        wheel.classList.remove("wheel-spinning");
+       const landing = ((data.ticket_number * 23) % 360) + 6;
+       requestAnimationFrame(() => spinTo(landing));
 
-      const landing = ((data.ticket_number * 23) % 360) + 6;
-      requestAnimationFrame(() => spinTo(landing));
+       // Reveal after landing finishes
+       setTimeout(() => {
+         try {
+           zone.style.display = "none";
+           hideStatus(); // ✅ this removes “Revealing your number” after success
 
-      setTimeout(() => {
-        try {
-          zone.style.display = "none";
-          const status = document.getElementById("reveal-status");
-          if (status) status.style.display = "none";
+           setText("ticket-num", data.ticket_number);
+           setText("ticket-val", data.ticket_value);
+           setText("hold-amt", data.hold_amount);
+           setText("pay-amt", data.ticket_value);
+           setText("pay-amt-2", data.ticket_value);
 
-          function setText(id, value) {
-            const el = document.getElementById(id);
-            if (el) el.textContent = value;
-          }
+           if (nudgeNum) nudgeNum.textContent = String(data.ticket_number);
+           if (nudgeAmt) nudgeAmt.textContent = String(data.ticket_value);
 
-          setText("ticket-num", data.ticket_number);
-          setText("ticket-val", data.ticket_value);
-          setText("hold-amt", data.hold_amount);
-          setText("pay-amt", data.ticket_value);
-          setText("pay-amt-2", data.ticket_value);
+           if (amount) amount.value = String(data.ticket_value);
 
-          // Nudge #1 text (only exists when freeEnabled)
-          if (nudgeNum) nudgeNum.textContent = String(data.ticket_number);
-          if (nudgeAmt) nudgeAmt.textContent = String(data.ticket_value);
+           if (typeof updateMatchNudge === "function") {
+             updateMatchNudge();
+           }
 
-          // Default donation amount should start as the ticket value (even if editable)
-          if (amount) amount.value = String(data.ticket_value);
-
-          // ✅ guard this so it doesn't crash when free entry is OFF
-          if (typeof updateMatchNudge === "function") {
-            updateMatchNudge();
-          }
-
-          if (result) result.style.display = "block";
-          if (btn) btn.remove();          // removes the button entirely once revealed
-        } catch (err) {
-          console.error("Reveal render failed:", err);
-          // fail-safe: don't dead-end the user
-          if (zone) zone.style.display = "none";
-          if (result) result.style.display = "block";
-        }
-      }, 3400);
-    });
-  })();
-  </script>
-  """
+           if (result) result.style.display = "block";
+         } catch (err) {
+           console.error("Reveal render failed:", err);
+           zone.style.display = "none";
+           hideStatus();
+           if (result) result.style.display = "block";
+         }
+       }, 3400);
+     });
+   })();
+   </script>
+   """
     return render(
         body,
         charity=charity,
