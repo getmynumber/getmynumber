@@ -1829,7 +1829,6 @@ def hold_success(slug):
           </p>
         </form>
 
-
        <script>
        (function(){
          const amount = document.getElementById('donation-amount');
@@ -2014,8 +2013,6 @@ def hold_success(slug):
         const status = document.getElementById("reveal-status");
         if (status) status.style.display = "none";
         revealLocked = false;
-        const status = document.getElementById("reveal-status");
-        if (status) status.style.display = "none";
         btn.style.pointerEvents = "";
         // If backend refused because it's already revealed (409), remove button permanently
         const msg = (e && e.message) ? String(e.message) : "";
@@ -2041,6 +2038,8 @@ def hold_success(slug):
       setTimeout(() => {
         try {
           zone.style.display = "none";
+          const status = document.getElementById("reveal-status");
+          if (status) status.style.display = "none";
 
           function setText(id, value) {
             const el = document.getElementById(id);
@@ -2230,8 +2229,8 @@ def confirm_payment(entry_id):
     body = """
     <div class="hero">
       <div class="step-kicker">Step 3 of 3</div>
-      <h1>Confirmed payment</h1>
-      <p class="muted">You’re all set — good luck.</p>
+      <h1>Confirmed Payment</h1>
+      <p class="muted">You’re all set — good luck!</p>
     </div>
 
     <div class="card" style="padding:18px; max-width:720px; margin:0 auto;">
@@ -2277,8 +2276,8 @@ def confirm_payment(entry_id):
       {% endif %}
 
       <div class="row" style="margin-top:16px; gap:10px; justify-content:flex-start;">
-        <a class="btn" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to campaign</a>
-        <a class="btn" href="{{ url_for('home') }}">Back to home</a>
+        <a class="btn" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
+        <a class="btn" href="{{ url_for('home') }}">Back to Home</a>
       </div>
     </div>
 
