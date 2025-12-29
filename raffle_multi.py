@@ -1063,7 +1063,7 @@ def home():
         <div class="step-body">
           You are redirected to our secure Stripe checkout where a temporary hold
           is placed on your card. This is an authorisation only – no money is taken at this point.
-          Alternatively, there is a free postal route at this point. 
+          Alternatively, there is a free postal route. 
         </div>
       </div>
 
@@ -1578,7 +1578,7 @@ def authorise_hold(slug):
             • One postal entry per envelope. Multiple entries in one envelope may be rejected.<br>
             • Entries must be legible and received before the draw time/closing date.<br>
             • We will confirm receipt by email where possible.<br>
-            • No purchase or payment is required for postal entries.<br>
+            • No purchase or payment is required for postal entries.<br></p>
 
             <p class="small muted">
               Postal entries are governed by our
