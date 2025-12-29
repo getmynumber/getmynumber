@@ -1062,8 +1062,8 @@ def home():
         </div>
         <div class="step-body">
           You are redirected to our secure Stripe checkout where a temporary hold
-          of <strong>£200</strong> is placed on your card. This is an authorisation only –
-          no money is taken at this point.
+          is placed on your card. This is an authorisation only – no money is taken at this point.
+          Alternatively, there is a free postal route at this point. 
         </div>
       </div>
 
@@ -1072,12 +1072,12 @@ def home():
           <div class="step-icon">🎟️</div>
           <div>
             <div class="step-label">Step 3</div>
-            <div class="step-title">Receive your raffle ticket number</div>
+            <div class="step-title">Receive your ticket number</div>
           </div>
         </div>
         <div class="step-body">
-          Once the hold is confirmed, you are brought back to Get My Number and assigned
-          a unique raffle ticket number for your chosen charity. This number is shown on screen
+          Once the hold is confirmed, you are redirected back to Get My Number and assigned
+          a unique ticket number for your chosen charity. This number is shown on screen
           and stored against your entry.
         </div>
       </div>
@@ -1087,11 +1087,11 @@ def home():
           <div class="step-icon">✅</div>
           <div>
             <div class="step-label">Step 4</div>
-            <div class="step-title">Pay your ticket amount</div>
+            <div class="step-title">Donate your ticket amount</div>
           </div>
         </div>
         <div class="step-body">
-          You confirm payment for an amount equal to your ticket number
+          Confirm your donation for an amount equal to your ticket number
           (for example, ticket <strong>57</strong> = <strong>£57</strong>). We capture only this amount
           from the original card hold.
         </div>
@@ -1107,7 +1107,7 @@ def home():
         </div>
         <div class="step-body">
           Any difference between the original £200 hold and your ticket amount is released
-          by your bank. You are only charged the value of your final raffle ticket number.
+          by your bank. You only donate the value of your final ticket number.
         </div>
       </div>
 
