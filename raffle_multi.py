@@ -744,10 +744,8 @@ LAYOUT = """
     align-items:center;
     justify-content:center;
     font-weight:900;
-
-    /* NEW: teal tick badge instead of grey */
-    background: rgba(0,184,169,0.18);
-    border: 1px solid rgba(0,184,169,0.26);
+    background: rgba(0,184,169,0.10);
+    border: 1px solid rgba(0,184,169,0.18);
     color: var(--ok);
   }
 
@@ -1764,7 +1762,7 @@ def hold_success(slug):
     body = """
      <div class="hero">
        <div class="step-kicker">Step 2 of 3</div>
-       <h1>Raffle ticket number</h1>
+       <h1>Raffle Ticket Number</h1>
        <p class="muted">Press the button to reveal your number.</p>
      </div>
 
@@ -1800,7 +1798,7 @@ def hold_success(slug):
        <div class="hold-ok" style="margin-top:14px;">
          <span class="tick">&#10003;</span>
          <div style="text-align:left;">
-           <div><strong>Hold confirmed</strong></div>
+           <div><strong>Hold Confirmed</strong></div>
             <div class="card" style="margin-top:14px">
              <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
 
@@ -2316,7 +2314,7 @@ def confirm_payment(entry_id):
       {% if receipt_url %}
         <div class="row" style="margin-top:16px; gap:10px; justify-content:flex-start;">
           <form action="{{ receipt_url }}" method="GET" target="_blank" style="margin:0;">
-            <button class="btn" type="submit">View receipt</button>
+            <button class="btn" type="submit">View Receipt</button>
           </form>
         </div>
       {% endif %}
