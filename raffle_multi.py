@@ -717,9 +717,19 @@ LAYOUT = """
     border-radius:14px;
 
     /* NEW: nicer “success” panel (no grey box) */
-    background: linear-gradient(180deg, rgba(0,184,169,0.12), rgba(255,255,255,0.92));
+    background: linear-gradient(
+      90deg,
+      rgba(0,184,169,0.08) 0%,
+      rgba(0,184,169,0.12) 18%,
+      rgba(255,255,255,0.92) 82%,
+      rgba(255,255,255,0.98) 100%
+    );
     border: 1px solid rgba(0,184,169,0.22);
     box-shadow: 0 12px 26px rgba(3,46,66,0.10);
+
+    opacity: 0;
+    transform: translateY(6px);
+    animation: holdFadeIn 420ms ease-out forwards;
 
     max-width:520px;
     margin-left:auto;
@@ -808,6 +818,17 @@ LAYOUT = """
 
   @keyframes wheelSpinFast {
     to { transform: rotate(360deg); }
+  }
+
+  @keyframes holdFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes wheelWobble {
