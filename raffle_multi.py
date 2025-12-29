@@ -470,6 +470,19 @@ LAYOUT = """
     background:#ffffff;
   }
 
+  /* Outline pill buttons (used on final confirmation page) */
+  .btn.outline{
+    background: transparent;
+    border: 1.5px solid var(--brand);
+    color: var(--brand);
+    box-shadow: none;
+  }
+
+  .btn.outline:hover{
+    background: rgba(0,184,169,0.08);
+    box-shadow: none;
+  }
+
   .muted{color:var(--muted);}
   .sep{height:10px;}
 
@@ -745,8 +758,8 @@ LAYOUT = """
     align-items:center;
     justify-content:center;
     font-weight:900;
-    background: rgba(0,184,169,0.06);
-    border: 1px solid rgba(0,184,169,0.10);
+    background: rgba(0,184,169,0.04);
+    border: 1px solid rgba(0,184,169,0.08);
     color: var(--ok);
   }
 
@@ -2326,8 +2339,8 @@ def confirm_payment(entry_id):
       {% endif %}
 
       <div class="row" style="margin-top:16px; gap:10px; justify-content:center;">
-        <a class="btn" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
-        <a class="btn" href="{{ url_for('home') }}">Back to Home</a>
+        <a class="btn pill outline" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to campaign</a>
+        <a class="btn pill outline" href="{{ url_for('home') }}">Back to home</a>
       </div>
     </div>
 
