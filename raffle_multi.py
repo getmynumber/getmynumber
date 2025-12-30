@@ -152,7 +152,6 @@ class Charity(db.Model):
     is_sold_out = db.Column(db.Boolean, nullable=False, default=False)
     is_coming_soon = db.Column(db.Boolean, nullable=False, default=False)
     free_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    preauth_page_enabled = db.Column(db.Boolean, default=False)
     # ===== Skill-based entry (optional) =====
     skill_enabled = db.Column(db.Boolean, nullable=False, default=False)
     # Admin-set question + optional image (stored as data URI like logo_data)
@@ -1483,33 +1482,8 @@ def charity_page(slug):
                 session["skill_attempts"] = 0
                 return redirect(url_for("skill_gate", slug=charity.slug))
 
-            # Existing: optional pre-authorisation info page
-            if getattr(charity, "preauth_page_enabled", False):
-                return redirect(url_for("authorise_hold", slug=charity.slug))
-
-            try:
-                checkout_session = stripe.checkout.Session.create(
-                    mode="payment",
-                    line_items=[{
-                        "price_data": {
-                            "currency": "gbp",
-                            "product_data": {
-                                "name": f"Temporary hold £{hold_amount_pence / 100:.0f} – {charity.name}",
-                            },
-                            "unit_amount": hold_amount_pence,
-                        },
-                        "quantity": 1,
-                    }],
-                    payment_intent_data={"capture_method": "manual"},
-                    success_url=url_for(
-                        "hold_success", slug=charity.slug, _external=True
-                    ) + "?session_id={CHECKOUT_SESSION_ID}",
-                    cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
-                )
-                return redirect(checkout_session.url, code=303)
-            except Exception as e:
-                app.logger.error(f"Stripe error creating Checkout Session: {e}")
-                flash("There was a problem starting the card hold. Please try again.")
+            # Always use the Authorise Hold page for every campaign
+            return redirect(url_for("authorise_hold", slug=charity.slug))
 
     # --------------------
     # GET: stats + page render
@@ -1600,7 +1574,7 @@ def charity_page(slug):
                 {% if charity.preauth_page_enabled %}
                   Continue
                 {% else %}
-                  Place hold &amp; get my number
+                  Place Hold &amp; Get My Number
                 {% endif %}
               </button>
             </div>
@@ -1791,7 +1765,7 @@ def skill_gate(slug):
             </div>
 
             <p class="muted" style="margin-top:12px;font-size:12px;text-align:center;line-height:1.4;">
-              Free postal entry is still available. See
+              See
               <a href="/terms" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a>.
             </p>
           </form>
@@ -1957,10 +1931,8 @@ def _continue_after_skill(charity):
       - if preauth_page_enabled => /<slug>/authorise
       - else => create Stripe checkout hold (same as current POST flow)
     """
-    if getattr(charity, "preauth_page_enabled", False):
-        return redirect(url_for("authorise_hold", slug=charity.slug))
-    # If preauth disabled, send them into the same hold start you already do:
-    return redirect(url_for("start_hold", slug=charity.slug))
+    # Always go to Authorise Hold after passing the skill gate
+    return redirect(url_for("authorise_hold", slug=charity.slug))
 
 @app.route("/<slug>/authorise", methods=["GET"])
 def authorise_hold(slug):
@@ -1989,10 +1961,17 @@ def authorise_hold(slug):
 
     body = """
     <div class="hero">
-      <h1>Authorise a temporary hold</h1>
-      <p class="muted" style="margin-top:6px">
-        You will now be redirected to Stripe to place a temporary card authorisation.
-        <strong>This is an authorisation only — no money is taken at this point.</strong>
+      <h1>Confirm Your Entry</h1>
+      <p style="margin-top:10px;line-height:1.5;">
+        We will place a temporary card authorisation of up to
+        <strong>£{{ hold_amount }}</strong> to reserve your entry.
+      </p>
+
+      <p style="margin-top:8px;line-height:1.5;">
+        After your number is revealed, you will be invited to
+        <strong>confirm your donation</strong> in support of the charity.
+        Only your donation amount is taken — any remaining authorisation
+        is released automatically.
       </p>
 
       <div class="card" style="margin-top:14px">
@@ -2002,7 +1981,7 @@ def authorise_hold(slug):
 
         <form method="post" action="{{ url_for('start_hold', slug=charity.slug) }}" style="margin-top:14px">
           <button class="btn" type="submit">
-            Authorise a £{{ hold_gbp }} hold
+            Continue to Donation
           </button>
         </form>
 
@@ -2011,13 +1990,16 @@ def authorise_hold(slug):
         </div>
       </div>
 
+      {% if charity.free_entry_enabled %}
       <details style="margin-top:14px">
         <summary class="pill" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px">
           Free Postal Entry
         </summary>
         <div class="card" style="margin-top:10px">
           <p class="muted" style="margin:0 0 10px 0">
-            You can enter for free by post. Your entry must be received before the closing time shown on this campaign page.
+            A free postal entry route is available for this campaign.
+            This offers the same chance of winning and does not require a donation. 
+            Your entry must be received before the closing time shown on this campaign page.
           </p>
 
           <p style="margin:0 0 10px 0"><strong>Send your postal entry to:</strong><br>
@@ -2040,6 +2022,7 @@ def authorise_hold(slug):
           </div>
         </div>
       </details>
+      {% endif %}
     </div>
     """
     return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, title="Authorise hold")
@@ -2176,14 +2159,14 @@ def hold_success(slug):
     body = """
      <div class="hero">
        <div class="step-kicker">Step 2 of 3</div>
-       <h1>Raffle Ticket Number</h1>
-       <p class="muted">Press the button to reveal your number.</p>
+       <h1>Your Ticket Number</h1>
+       <p class="muted">Press the button to reveal your ticket number.</p>
      </div>
 
      <div class="card" style="text-align:center;">
        <button id="reveal-btn" class="btn" type="button">Get My Number</button>
      <div id="reveal-status" class="small muted" style="display:none;">
-       Revealing your number…
+       Revealing your ticket number…
      </div>
 
      <div id="wheel-zone" style="display:none; margin:18px auto 0; width:220px;">
@@ -2202,17 +2185,15 @@ def hold_success(slug):
          Ticket number = <strong>&pound;<span id="ticket-val"></span></strong>
        </div>
 
-       {% if charity.free_entry_enabled %}
-         <div class="muted" style="margin-top:10px; line-height:1.45;">
-           You have been allocated number <strong><span id="nudge-num"></span></strong>.
-           Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
-         </div>
-       {% endif %}
+       <div class="muted" style="margin-top:10px; line-height:1.45;">
+         You have been allocated number <strong><span id="nudge-num"></span></strong>.
+         Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
+       </div>
 
        <div class="hold-ok" style="margin-top:14px;">
          <span class="tick">&#10003;</span>
          <div style="text-align:left;">
-           <div><strong>Hold Confirmed</strong></div>
+           <div><strong>Card Hold Confirmed</strong></div>
             <div class="card" style="margin-top:14px">
              <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
 
@@ -2226,7 +2207,7 @@ def hold_success(slug):
                <div style="display:flex;align-items:center;gap:8px">
                  <span class="tick">&#10003;</span>
                  <span>
-                   You will pay &pound;<strong><span id="pay-amt"></span></strong>
+                   You will donate &pound;<strong><span id="pay-amt"></span></strong>
                  </span>
                </div>
 
@@ -3093,7 +3074,6 @@ def edit_charity(slug):
         charity.is_sold_out = bool(request.form.get("is_sold_out"))
         charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
         charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
-        charity.preauth_page_enabled = bool(request.form.get("preauth_page_enabled"))
 
         try:
             charity.hold_amount_pence = int(
@@ -3140,11 +3120,6 @@ def edit_charity(slug):
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
         <input type="checkbox" name="free_entry_enabled" {% if charity.free_entry_enabled %}checked{% endif %}>
         Free entry available (optional donation)
-      </label>
-
-      <label style="display:flex;gap:8px;align-items:center;margin-top:10px">
-        <input type="checkbox" name="preauth_page_enabled" {% if charity.preauth_page_enabled %}checked{% endif %}>
-        Show “Authorise hold” page before Stripe
       </label>
 
       <h3 style="margin-top:18px;">Skill-Based Question</h3>
@@ -3757,8 +3732,6 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN logo_data TEXT"))
             if 'free_entry_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN free_entry_enabled BOOLEAN DEFAULT 0"))
-            if 'preauth_page_enabled' not in cols:
-                conn.execute(text("ALTER TABLE charity ADD COLUMN preauth_page_enabled BOOLEAN DEFAULT 0"))
             if 'skill_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_enabled BOOLEAN DEFAULT 0"))
             if 'skill_question' not in charity_cols:
