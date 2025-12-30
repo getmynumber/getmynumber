@@ -1981,7 +1981,7 @@ def authorise_hold(slug):
     hold_gbp = int(hold_pence // 100)
 
     ticks_block = build_ticks_block([
-        f"&pound;<strong>{hold_gbp}</strong> will be temporarily held on your card",
+        <strong>f"&pound;{hold_gbp}</strong> will be temporarily held on your card",
         "You will only be charged your <strong>ticket number amount</strong>",
         "The remaining hold is <strong>released</strong> after you confirm",
     ])
@@ -1990,8 +1990,7 @@ def authorise_hold(slug):
     <div class="hero">
       <h1>Confirm Your Entry</h1>
       <p style="margin-top:10px;line-height:1.5;">
-        We will place a temporary card authorisation of up to
-        <strong>£{{ hold_amount }}</strong> to reserve your entry.
+        We will place a temporary card authorisation to reserve your entry.
       </p>
 
       <p style="margin-top:8px;line-height:1.5;">
@@ -3051,7 +3050,7 @@ def admin_logout():
 @app.route("/admin/charity/<slug>", methods=["GET","POST"])
 def edit_charity(slug):
     if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
-    charity = Charity.query.filter_by(slug=slug).first_or_404()
+    charity = get_charity_or_404(slug)
     msg = None
 
     if request.method == "POST":
