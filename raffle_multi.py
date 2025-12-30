@@ -12,7 +12,7 @@ from flask import (
     Flask, render_template_string, request, redirect,
     url_for, session, flash, abort, send_file, jsonify
 )
-import os, random, csv, io
+import os, random, csv, io, json
 from datetime import datetime, timedelta
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint, inspect, text
@@ -153,6 +153,18 @@ class Charity(db.Model):
     is_coming_soon = db.Column(db.Boolean, nullable=False, default=False)
     free_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
     preauth_page_enabled = db.Column(db.Boolean, default=False)
+    # ===== Skill-based entry (optional) =====
+    skill_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    # Admin-set question + optional image (stored as data URI like logo_data)
+    skill_question = db.Column(db.Text, nullable=True)
+    skill_image_data = db.Column(db.Text, nullable=True)
+    # Stored as JSON string: ["Answer A","Answer B",...]
+    skill_answers_json = db.Column(db.Text, nullable=True)
+    # Store the correct answer as exact text (must match one entry in skill_answers_json)
+    skill_correct_answer = db.Column(db.Text, nullable=True)
+    # How many options to show on the frontend (default 4)
+    skill_display_count = db.Column(db.Integer, nullable=False, default=4)
+
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1016,6 +1028,88 @@ def assign_number(c: Charity):
     avail = available_numbers(c)
     return random.choice(avail) if avail else None
 
+def _parse_skill_answers(raw: str):
+    """
+    Accepts either:
+      - newline separated answers
+      - OR JSON array string
+    Returns: clean list[str]
+    """
+    if not raw:
+        return []
+    raw = raw.strip()
+    if not raw:
+        return []
+    # Try JSON first
+    try:
+        data = json.loads(raw)
+        if isinstance(data, list):
+            out = []
+            for x in data:
+                s = (str(x) if x is not None else "").strip()
+                if s:
+                    out.append(s)
+            # de-dupe preserving order
+            seen = set()
+            dedup = []
+            for s in out:
+                if s.lower() in seen:
+                    continue
+                seen.add(s.lower())
+                dedup.append(s)
+            return dedup
+    except Exception:
+        pass
+
+    # Fallback: newline list
+    lines = []
+    for line in raw.splitlines():
+        s = line.strip()
+        if s:
+            lines.append(s)
+
+    # de-dupe preserving order (case-insensitive)
+    seen = set()
+    dedup = []
+    for s in lines:
+        key = s.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(s)
+    return dedup
+
+
+def _choose_skill_options(all_answers, correct_answer, display_count=4):
+    """
+    Returns a list of options containing correct_answer plus random distractors.
+    Ensures correct_answer is included (if possible).
+    """
+    display_count = max(2, int(display_count or 4))
+    all_answers = list(all_answers or [])
+    correct_answer = (correct_answer or "").strip()
+
+    # If correct isn't in the pool, still treat it as correct and include it
+    pool = [a for a in all_answers if a.strip()]
+    pool_lower = {a.lower() for a in pool}
+
+    opts = []
+    if correct_answer:
+        opts.append(correct_answer)
+
+    # add distractors (excluding correct by case-insensitive match)
+    distractors = [a for a in pool if a.lower() != correct_answer.lower()]
+    random.shuffle(distractors)
+
+    for a in distractors:
+        if len(opts) >= display_count:
+            break
+        opts.append(a)
+
+    # shuffle final options
+    random.shuffle(opts)
+    return opts
+
 def refresh_campaign_status(c: Charity) -> None:
     """
     Automatically set campaign_status='sold_out' once all tickets are taken.
@@ -1377,12 +1471,20 @@ def charity_page(slug):
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
-                "email": email,
-                "phone": phone,
-                "hold_amount_pence": hold_amount_pence,
+    		"email": email,
+   		"phone": phone,
+    		"hold_amount_pence": hold_amount_pence,
             }
 
-            # NEW: optional pre-authorisation info page
+	    if getattr(charity, "skill_enabled", False):
+    		# reset skill state for a new entry attempt
+    		session.pop("skill_passed", None)
+   		session.pop("skill_options", None)
+    		session.pop("skill_slug", None)
+    		session["skill_attempts"] = 0
+    		return redirect(url_for("skill_gate", slug=charity.slug))
+
+            # Existing: optional pre-authorisation info page
             if getattr(charity, "preauth_page_enabled", False):
                 return redirect(url_for("authorise_hold", slug=charity.slug))
 
@@ -1572,6 +1674,262 @@ def charity_page(slug):
         is_blocked=is_blocked
     )
 
+@app.route("/<slug>/skill", methods=["GET", "POST"])
+def skill_gate(slug):
+    charity = get_charity_or_404(slug)
+
+    pending = session.get("pending_entry")
+    if not pending or pending.get("slug") != charity.slug:
+        flash("We could not find your details. Please start again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    if not getattr(charity, "skill_enabled", False):
+        return _continue_after_skill(charity)
+
+    q = (getattr(charity, "skill_question", "") or "").strip()
+    correct = (getattr(charity, "skill_correct_answer", "") or "").strip()
+    answers = _parse_skill_answers(getattr(charity, "skill_answers_json", "") or "")
+    display_count = int(getattr(charity, "skill_display_count", 4) or 4)
+
+    # fail-safe: misconfigured => skip
+    if (not q) or (not correct):
+        return _continue_after_skill(charity)
+
+    def make_options():
+        return _choose_skill_options(answers, correct, display_count=display_count)
+
+    def continue_url():
+        # where to go after passing skill
+        if getattr(charity, "preauth_page_enabled", False):
+            return url_for("authorise_hold", slug=charity.slug)
+        return url_for("start_hold", slug=charity.slug)
+
+    # -----------------------
+    # GET: render page once
+    # -----------------------
+    if request.method == "GET":
+        # On first load, if no options exist, create them
+        session["skill_slug"] = charity.slug
+        if session.get("skill_attempts") is None:
+            session["skill_attempts"] = 0
+
+        if not session.get("skill_options"):
+            session["skill_options"] = make_options()
+
+        remaining = max(0, 3 - int(session.get("skill_attempts", 0) or 0))
+
+        body = """
+        <div class="hero">
+          <div class="step-kicker">Qualification</div>
+          <h1>Quick question before you enter</h1>
+          <p class="muted" style="margin-top:6px;line-height:1.45;">
+            Please answer this multiple-choice question correctly to proceed.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="muted" style="font-size:12px;margin-bottom:10px;">
+            Attempts remaining: <strong id="attemptsRemaining">{{ remaining }}</strong> (max 3)
+          </div>
+
+          <div style="font-weight:700;margin-bottom:10px;font-size:16px;line-height:1.35;">
+            {{ q }}
+          </div>
+
+          {% if img %}
+            <img src="{{ img }}" alt="Question image"
+                 style="width:100%;max-width:520px;border-radius:16px;border:1px solid rgba(207,227,234,0.9);margin:10px 0 14px;">
+          {% endif %}
+
+          <div id="skillAlert" class="notice error" style="display:none;margin-bottom:12px;"></div>
+
+          <form id="skillForm" data-safe-submit>
+            <div id="optionsWrap" style="display:grid;gap:10px;margin-top:6px;">
+              {% for opt in options %}
+                <label class="pill" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;">
+                  <input type="radio" name="answer" value="{{ opt }}" required>
+                  <span style="font-size:14px;">{{ opt }}</span>
+                </label>
+              {% endfor %}
+            </div>
+
+            <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+              <button id="skillSubmit" class="btn" type="submit">Submit answer</button>
+              <a class="pill" href="{{ url_for('charity_page', slug=charity.slug) }}">Cancel</a>
+            </div>
+
+            <p class="muted" style="margin-top:12px;font-size:12px;text-align:center;line-height:1.4;">
+              Free postal entry is still available. See
+              <a href="/terms" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a>.
+            </p>
+          </form>
+        </div>
+
+        <script>
+        (function(){
+          const form = document.getElementById("skillForm");
+          const alertBox = document.getElementById("skillAlert");
+          const optionsWrap = document.getElementById("optionsWrap");
+          const remainingEl = document.getElementById("attemptsRemaining");
+          const submitBtn = document.getElementById("skillSubmit");
+
+          function showError(msg){
+            alertBox.style.display = "block";
+            alertBox.textContent = msg;
+          }
+          function clearError(){
+            alertBox.style.display = "none";
+            alertBox.textContent = "";
+          }
+          function renderOptions(options){
+            optionsWrap.innerHTML = "";
+            (options || []).forEach(opt => {
+              const label = document.createElement("label");
+              label.className = "pill";
+              label.style.cssText = "display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;";
+              label.innerHTML = `
+                <input type="radio" name="answer" value="${String(opt).replace(/"/g,'&quot;')}" required>
+                <span style="font-size:14px;">${String(opt)}</span>
+              `;
+              optionsWrap.appendChild(label);
+            });
+          }
+
+          form.addEventListener("submit", async function(e){
+            e.preventDefault();
+            clearError();
+
+            const fd = new FormData(form);
+            const chosen = fd.get("answer");
+            if(!chosen){
+              showError("Please select an answer.");
+              return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Checking…";
+
+            try{
+              const res = await fetch(window.location.pathname, {
+                method: "POST",
+                headers: { "X-Requested-With": "fetch" },
+                body: fd
+              });
+
+              // If server forces a redirect response, fall back
+              if (res.redirected) {
+                window.location.href = res.url;
+                return;
+              }
+
+              const data = await res.json();
+
+              if (data.ok && data.redirect){
+                window.location.href = data.redirect;
+                return;
+              }
+
+              if (data.locked && data.redirect){
+                window.location.href = data.redirect;
+                return;
+              }
+
+              if (typeof data.remaining !== "undefined"){
+                remainingEl.textContent = String(data.remaining);
+              }
+
+              if (data.options){
+                renderOptions(data.options);
+              }
+
+              if (data.message){
+                showError(data.message);
+              } else {
+                showError("Incorrect answer. Please try again.");
+              }
+
+            } catch(err){
+              showError("Something went wrong. Please try again.");
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.textContent = "Submit answer";
+            }
+          });
+        })();
+        </script>
+        """
+        return render(
+            body,
+            charity=charity,
+            q=q,
+            img=getattr(charity, "skill_image_data", None),
+            options=session.get("skill_options") or make_options(),
+            remaining=remaining,
+            title=f"Skill check – {charity.name}",
+        )
+
+    # -----------------------
+    # POST: AJAX validate
+    # -----------------------
+    wants_json = request.headers.get("X-Requested-With") == "fetch"
+
+    # If not AJAX, just send back to GET (keeps behaviour sane)
+    if not wants_json:
+        return redirect(url_for("skill_gate", slug=charity.slug))
+
+    posted = (request.form.get("answer") or "").strip()
+    options = session.get("skill_options") or []
+    if session.get("skill_slug") != charity.slug or not options:
+        # reset session options if lost
+        session["skill_slug"] = charity.slug
+        session["skill_options"] = make_options()
+        return {"ok": False, "remaining": max(0, 3 - int(session.get("skill_attempts", 0) or 0)),
+                "options": session["skill_options"], "message": "Please try again."}, 200
+
+    if posted not in options:
+        return {"ok": False, "remaining": max(0, 3 - int(session.get("skill_attempts", 0) or 0)),
+                "options": options, "message": "Please select one of the available answers."}, 200
+
+    # Correct
+    if posted.lower() == correct.lower():
+        session["skill_passed"] = True
+        session.pop("skill_options", None)
+        return {"ok": True, "redirect": continue_url()}, 200
+
+    # Incorrect
+    attempts = int(session.get("skill_attempts", 0) or 0) + 1
+    session["skill_attempts"] = attempts
+    remaining = max(0, 3 - attempts)
+
+    if attempts >= 3:
+        # lock out (clear pending so they must restart)
+        session.pop("pending_entry", None)
+        session.pop("skill_options", None)
+        session.pop("skill_slug", None)
+        session.pop("skill_passed", None)
+        session.pop("skill_attempts", None)
+        return {"locked": True, "redirect": url_for("charity_page", slug=charity.slug)}, 200
+
+    # regenerate fresh options for retry
+    session["skill_options"] = make_options()
+    return {
+        "ok": False,
+        "remaining": remaining,
+        "options": session["skill_options"],
+        "message": "Incorrect answer. Try again — the options have been refreshed."
+    }, 200
+
+def _continue_after_skill(charity):
+    """
+    After skill gate success (or if disabled), continue your existing flow:
+      - if preauth_page_enabled => /<slug>/authorise
+      - else => create Stripe checkout hold (same as current POST flow)
+    """
+    if getattr(charity, "preauth_page_enabled", False):
+        return redirect(url_for("authorise_hold", slug=charity.slug))
+    # If preauth disabled, send them into the same hold start you already do:
+    return redirect(url_for("start_hold", slug=charity.slug))
+
 @app.route("/<slug>/authorise", methods=["GET"])
 def authorise_hold(slug):
     charity = get_charity_or_404(slug)
@@ -1580,6 +1938,9 @@ def authorise_hold(slug):
     if not pending or pending.get("slug") != charity.slug:
         flash("We could not find your details. Please start again.")
         return redirect(url_for("charity_page", slug=charity.slug))
+
+    if getattr(charity, "skill_enabled", False) and not session.get("skill_passed"):
+        return redirect(url_for("skill_gate", slug=charity.slug))
 
     # Determine hold amount (GBP) shown on the page
     hold_pence = int(pending.get("hold_amount_pence") or 0)
@@ -1660,6 +2021,9 @@ def start_hold(slug):
     if not pending or pending.get("slug") != charity.slug:
         flash("We could not find your details. Please start again.")
         return redirect(url_for("charity_page", slug=charity.slug))
+
+    if getattr(charity, "skill_enabled", False) and not session.get("skill_passed"):
+        return redirect(url_for("skill_gate", slug=charity.slug))
 
     hold_amount_pence = int(pending.get("hold_amount_pence") or 0)
     if hold_amount_pence <= 0:
@@ -2339,8 +2703,8 @@ def confirm_payment(entry_id):
       {% endif %}
 
       <div class="row" style="margin-top:16px; gap:10px; justify-content:center;">
-        <a class="btn pill outline" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to campaign</a>
-        <a class="btn pill outline" href="{{ url_for('home') }}">Back to home</a>
+        <a class="btn pill outline" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
+        <a class="btn pill outline" href="{{ url_for('home') }}">Back to Home</a>
       </div>
     </div>
 
@@ -2660,6 +3024,40 @@ def edit_charity(slug):
         except ValueError:
             msg = "Invalid number format."
 
+        # ===== Skill-based question config =====
+        charity.skill_enabled = bool(request.form.get("skill_enabled"))
+
+        charity.skill_question = (request.form.get("skill_question") or "").strip()
+
+        # answers come from textarea; store as JSON array string
+        raw_answers = (request.form.get("skill_answers") or "").strip()
+        answers = _parse_skill_answers(raw_answers)
+        charity.skill_answers_json = json.dumps(answers)
+
+        charity.skill_correct_answer = (request.form.get("skill_correct_answer") or "").strip()
+
+        # display count
+        try:
+            charity.skill_display_count = int(request.form.get("skill_display_count") or 4)
+        except ValueError:
+            charity.skill_display_count = 4
+
+        # Optional: upload skill image (stored as data URI)
+        sf = request.files.get("skill_image_file")
+        if sf and sf.filename:
+            raw = sf.read()
+            if raw:
+                mime = sf.mimetype or "image/png"
+                b64 = base64.b64encode(raw).decode("ascii")
+                charity.skill_image_data = f"data:{mime};base64,{b64}"
+
+        # Validation: if enabled, correct answer must match one of the answers (case-insensitive)
+        if charity.skill_enabled:
+            if charity.skill_correct_answer and answers:
+                bank_lower = {a.lower() for a in answers}
+                if charity.skill_correct_answer.lower() not in bank_lower:
+                    msg = "Skill question: the correct answer must exactly match one of the answers you entered."
+
         charity.is_live = bool(request.form.get("is_live"))
         charity.is_sold_out = bool(request.form.get("is_sold_out"))
         charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
@@ -2718,7 +3116,50 @@ def edit_charity(slug):
         Show “Authorise hold” page before Stripe
       </label>
 
-      <h3 style="margin-top:16px;">Campaign status</h3>
+      <h3 style="margin-top:18px;">Skill-Based Question</h3>
+
+      <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <input type="checkbox" name="skill_enabled" {% if charity.skill_enabled %}checked{% endif %}>
+        Enable skill question before entry proceeds
+      </label>
+
+      <label style="margin-top:10px;display:block">
+        Question text
+        <textarea name="skill_question" rows="3" placeholder="Type your question here...">{% if charity.skill_question %}{{ charity.skill_question }}{% endif %}</textarea>
+      </label>
+
+      <label style="margin-top:10px;display:block">
+        Upload question image (optional)
+        <input type="file" name="skill_image_file" accept="image/*">
+      </label>
+
+      {% if charity.skill_image_data %}
+        <div style="margin-top:10px">
+          <div class="muted" style="font-size:12px;margin-bottom:6px">Current question image preview:</div>
+          <img src="{{ charity.skill_image_data }}" alt="Skill question image"
+               style="max-width:260px;border-radius:12px;border:1px solid rgba(207,227,234,0.9);">
+        </div>
+      {% endif %}
+
+      <label style="margin-top:10px;display:block">
+        Answer bank (one per line)
+        <textarea name="skill_answers" rows="6" placeholder="Answer 1&#10;Answer 2&#10;Answer 3&#10;...">{% if skill_answers_text %}{{ skill_answers_text }}{% endif %}</textarea>
+        <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.4">
+          You can enter many answers here. The frontend will show a rotating subset each time.
+        </div>
+      </label>
+
+      <label style="margin-top:10px;display:block">
+        Correct answer (must match one line above)
+        <input type="text" name="skill_correct_answer" value="{{ charity.skill_correct_answer or '' }}" placeholder="Paste the exact correct answer here">
+      </label>
+
+      <label style="margin-top:10px;display:block">
+        Number of options to show on the frontend
+        <input type="number" name="skill_display_count" min="2" max="8" value="{{ charity.skill_display_count or 4 }}">
+      </label>
+
+      <h3 style="margin-top:16px;">Campaign Status</h3>
 
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn" type="submit"
@@ -2757,7 +3198,15 @@ def edit_charity(slug):
     </form>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
     """
-    return render(body, charity=charity, msg=msg, draw_value=draw_value, title=f"Edit {charity.name}")
+    skill_answers_text = ""
+    try:
+        skill_answers_text = "\n".join(_parse_skill_answers(getattr(charity, "skill_answers_json", "") or ""))
+    except Exception:
+        skill_answers_text = ""
+
+    return render(body, charity=charity, msg=msg, draw_value=draw_value,
+                  skill_answers_text=skill_answers_text,
+                  title=f"Edit {charity.name}")
 
 # ====== ADMIN: ENTRIES / CSV / BULK ==========================================
 
@@ -3279,6 +3728,18 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN free_entry_enabled BOOLEAN DEFAULT 0"))
             if 'preauth_page_enabled' not in cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN preauth_page_enabled BOOLEAN DEFAULT 0"))
+            if 'skill_enabled' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN skill_enabled BOOLEAN DEFAULT 0"))
+            if 'skill_question' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN skill_question TEXT"))
+            if 'skill_image_data' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN skill_image_data TEXT"))
+            if 'skill_answers_json' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN skill_answers_json TEXT"))
+            if 'skill_correct_answer' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN skill_correct_answer TEXT"))
+            if 'skill_display_count' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN skill_display_count INTEGER DEFAULT 4"))
             if 'hold_amount_pence' not in cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
     except Exception as e:
