@@ -1476,7 +1476,7 @@ def charity_page(slug):
     		"hold_amount_pence": hold_amount_pence,
             }
 
-	    if getattr(charity, "skill_enabled", False):
+            if getattr(charity, "skill_enabled", False):
                 session.pop("skill_passed", None)
                 session.pop("skill_options", None)
                 session.pop("skill_slug", None)
