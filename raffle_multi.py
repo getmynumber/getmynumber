@@ -1169,6 +1169,14 @@ def build_tickbox(title: str, lines_html: list[str]) -> Markup:
     """
     return Markup(html)
 
+def compute_hold_amount_pence(charity) -> int:
+    """
+    Ensure the Stripe authorisation is always at least the maximum possible ticket value
+    (max_number pounds), so capture never exceeds the authorised amount.
+    """
+    min_hold = int(getattr(charity, "max_number", 0) or 0) * 100
+    configured = int(getattr(charity, "hold_amount_pence", 0) or 0)
+    return max(min_hold, configured if configured > 0 else 0)
 
 # ====== PUBLIC ================================================================
 
@@ -1484,15 +1492,14 @@ def charity_page(slug):
         if not name or not email:
             flash("Name and Email are required.")
         else:
-            hold_amount_pence = int(getattr(charity, "hold_amount_pence", 0) or 0)
-            if hold_amount_pence <= 0:
-                hold_amount_pence = int(charity.max_number or 0) * 100  # last resort fallback
+            hold_amount_pence = compute_hold_amount_pence(charity)
+
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
-    		"email": email,
-   		"phone": phone,
-    		"hold_amount_pence": hold_amount_pence,
+                "email": email,
+                "phone": phone,
+                "hold_amount_pence": hold_amount_pence,
             }
 
             if getattr(charity, "skill_enabled", False):
@@ -1966,10 +1973,10 @@ def authorise_hold(slug):
     if getattr(charity, "skill_enabled", False) and not session.get("skill_passed"):
         return redirect(url_for("skill_gate", slug=charity.slug))
 
-    # Determine hold amount (GBP) shown on the page
     hold_pence = int(pending.get("hold_amount_pence") or 0)
-    if hold_pence <= 0:
-        hold_pence = int(getattr(charity, "hold_amount_pence", 0) or 0)
+    min_hold = int(charity.max_number or 0) * 100
+    if hold_pence < min_hold:
+        hold_pence = min_hold
 
     hold_gbp = int(hold_pence // 100)
 
@@ -2060,11 +2067,12 @@ def start_hold(slug):
         return redirect(url_for("skill_gate", slug=charity.slug))
 
     hold_amount_pence = int(pending.get("hold_amount_pence") or 0)
-    if hold_amount_pence <= 0:
-        # fallback: either charity.hold_amount_pence or last resort (max_number)
-        hold_amount_pence = int(getattr(charity, "hold_amount_pence", 0) or 0)
-        if hold_amount_pence <= 0:
-            hold_amount_pence = int(charity.max_number or 0) * 100
+
+    # Enforce minimum hold = max_number * 100 (always)
+    min_hold = int(charity.max_number or 0) * 100
+    if hold_amount_pence < min_hold:
+        hold_amount_pence = min_hold
+
 
     # Create Stripe Checkout Session for the hold (manual capture)
     try:
@@ -3128,6 +3136,9 @@ def edit_charity(slug):
 
     # Pre-populate datetime-local value
     draw_value = charity.draw_at.strftime("%Y-%m-%dT%H:%M") if charity.draw_at else ""
+    min_hold_pence = int(charity.max_number or 0) * 100
+    min_hold_gbp = int(min_hold_pence // 100)
+    current_hold_gbp = int((int(getattr(charity, "hold_amount_pence", 0) or 0)) // 100)
 
     body = """
     <h2>Edit Charity</h2>
@@ -3144,6 +3155,13 @@ def edit_charity(slug):
       </label>
       <label>Hold amount (pence)
         <input type="number" name="hold_amount_pence" value="{{ charity.hold_amount_pence }}" min="0" step="100">
+        <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.35;">
+          Minimum enforced hold: <strong>£{{ min_hold_gbp }}</strong>
+          (based on max number {{ charity.max_number }}).
+          {% if current_hold_gbp < min_hold_gbp %}
+            <span style="color:var(--warn);font-weight:700;">Your current setting is below the enforced minimum.</span>
+          {% endif %}
+        </div>
       </label>
 
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
@@ -3250,7 +3268,7 @@ def edit_charity(slug):
         skill_answers_text = ""
 
     return render(body, charity=charity, msg=msg, draw_value=draw_value,
-                  skill_answers_text=skill_answers_text,
+                  skill_answers_text=skill_answers_text, min_hold=min_hold_gbp,
                   title=f"Edit {charity.name}")
 
 # ====== ADMIN: ENTRIES / CSV / BULK ==========================================
