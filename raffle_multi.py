@@ -1477,12 +1477,11 @@ def charity_page(slug):
             }
 
 	    if getattr(charity, "skill_enabled", False):
-    	      # reset skill state for a new entry attempt
-              session.pop("skill_passed", None)
-   	      session.pop("skill_options", None)
-    	      session.pop("skill_slug", None)
-    	      session["skill_attempts"] = 0
-    	      return redirect(url_for("skill_gate", slug=charity.slug))
+                session.pop("skill_passed", None)
+                session.pop("skill_options", None)
+                session.pop("skill_slug", None)
+                session["skill_attempts"] = 0
+                return redirect(url_for("skill_gate", slug=charity.slug))
 
             # Existing: optional pre-authorisation info page
             if getattr(charity, "preauth_page_enabled", False):
@@ -1954,7 +1953,6 @@ def authorise_hold(slug):
         "You will only be charged your <strong>ticket number amount</strong>",
         "The remaining hold is <strong>released</strong> after you confirm",
     ])
-
 
     body = """
     <div class="hero">
