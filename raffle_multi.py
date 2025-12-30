@@ -1184,7 +1184,7 @@ def home():
     <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
     <div class="hero">
-      <h1>How Get My Number works</h1>
+      <h1>How Get My Number Works</h1>
       <p class="muted">
         A simple, transparent raffle where your card is held for a maximum amount first,
         and you only pay the value of the ticket number you receive.
@@ -1208,9 +1208,23 @@ def home():
 
       <div class="step-card">
         <div class="step-header">
-          <div class="step-icon">💳</div>
+          <div class="step-icon">🧠</div>
           <div>
             <div class="step-label">Step 2</div>
+            <div class="step-title">Optional quick question</div>
+          </div>
+        </div>
+        <div class="step-body">
+          Some campaigns include an optional multiple-choice question before you proceed.
+          If it’s enabled for that charity, you’ll need to answer the question correctly to continue.
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header">
+          <div class="step-icon">💳</div>
+          <div>
+            <div class="step-label">Step 3</div>
             <div class="step-title">£200 temporary card hold</div>
           </div>
         </div>
@@ -1225,7 +1239,7 @@ def home():
         <div class="step-header">
           <div class="step-icon">🎟️</div>
           <div>
-            <div class="step-label">Step 3</div>
+            <div class="step-label">Step 4</div>
             <div class="step-title">Receive your ticket number</div>
           </div>
         </div>
@@ -1240,7 +1254,7 @@ def home():
         <div class="step-header">
           <div class="step-icon">✅</div>
           <div>
-            <div class="step-label">Step 4</div>
+            <div class="step-label">Step 5</div>
             <div class="step-title">Donate your ticket amount</div>
           </div>
         </div>
@@ -1255,7 +1269,7 @@ def home():
         <div class="step-header">
           <div class="step-icon">💷</div>
           <div>
-            <div class="step-label">Step 5</div>
+            <div class="step-label">Step 6</div>
             <div class="step-title">Remaining hold is released</div>
           </div>
         </div>
