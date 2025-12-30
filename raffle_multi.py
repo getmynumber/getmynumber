@@ -1718,6 +1718,38 @@ def skill_gate(slug):
         remaining = max(0, 3 - int(session.get("skill_attempts", 0) or 0))
 
         body = """
+        <style>
+          /* Skill question answer grid */
+          #optionsWrap {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+          }
+
+          /* Make all answer pills equal height */
+          #optionsWrap > label.pill {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            height: 100%;
+            min-height: 56px;   /* tweak if you want taller pills */
+            box-sizing: border-box;
+          }
+
+          /* Improve radio + text alignment */
+          #optionsWrap > label.pill span {
+            line-height: 1.35;
+          }
+
+          /* Mobile fallback: stack answers */
+          @media (max-width: 640px) {
+            #optionsWrap {
+              grid-template-columns: 1fr;
+            }
+          }
+        </style>
+
         <div class="hero">
           <div class="step-kicker">Qualification</div>
           <h1>Quick question before you enter</h1>
@@ -1737,13 +1769,14 @@ def skill_gate(slug):
 
           {% if img %}
             <img src="{{ img }}" alt="Question image"
-                 style="width:100%;max-width:520px;border-radius:16px;border:1px solid rgba(207,227,234,0.9);margin:10px 0 14px;">
+                 style="display:block;margin:12px auto 16px auto;width:100%;max-width:360px;
+                        border-radius:16px;border:1px solid rgba(207,227,234,0.9);">
           {% endif %}
 
           <div id="skillAlert" class="notice error" style="display:none;margin-bottom:12px;"></div>
 
           <form id="skillForm" data-safe-submit>
-            <div id="optionsWrap" style="display:grid;gap:10px;margin-top:6px;">
+            <div id="optionsWrap" style="margin-top:6px;">
               {% for opt in options %}
                 <label class="pill" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;">
                   <input type="radio" name="answer" value="{{ opt }}" required>
@@ -1785,7 +1818,7 @@ def skill_gate(slug):
             (options || []).forEach(opt => {
               const label = document.createElement("label");
               label.className = "pill";
-              label.style.cssText = "display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;";
+              label.style.cssText = "cursor:pointer;padding:12px 14px;";
               label.innerHTML = `
                 <input type="radio" name="answer" value="${String(opt).replace(/"/g,'&quot;')}" required>
                 <span style="font-size:14px;">${String(opt)}</span>
