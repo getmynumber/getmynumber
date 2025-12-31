@@ -1692,10 +1692,9 @@ def skill_gate(slug):
         return _choose_skill_options(answers, correct, display_count=display_count)
 
     def continue_url():
-        # where to go after passing skill
-        if getattr(charity, "preauth_page_enabled", False):
-            return url_for("authorise_hold", slug=charity.slug)
-        return url_for("start_hold", slug=charity.slug)
+    # Always go to the Authorise Hold page after passing the skill gate
+    # (Authorise page is GET, and it posts to /start-hold safely)
+    return url_for("authorise_hold", slug=charity.slug)
 
     # -----------------------
     # GET: render page once
