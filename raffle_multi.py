@@ -1998,7 +1998,7 @@ def authorise_hold(slug):
 
         <form method="post" action="{{ url_for('start_hold', slug=charity.slug) }}" style="margin-top:14px">
           <button class="btn" type="submit">
-            Continue to Donation
+            Continue to Card Authorisation
           </button>
         </form>
 
@@ -2192,7 +2192,7 @@ def hold_success(slug):
         "&pound;<strong><span id='hold-amt'></span></strong> temporarily held on your card",
         "You will donate &pound;<strong><span id='pay-amt'></span></strong>",
         "&pound;<strong><span id='release-amt'></span></strong> will be released",
-    ], wrap_card=False)
+    ], wrap_card=True)
 
     # Clean up the session data used for pending
     session.pop("pending_entry", None)
@@ -2232,48 +2232,55 @@ def hold_success(slug):
          Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
        </div>
 
+       <div id="confirm-card" class="card" style="display:none; margin-top:14px;">
          <div style="font-size:14px;">
            {{ ticks_block|safe }}
          </div>
-       </div>
 
-       <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
+         <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
 
-         <label style="display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;">
-           <span>Donation amount (GBP)</span>
-           <input
-             id="donation-amount"
-             name="amount_gbp"
-             type="number"
-             min="{% if charity.optional_donation_enabled %}0{% else %}1{% endif %}"
-             step="1"
-             required
-             style="max-width:140px; width:140px; text-align:center;"
-             {% if not charity.optional_donation_enabled %}readonly{% endif %}
-           >
-         </label>
+           <label style="display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;">
+             <span>Donation amount (GBP)</span>
+             <input
+               id="donation-amount"
+               name="amount_gbp"
+               type="number"
+               min="{% if charity.optional_donation_enabled %}0{% else %}1{% endif %}"
+               step="1"
+               required
+               style="max-width:140px; width:140px; text-align:center;"
+               {% if not charity.optional_donation_enabled %}readonly{% endif %}
+             >
+           </label>
 
-         {% if charity.optional_donation_enabled %}
-           <div id="match-nudge" class="card" style="display:none; margin:12px auto 0; max-width:520px; padding:12px;">
-             <div class="muted" style="margin:0; line-height:1.45;">
-               <div style="margin-bottom:6px;">
-                 Most supporters choose to match their number in full.
+           {% if charity.optional_donation_enabled %}
+             <div id="match-nudge" class="card" style="display:none; margin:12px auto 0; max-width:520px; padding:12px;">
+               <div class="muted" style="margin:0; line-height:1.45;">
+                 <div style="margin-bottom:6px;">
+                   Most supporters choose to match their number in full.
+                 </div>
+                 <div>
+                   <strong>&pound;<span id="match-amt"></span></strong> keeps your entry aligned with your number.
+                 </div>
                </div>
-             <div>
-               <strong>&pound;<span id="match-amt"></span></strong> keeps your entry aligned with your number.
              </div>
+           {% endif %}
+
+           <div class="row" style="gap:10px; flex-wrap:wrap; margin-top:10px;">
+             <button type="button" class="pill" id="btn-default">
+               Use my number (£<span id="pay-amt-2"></span>)
+             </button>
            </div>
-         </div>
-       {% endif %}
 
-          <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:10px;">
-            <button type="button" class="pill" id="btn-default">
-              Use my number (£<span id="pay-amt-2"></span>)
-            </button>
+           <button class="btn" type="submit" style="width:100%; margin-top:12px;">
+             {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; pay{% endif %}
+           </button>
 
-          <button class="btn" type="submit" style="width:100%; margin-top:12px;">
-            {% if charity.optional_donation_enabled %}Confirm donation{% else %}Confirm &amp; pay{% endif %}
-          </button>
+           <p class="muted" style="margin-top:10px">
+             We will only capture the amount you confirm. Any remaining authorised amount is released by your bank.
+           </p>
+         </form>
+       </div>
 
        <script>
        (function(){
@@ -2516,11 +2523,16 @@ def hold_success(slug):
            }
 
            if (result) result.style.display = "block";
+
+           const confirmCard = document.getElementById("confirm-card");
+           if (confirmCard) confirmCard.style.display = "block";
          } catch (err) {
            console.error("Reveal render failed:", err);
            zone.style.display = "none";
            hideStatus();
            if (result) result.style.display = "block";
+           const confirmCard = document.getElementById("confirm-card");
+           if (confirmCard) confirmCard.style.display = "block";
          }
        }, 3400);
      });
@@ -2681,8 +2693,8 @@ def confirm_payment(entry_id):
     ticks_block_final = build_ticks_block([
         f"Paid &pound;<strong>{paid_gbp}</strong> to <strong>{charity.name}</strong>",
         f"&pound;<strong>{held_gbp}</strong> was temporarily held",
-        f"&pound;<strong>{release_gbp}</strong> will be released",
-    ], wrap_card=False)
+        f"&pound;<strong>{released_gbp}</strong> will be released",
+    ], wrap_card=True)
 
     body = """
     <div class="hero">
