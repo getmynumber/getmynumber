@@ -1520,9 +1520,12 @@ def charity_page(slug):
     pct = int((taken / total) * 100) if total else 0
     draw_iso = charity.draw_at.isoformat() if charity.draw_at else None
 
+    step_current, step_total = flow_step_meta(charity, "details")
+
     body = """
 
     <div class="hero">
+      <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
       <h1>{{ charity.name }}</h1>
       {% if status == "sold_out" %}
         <div class="banner banner-soldout">Sold out</div>
@@ -1660,6 +1663,8 @@ def charity_page(slug):
         taken=taken,
         pct=pct,
         title=charity.name,
+        step_current=step_current,
+        step_total=step_total,
         draw_iso=draw_iso,
         charity_logo=charity_logo,
         status=status,
@@ -1677,6 +1682,8 @@ def skill_gate(slug):
 
     if not getattr(charity, "skill_enabled", False):
         return _continue_after_skill(charity)
+
+    step_current, step_total = flow_step_meta(charity, "skill")
 
     q = (getattr(charity, "skill_question", "") or "").strip()
     correct = (getattr(charity, "skill_correct_answer", "") or "").strip()
@@ -1743,7 +1750,7 @@ def skill_gate(slug):
         </style>
 
         <div class="hero">
-          <div class="step-kicker">Qualification</div>
+          <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
           <h1>Quick question before you continue to hold</h1>
           <p class="muted" style="margin-top:6px;line-height:1.45;">
             Please answer this multiple-choice question correctly to proceed.
@@ -1888,6 +1895,8 @@ def skill_gate(slug):
             q=q,
             img=getattr(charity, "skill_image_data", None),
             options=session.get("skill_options") or make_options(),
+            step_current=step_current,
+            step_total=step_total,
             remaining=remaining,
             title=f"Skill check – {charity.name}",
         )
@@ -1943,6 +1952,37 @@ def skill_gate(slug):
         "message": "Incorrect answer. Try again — the options have been refreshed."
     }, 200
 
+def flow_step_meta(charity, page_key: str):
+    """
+    Centralised step numbering for the public flow.
+
+    Keys:
+      - details      (campaign page form)
+      - skill        (skill gate page)
+      - authorise    (authorise hold page)
+      - reveal       (hold-success / reveal number page)
+      - confirmed    (final confirmed donation page)
+    """
+    skill_on = bool(getattr(charity, "skill_enabled", False))
+    total = 5 if skill_on else 4
+
+    steps_no_skill = {
+        "details":   1,
+        "authorise": 2,
+        "reveal":    3,
+        "confirmed": 4,
+    }
+    steps_skill = {
+        "details":   1,
+        "skill":     2,
+        "authorise": 3,
+        "reveal":    4,
+        "confirmed": 5,
+    }
+
+    current = (steps_skill if skill_on else steps_no_skill).get(page_key)
+    return current, total
+
 def _continue_after_skill(charity):
     """
     After skill gate success (or if disabled), continue your existing flow:
@@ -1977,8 +2017,11 @@ def authorise_hold(slug):
         "The remaining hold is <strong>released</strong> after you confirm",
     ])
 
+    step_current, step_total = flow_step_meta(charity, "authorise")
+
     body = """
     <div class="hero">
+      <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
       <h1>Confirm Your Entry</h1>
       <p style="margin-top:10px;line-height:1.5;">
         We will place a temporary card authorisation to reserve your entry.
@@ -2042,7 +2085,7 @@ def authorise_hold(slug):
       {% endif %}
     </div>
     """
-    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, title="Authorise hold")
+    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, step_current=step_current, step_total=step_total,title="Authorise hold")
 
 @app.route("/<slug>/start-hold", methods=["POST"])
 def start_hold(slug):
@@ -2197,10 +2240,12 @@ def hold_success(slug):
     # Clean up the session data used for pending
     session.pop("pending_entry", None)
 
+    step_current, step_total = flow_step_meta(charity, "reveal")
+
     # Show a page with their number and a 'Confirm & Pay' button
     body = """
      <div class="hero">
-       <div class="step-kicker">Step 2 of 3</div>
+       <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
        <h1>Your Ticket Number</h1>
        <p class="muted">Press the button to reveal your ticket number.</p>
      </div>
@@ -2547,6 +2592,8 @@ def hold_success(slug):
         entry=entry,
         name=name,
         ticks_block=ticks_block,
+        step_current=step_current,
+        step_total=step_total,
         title="Hold Confirmed",
     )
 
@@ -2699,9 +2746,11 @@ def confirm_payment(entry_id):
         f"&pound;<strong>{released_gbp}</strong> will be released",
     ], wrap_card=True)
 
+    step_current, step_total = flow_step_meta(charity, "confirmed")
+   
     body = """
     <div class="hero">
-      <div class="step-kicker">Step 3 of 3</div>
+      <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
       <h1>Confirmed Donation</h1>
       <p class="muted">You’re all set — good luck!</p>
     </div>
@@ -2756,6 +2805,8 @@ def confirm_payment(entry_id):
         held_gbp=held_gbp,
         released_gbp=released_gbp,
         ticks_block_final=ticks_block_final,
+        step_current=step_current,
+        step_total=step_total
         title=f"{charity.name} – Thank you",
     )
 
