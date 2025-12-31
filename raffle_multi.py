@@ -2085,7 +2085,7 @@ def authorise_hold(slug):
       {% endif %}
     </div>
     """
-    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, step_current=step_current, step_total=step_total,title="Authorise hold")
+    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, step_current=step_current, step_total=step_total, title="Authorise hold")
 
 @app.route("/<slug>/start-hold", methods=["POST"])
 def start_hold(slug):
@@ -2806,7 +2806,7 @@ def confirm_payment(entry_id):
         released_gbp=released_gbp,
         ticks_block_final=ticks_block_final,
         step_current=step_current,
-        step_total=step_total
+        step_total=step_total,
         title=f"{charity.name} – Thank you",
     )
 
