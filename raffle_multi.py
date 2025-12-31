@@ -159,14 +159,13 @@ class Charity(db.Model):
     is_sold_out = db.Column(db.Boolean, nullable=False, default=False)
     is_coming_soon = db.Column(db.Boolean, nullable=False, default=False)
     free_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    postal_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    optional_donation_enabled = db.Column(db.Boolean, nullable=False, default=False)
     # ===== Skill-based entry (optional) =====
     skill_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    # Admin-set question + optional image (stored as data URI like logo_data)
     skill_question = db.Column(db.Text, nullable=True)
     skill_image_data = db.Column(db.Text, nullable=True)
-    # Stored as JSON string: ["Answer A","Answer B",...]
     skill_answers_json = db.Column(db.Text, nullable=True)
-    # Store the correct answer as exact text (must match one entry in skill_answers_json)
     skill_correct_answer = db.Column(db.Text, nullable=True)
     # How many options to show on the frontend (default 4)
     skill_display_count = db.Column(db.Integer, nullable=False, default=4)
@@ -2008,7 +2007,7 @@ def authorise_hold(slug):
         </div>
       </div>
 
-      {% if charity.free_entry_enabled %}
+      {% if charity.optional_donation_enabled%}
       <details style="margin-top:14px">
         <summary class="pill" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px">
           Free Postal Entry
@@ -2233,11 +2232,6 @@ def hold_success(slug):
          Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
        </div>
 
-       <div class="card" style="margin-top:14px">
-         <div style="font-weight:700; font-size:14px; margin-bottom:10px;">
-           Card Hold Confirmed
-         </div>
-
          <div style="font-size:14px;">
            {{ ticks_block|safe }}
          </div>
@@ -2251,15 +2245,15 @@ def hold_success(slug):
              id="donation-amount"
              name="amount_gbp"
              type="number"
-             min="{% if charity.free_entry_enabled %}0{% else %}1{% endif %}"
+             min="{% if charity.optional_donation_enabled %}0{% else %}1{% endif %}"
              step="1"
              required
              style="max-width:140px; width:140px; text-align:center;"
-             {% if not charity.free_entry_enabled %}readonly{% endif %}
+             {% if not charity.optional_donation_enabled %}readonly{% endif %}
            >
          </label>
 
-         {% if charity.free_entry_enabled %}
+         {% if charity.optional_donation_enabled %}
            <div id="match-nudge" class="card" style="display:none; margin:12px auto 0; max-width:520px; padding:12px;">
              <div class="muted" style="margin:0; line-height:1.45;">
                <div style="margin-bottom:6px;">
@@ -2278,13 +2272,8 @@ def hold_success(slug):
             </button>
 
           <button class="btn" type="submit" style="width:100%; margin-top:12px;">
-            {% if charity.free_entry_enabled %}Confirm donation{% else %}Confirm &amp; pay{% endif %}
+            {% if charity.optional_donation_enabled %}Confirm donation{% else %}Confirm &amp; pay{% endif %}
           </button>
-
-          <p class="muted" style="margin-top:10px">
-            We’ll only capture the amount you confirm. Any remaining authorised amount is released by your bank.
-          </p>
-        </form>
 
        <script>
        (function(){
@@ -2294,7 +2283,7 @@ def hold_success(slug):
          const ticketVal = document.getElementById('ticket-val');  // revealed ticket value (£ticket)
          const holdAmt = document.getElementById('hold-amt');      // revealed hold (£max)
          const releaseAmt = document.getElementById('release-amt');// NEW: released amount
-         const freeEnabled = {{ 'true' if charity.free_entry_enabled else 'false' }};
+         const freeEnabled = {{ 'true' if charity.optional_donation_enabled else 'false' }};
          const nudgeNum = document.getElementById('nudge-num');
          const nudgeAmt = document.getElementById('nudge-amt');
          const matchNudge = document.getElementById('match-nudge');
@@ -2320,7 +2309,7 @@ def hold_success(slug):
          const btnZero = document.getElementById('btn-zero');
 
          // Server decides whether free entry is enabled for THIS charity:
-         const freeEntryEnabled = {{ 'true' if charity.free_entry_enabled else 'false' }};
+         const freeEntryEnabled = {{ 'true' if charity.optional_donation_enabled else 'false' }};
 
          function intOr0(x){
            const n = parseInt(String(x || '0').replace(/[^\d]/g,''), 10);
@@ -2592,7 +2581,7 @@ def confirm_payment(entry_id):
 
     # Amount is user-confirmed only if free entry is enabled.
     # If free entry is NOT enabled, we force the capture amount to the ticket number.
-    if not charity.free_entry_enabled:
+    if not charity.optional_donation_enabled:
         amount_gbp = int(entry.number or 0)
     else:
         raw = (request.form.get("amount_gbp", "") or "").strip()
@@ -2604,7 +2593,7 @@ def confirm_payment(entry_id):
     amount_pence = amount_gbp * 100
     paid_gbp = amount_gbp
 
-    if (not charity.free_entry_enabled) and amount_gbp < 1:
+    if (not charity.optional_donation_enabled) and amount_gbp < 1:
         flash("This campaign requires a minimum donation of £1.")
         return redirect(url_for("hold_success", slug=charity.slug))
 
@@ -2631,7 +2620,7 @@ def confirm_payment(entry_id):
         flash("Please enter a valid amount (0 or more).")
         return redirect(url_for("hold_success", slug=charity.slug))
     # If £0 donation, cancel the PaymentIntent to release the authorisation
-    if charity.free_entry_enabled and amount_pence == 0:
+    if charity.optional_donation_enabled and amount_pence == 0:
         try:
             stripe.PaymentIntent.cancel(entry.payment_intent_id)
             entry.paid = True
@@ -3080,6 +3069,8 @@ def edit_charity(slug):
         charity.is_sold_out = bool(request.form.get("is_sold_out"))
         charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
         charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
+        charity.postal_entry_enabled = bool(request.form.get("postal_entry_enabled"))
+        charity.optional_donation_enabled = bool(request.form.get("optional_donation_enabled"))
 
         try:
             raw_hold = int(request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence)
@@ -3136,8 +3127,18 @@ def edit_charity(slug):
       </label>
 
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
-        <input type="checkbox" name="free_entry_enabled" {% if charity.free_entry_enabled %}checked{% endif %}>
+        <input type="checkbox" name="optional_donation_enabled" {% if charity.optional_donation_enabled %}checked{% endif %}>
         Free entry available (optional donation)
+      </label>
+
+      <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <input type="checkbox" name="postal_entry_enabled" {% if charity.postal_entry_enabled %}checked{% endif %}>
+        Free postal entry available
+      </label>
+
+      <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <input type="checkbox" name="optional_donation_enabled" {% if charity.optional_donation_enabled %}checked{% endif %}>
+        Optional donation amount (allow £0 / editable donation)
       </label>
 
       <h3 style="margin-top:18px;">Skill-Based Question</h3>
@@ -3756,6 +3757,10 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN logo_data TEXT"))
             if 'free_entry_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN free_entry_enabled BOOLEAN DEFAULT 0"))
+            if 'postal_entry_enabled' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN postal_entry_enabled BOOLEAN DEFAULT 0"))
+            if 'optional_donation_enabled' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN optional_donation_enabled BOOLEAN DEFAULT 0"))
             if 'skill_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_enabled BOOLEAN DEFAULT 0"))
             if 'skill_question' not in charity_cols:
