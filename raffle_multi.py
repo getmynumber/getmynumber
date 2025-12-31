@@ -740,32 +740,25 @@ LAYOUT = """
 
   .big-number { font-size:58px; font-weight:800; letter-spacing:.02em; }
 
-  .hold-ok{
+    .hold-ok{
     display:flex;
     gap:10px;
     justify-content:center;
     align-items:flex-start;
-    padding:14px 16px;
-    border-radius:14px;
 
-    /* NEW: nicer “success” panel (no grey box) */
-    background: linear-gradient(
-      90deg,
-      rgba(0,184,169,0.08) 0%,
-      rgba(0,184,169,0.12) 18%,
-      rgba(255,255,255,0.92) 82%,
-      rgba(255,255,255,0.98) 100%
-    );
-    border: 1px solid rgba(0,184,169,0.22);
-    box-shadow: 0 12px 26px rgba(3,46,66,0.10);
+    /* IMPORTANT: make it a “layout wrapper”, not a separate box */
+    padding:0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
 
+    /* keep the nice fade-in motion */
     opacity: 0;
     transform: translateY(6px);
     animation: holdFadeIn 420ms ease-out forwards;
 
-    max-width:520px;
-    margin-left:auto;
-    margin-right:auto;
+    max-width:none;
+    margin:0;
   }
 
   .tick{
@@ -2240,32 +2233,28 @@ def hold_success(slug):
          <span class="tick">&#10003;</span>
          <div style="text-align:left;">
            <div><strong>Card Hold Confirmed</strong></div>
-            <div class="card" style="margin-top:14px">
-             <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
+            <div style="display:flex; flex-direction:column; gap:10px; font-size:14px; margin-top:14px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="tick">&#10003;</span>
+                <span>
+                  &pound;<strong><span id="hold-amt"></span></strong> temporarily held.
+                </span>
+              </div>
 
-               <div style="display:flex;align-items:center;gap:8px">
-                 <span class="tick">&#10003;</span>
-                 <span>
-                   &pound;<strong><span id="hold-amt"></span></strong> temporarily held on your card
-                 </span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="tick">&#10003;</span>
+                <span>
+                  &pound;<strong><span id="pay-amt"></span></strong> will be donated.
+                </span>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="tick">&#10003;</span>
+                <span>
+                  &pound;<strong><span id="release-amt"></span></strong> will be released.
+                </span>
                </div>
-
-               <div style="display:flex;align-items:center;gap:8px">
-                 <span class="tick">&#10003;</span>
-                 <span>
-                   You will donate &pound;<strong><span id="pay-amt"></span></strong>
-                 </span>
-               </div>
-
-               <div style="display:flex;align-items:center;gap:8px">
-                 <span class="tick">&#10003;</span>
-                 <span>
-                   &pound;<strong><span id="release-amt"></span></strong> will be released
-                 </span>
-               </div>
-
              </div>
-           </div>
 
        <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
 
@@ -2723,9 +2712,7 @@ def confirm_payment(entry_id):
         <span class="tick">&#10003;</span>
         <div style="text-align:left;">
           <div><strong>Payment confirmed</strong></div>
-          <div class="card" style="margin-top:16px">
-            <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
-
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;margin-top:16px">
               <div style="display:flex;align-items:center;gap:8px">
                 <span class="tick">&#10003;</span>
                 <span>
@@ -3122,9 +3109,9 @@ def edit_charity(slug):
         charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
 
         try:
-            charity.hold_amount_pence = int(
-                request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence
-            )
+            raw_hold = int(request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence)
+            min_hold_pence = int(charity.max_number or 0) * 100
+            charity.hold_amount_pence = max(raw_hold, min_hold_pence)
         except ValueError:
             msg = "Invalid hold amount."
 
@@ -3153,13 +3140,15 @@ def edit_charity(slug):
         <input type="file" name="logo_file" accept="image/*">
       </label>
       <label>Hold amount (pence)
-        <input type="number" name="hold_amount_pence" value="{{ charity.hold_amount_pence }}" min="0" step="100">
-        <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.35;">
-          Minimum enforced hold: <strong>£{{ min_hold_gbp }}</strong>
-          (based on max number {{ charity.max_number }}).
-          {% if current_hold_gbp < min_hold_gbp %}
-            <span style="color:var(--warn);font-weight:700;">Your current setting is below the enforced minimum.</span>
-          {% endif %}
+        <input
+          type="number"
+          name="hold_amount_pence"
+          value="{{ charity.hold_amount_pence }}"
+          min="{{ min_hold_pence }}"
+          step="100"
+        >
+        <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.4">
+          Minimum enforced hold: <strong>£{{ min_hold_gbp }}</strong> ({{ min_hold_pence }}p) — this ensures the temporary Stripe authorisation is always at least the maximum possible ticket value.
         </div>
       </label>
 
@@ -3900,7 +3889,3 @@ def admin_root():
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-
-
-
