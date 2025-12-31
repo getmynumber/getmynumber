@@ -2189,6 +2189,11 @@ def hold_success(slug):
         flash("Tickets are selling fast — please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
+    ticks_block = build_ticks_block([
+        "&pound;<strong><span id='hold-amt'></span></strong> temporarily held on your card",
+        "You will donate &pound;<strong><span id='pay-amt'></span></strong>",
+        "&pound;<strong><span id='release-amt'></span></strong> will be released",
+    ], wrap_card=False)
 
     # Clean up the session data used for pending
     session.pop("pending_entry", None)
@@ -2223,37 +2228,20 @@ def hold_success(slug):
          Ticket number = <strong>&pound;<span id="ticket-val"></span></strong>
        </div>
 
-       <div class="muted" style="margin-top:10px; line-height:1.45;">
+       <div class="muted" style="margin-top:10px; line-height:1.45; font-size:14px;">
          You have been allocated number <strong><span id="nudge-num"></span></strong>.
          Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
        </div>
 
-       <div class="hold-ok" style="margin-top:14px;">
-         <span class="tick">&#10003;</span>
-         <div style="text-align:left;">
-           <div><strong>Card Hold Confirmed</strong></div>
-            <div style="display:flex; flex-direction:column; gap:10px; font-size:14px; margin-top:14px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span class="tick">&#10003;</span>
-                <span>
-                  &pound;<strong><span id="hold-amt"></span></strong> temporarily held.
-                </span>
-              </div>
+       <div class="card" style="margin-top:14px">
+         <div style="font-weight:700; font-size:14px; margin-bottom:10px;">
+           Card Hold Confirmed
+         </div>
 
-              <div style="display:flex;align-items:center;gap:8px">
-                <span class="tick">&#10003;</span>
-                <span>
-                  &pound;<strong><span id="pay-amt"></span></strong> will be donated.
-                </span>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:8px">
-                <span class="tick">&#10003;</span>
-                <span>
-                  &pound;<strong><span id="release-amt"></span></strong> will be released.
-                </span>
-               </div>
-             </div>
+         <div style="font-size:14px;">
+           {{ ticks_block|safe }}
+         </div>
+       </div>
 
        <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
 
@@ -2555,7 +2543,8 @@ def hold_success(slug):
         charity=charity,
         entry=entry,
         name=name,
-        title=charity.name,
+        ticks_block=ticks_block,
+        title="Hold Confirmed",
     )
 
 @app.get("/api/reveal-number/<int:entry_id>")
@@ -2699,54 +2688,38 @@ def confirm_payment(entry_id):
 
     # 4) Final confirmation page with optional Stripe receipt button
         # 4) Final confirmation page with optional Stripe receipt button
+
+    ticks_block_final = build_ticks_block([
+        f"Paid &pound;<strong>{paid_gbp}</strong> to <strong>{charity.name}</strong>",
+        f"&pound;<strong>{held_gbp}</strong> was temporarily held",
+        f"&pound;<strong>{release_gbp}</strong> will be released",
+    ], wrap_card=False)
+
     body = """
     <div class="hero">
       <div class="step-kicker">Step 3 of 3</div>
-      <h1>Confirmed Payment</h1>
+      <h1>Confirmed Donation</h1>
       <p class="muted">You’re all set — good luck!</p>
     </div>
 
     <div class="card" style="padding:18px; max-width:720px; margin:0 auto;">
-      <div class="hold-ok" style="justify-content:flex-start; max-width:none;">
-        <span class="tick">&#10003;</span>
-        <div style="text-align:left;">
-          <div><strong>Payment confirmed</strong></div>
-            <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;margin-top:16px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span class="tick">&#10003;</span>
-                <span>
-                  Paid &pound;<strong>{{ paid_gbp }}</strong> to <strong>{{ charity.name }}</strong>
-                </span>
-              </div>
+      <div style="font-weight:800; font-size:14px; margin-bottom:10px;">
+        Donation confirmed
+      </div>
 
-              <div style="display:flex;align-items:center;gap:8px">
-                <span class="tick">&#10003;</span>
-                <span>
-                  &pound;<strong>{{ held_gbp }}</strong> was temporarily held
-                </span>
-              </div>
-
-              <div style="display:flex;align-items:center;gap:8px">
-                <span class="tick">&#10003;</span>
-                <span>
-                  &pound;<strong>{{ released_gbp }}</strong> will be released by your bank
-                </span>
-              </div>
-
-            </div>
-          </div>
-        </div>
+      <div style="font-size:14px;">
+        {{ ticks_block_final|safe }}
       </div>
 
       {% if receipt_url %}
-        <div class="row" style="margin-top:16px; gap:10px; justify-content:flex-start;">
+        <div class="row" style="margin-top:14px; gap:10px; justify-content:flex-start;">
           <form action="{{ receipt_url }}" method="GET" target="_blank" style="margin:0;">
             <button class="btn" type="submit">View Receipt</button>
           </form>
         </div>
       {% endif %}
 
-      <div class="row" style="margin-top:16px; gap:10px; justify-content:center;">
+      <div class="row" style="margin-top:14px; gap:10px; justify-content:center;">
         <a class="btn pill outline" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
         <a class="btn pill outline" href="{{ url_for('home') }}">Back to Home</a>
       </div>
@@ -2778,6 +2751,7 @@ def confirm_payment(entry_id):
         paid_gbp=paid_gbp,
         held_gbp=held_gbp,
         released_gbp=released_gbp,
+        ticks_block_final=ticks_block_final,
         title=f"{charity.name} – Thank you",
     )
 
