@@ -3266,9 +3266,16 @@ def edit_charity(slug):
     except Exception:
         skill_answers_text = ""
 
-    return render(body, charity=charity, msg=msg, draw_value=draw_value,
-                  skill_answers_text=skill_answers_text, min_hold=min_hold_gbp,
-                  title=f"Edit {charity.name}")
+    return render(
+        body, 
+        charity=charity,
+        msg=msg, 
+        draw_value=draw_value,
+        skill_answers_text=skill_answers_text, 
+        min_hold=min_hold_gbp,
+        current_hold_gbp=current_hold_gbp,
+        title=f"Edit {charity.name}",
+    )
 
 # ====== ADMIN: ENTRIES / CSV / BULK ==========================================
 
