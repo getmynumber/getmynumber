@@ -1194,7 +1194,7 @@ def home():
       <h1>How Get My Number Works</h1>
       <p class="muted">
         A simple, transparent raffle where your card is held for a maximum amount first,
-        and you only pay the value of the ticket number you receive.
+        and you only donate the value of the ticket number you receive.
       </p>
     </div>
 
@@ -1302,7 +1302,7 @@ def terms():
       Get My Number provides a platform for running charity-linked campaigns (“Campaigns”).
       Campaign availability may be paused, changed, or ended at any time.</p>
 
-      <p><strong>2) Payments</strong><br>
+      <p><strong>2) Donations</strong><br>
       Where shown, we may place a temporary card authorisation (“hold”) via Stripe before issuing a number.
       Your bank may show this as a pending amount.</p>
 
@@ -1355,7 +1355,7 @@ def terms():
       <p>13. You may enter via one or both routes:-<br>
       <br>
       Paid Online Campaign:<br>
-      6.1 You may enter online via Our Website by completing the required details and completing the donation payment to the charity. You will be issued with a number after authorising a temporary hold. You must then complete payment to confirm your entry.<br>
+      6.1 You may enter online via Our Website by completing the required details and completing the donation to the charity. You will be issued with a number after authorising a temporary hold. You must then complete donation to confirm your entry.<br>
       <br>
       Free Postal Entry:<br>
       6.2 You may enter by post by following the requirements set out in Annex 1. Postal entries must be received before the closing date and time. Postal entries have the same chance of winning as paid entries. No additional donation is required for postal entries.</p>
@@ -1424,8 +1424,8 @@ def privacy():
       When you enter a Campaign we may collect your name, email address, phone number (optional),
       and your assigned ticket number.</p>
 
-      <p><strong>2) Payments</strong><br>
-      Payments/authorisations are processed by Stripe. We do not store full card details on our servers.</p>
+      <p><strong>2) Donations</strong><br>
+      Donations/authorisations are processed by Stripe. We do not store full card details on our servers.</p>
 
       <p><strong>3) Why we use data</strong><br>
       We use your details to administer Campaign entries, provide support, prevent fraud/abuse,
@@ -1744,7 +1744,7 @@ def skill_gate(slug):
 
         <div class="hero">
           <div class="step-kicker">Qualification</div>
-          <h1>Quick question before you enter</h1>
+          <h1>Quick question before you continue to hold</h1>
           <p class="muted" style="margin-top:6px;line-height:1.45;">
             Please answer this multiple-choice question correctly to proceed.
           </p>
@@ -2028,7 +2028,7 @@ def authorise_hold(slug):
             • One postal entry per envelope. Multiple entries in one envelope may be rejected.<br>
             • Entries must be legible and received before the draw time/closing date.<br>
             • We will confirm receipt by email where possible.<br>
-            • No purchase or payment is required for postal entries.<br></p>
+            • No purchase or donation is required for postal entries.<br></p>
 
             <p class="small muted">
               Postal entries are governed by our
@@ -2110,7 +2110,7 @@ def hold_success(slug):
 
     session_id = request.args.get("session_id")
     if not session_id:
-        flash("Missing payment information. Please try again.")
+        flash("Missing donation information. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
     # Retrieve Checkout Session AND expand the PaymentIntent
@@ -2133,7 +2133,7 @@ def hold_success(slug):
             f"Unexpected PaymentIntent status in hold_success: "
             f"{payment_intent.get('status') if payment_intent else 'none'}"
         )
-        flash("Payment not completed. Please try again.")
+        flash("Donation not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
     # Get the details we stored before redirecting to Stripe
@@ -2239,19 +2239,23 @@ def hold_success(slug):
 
          <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
 
-           <label style="display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;">
-             <span>Donation amount (GBP)</span>
-             <input
-               id="donation-amount"
-               name="amount_gbp"
-               type="number"
-               min="{% if charity.optional_donation_enabled %}0{% else %}1{% endif %}"
-               step="1"
-               required
-               style="max-width:140px; width:140px; text-align:center;"
-               {% if not charity.optional_donation_enabled %}readonly{% endif %}
-             >
-           </label>
+           {% if charity.optional_donation_enabled %}
+             <label style="display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;">
+               <span>Donation amount (GBP)</span>
+               <input
+                 id="donation-amount"
+                 name="amount_gbp"
+                 type="number"
+                 min="0"
+                 step="1"
+                 required
+                 style="max-width:140px; width:140px; text-align:center;"
+               >
+             </label>
+           {% else %}
+             {# No optional donation UI — keep a hidden field so the form always submits cleanly #}
+             <input type="hidden" id="donation-amount" name="amount_gbp" value="">
+           {% endif %}
 
            {% if charity.optional_donation_enabled %}
              <div id="match-nudge" class="card" style="display:none; margin:12px auto 0; max-width:520px; padding:12px;">
@@ -2266,19 +2270,17 @@ def hold_success(slug):
              </div>
            {% endif %}
 
-           <div class="row" style="gap:10px; flex-wrap:wrap; margin-top:10px;">
-             <button type="button" class="pill" id="btn-default">
-               Use my number (£<span id="pay-amt-2"></span>)
-             </button>
-           </div>
+           {% if charity.optional_donation_enabled %}
+             <div class="row" style="gap:10px; flex-wrap:wrap; margin-top:10px;">
+               <button type="button" class="pill" id="btn-default">
+                 Use my number (£<span id="pay-amt-2"></span>)
+               </button>
+             </div>
+           {% endif %}
 
            <button class="btn" type="submit" style="width:100%; margin-top:12px;">
-             {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; pay{% endif %}
+             {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; Donate{% endif %}
            </button>
-
-           <p class="muted" style="margin-top:10px">
-             We will only capture the amount you confirm. Any remaining authorised amount is released by your bank.
-           </p>
          </form>
        </div>
 
@@ -2572,7 +2574,7 @@ def api_reveal_number(entry_id):
 @app.route("/confirm-payment/<int:entry_id>", methods=["POST"])
 def confirm_payment(entry_id):
     """
-    Called when user clicks 'Confirm & Pay' after their number is assigned.
+    Called when user clicks 'Confirm & Donate' after their number is assigned.
 
     - Captures part of the original PaymentIntent (the hold),
       equal to the raffle number in pounds.
@@ -2582,6 +2584,7 @@ def confirm_payment(entry_id):
     entry = Entry.query.get_or_404(entry_id)
     charity = Charity.query.get_or_404(entry.charity_id)
     held = int(entry.hold_amount_pence or 0)
+    optional_ok = bool(getattr(charity, "optional_donation_enabled", False))
 
     if entry.paid:
         flash("This entry is already marked as paid. Thank you!")
@@ -2591,9 +2594,9 @@ def confirm_payment(entry_id):
         flash("We could not find the original card authorisation. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Amount is user-confirmed only if free entry is enabled.
-    # If free entry is NOT enabled, we force the capture amount to the ticket number.
-    if not charity.optional_donation_enabled:
+    # Amount is user-confirmed only if optional donations are enabled.
+    # Otherwise we force the capture amount to the ticket number.
+    if not optional_ok:
         amount_gbp = int(entry.number or 0)
     else:
         raw = (request.form.get("amount_gbp", "") or "").strip()
@@ -2605,7 +2608,7 @@ def confirm_payment(entry_id):
     amount_pence = amount_gbp * 100
     paid_gbp = amount_gbp
 
-    if (not charity.optional_donation_enabled) and amount_gbp < 1:
+    if (not optional_ok) and amount_gbp < 1:
         flash("This campaign requires a minimum donation of £1.")
         return redirect(url_for("hold_success", slug=charity.slug))
 
@@ -2631,8 +2634,8 @@ def confirm_payment(entry_id):
         app.logger.error(f"Invalid amount_to_capture for entry {entry.id}: {amount_pence} (held={held})")
         flash("Please enter a valid amount (0 or more).")
         return redirect(url_for("hold_success", slug=charity.slug))
-    # If £0 donation, cancel the PaymentIntent to release the authorisation
-    if charity.optional_donation_enabled and amount_pence == 0:
+    # If £0 donation (only allowed when optional donations are enabled), cancel the PaymentIntent to release the authorisation
+    if optional_ok and amount_pence == 0:
         try:
             stripe.PaymentIntent.cancel(entry.payment_intent_id)
             entry.paid = True
@@ -2705,7 +2708,7 @@ def confirm_payment(entry_id):
 
     <div class="card" style="padding:18px; max-width:720px; margin:0 auto;">
       <div style="font-weight:800; font-size:14px; margin-bottom:10px;">
-        Donation confirmed
+        Donation Confirmed
       </div>
 
       <div style="font-size:14px;">
@@ -3863,7 +3866,7 @@ def how_it_works():
         <li>Donate exactly that amount to the charity’s donation page to complete your entry.</li>
       </ol>
       <p class="muted" style="font-size:12px;margin-top:16px;">
-        Numbers are unique and random; payments are handled securely via your existing flow.
+        Numbers are unique and random; donations are handled securely via your existing flow.
       </p>
     </div>
     """
