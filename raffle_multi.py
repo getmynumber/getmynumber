@@ -780,46 +780,54 @@ LAYOUT = """
     margin:0 auto;
   }
   
-  .wheel{
-  position:absolute; inset:0;
+.wheel{
+  position:absolute;
+  inset:0;
   border-radius:999px;
 
-  /* on-brand ring instead of grey */
-  border:10px solid rgba(0,184,169,.22);
-  box-shadow: 0 18px 40px rgba(3,46,66,.12);
+  /* Premium outer ring */
+  border:10px solid rgba(0,184,169,.18);
 
-  /* roulette-ish alternating slices using your brand colours */
+  /* Depth without harsh contrast */
+  box-shadow:
+    0 18px 40px rgba(3,46,66,.12),
+    inset 0 0 0 1px rgba(255,255,255,.35);
+
+  /* Subtle casino-style surface (no harsh slices) */
   background:
-    /* subtle highlight */
+    /* soft highlight */
     radial-gradient(circle at 30% 25%, rgba(255,255,255,.35), transparent 55%),
-    /* outer dark ring */
-    radial-gradient(circle at center, transparent 62%, rgba(18,49,61,.12) 63% 72%, transparent 73%),
-    /* main slices */
+
+    /* inner depth ring */
+    radial-gradient(circle at center,
+      transparent 60%,
+      rgba(18,49,61,.10) 61% 70%,
+      transparent 71%
+    ),
+
+    /* very subtle segmented feel */
     repeating-conic-gradient(
       from -90deg,
-      rgba(0,184,169,.22) 0 10deg,
-      rgba(39,198,214,.10) 10deg 20deg
+      rgba(0,184,169,.18) 0 12deg,
+      rgba(39,198,214,.10) 12deg 24deg
     );
 
-  overflow:hidden; /* so labels stay inside */
+  overflow:hidden;
   transform: rotate(0deg);
-  /* crisp edge */
-  outline: 1px solid rgba(18,49,61,.06);
 }
 
-/* Casino-style rim + fine tick marks */
 .wheel::before{
   content:"";
   position:absolute;
-  inset:10px;
+  inset:12px;
   border-radius:999px;
   background:
-    /* thin tick marks every 10deg to match 36 segments */
-    repeating-conic-gradient(from -90deg,
-      rgba(255,255,255,.22) 0 1deg,
-      transparent 1deg 10deg
+    repeating-conic-gradient(
+      from -90deg,
+      rgba(255,255,255,.18) 0 1deg,
+      transparent 1deg 12deg
     );
-  opacity:.35;
+  opacity:.22;
   pointer-events:none;
 }
 
@@ -829,57 +837,46 @@ LAYOUT = """
   inset:0;
   border-radius:999px;
   background:
-    radial-gradient(circle at 50% 35%, rgba(255,255,255,.22), transparent 55%),
-    radial-gradient(circle at 50% 60%, rgba(18,49,61,.10), transparent 62%);
+    radial-gradient(circle at 50% 30%, rgba(255,255,255,.22), transparent 55%),
+    radial-gradient(circle at 50% 65%, rgba(18,49,61,.08), transparent 65%);
   pointer-events:none;
-}
-
-/* Container for tiny numbers */
-.wheel-labels{
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-}
-
-.wheel-label{
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform-origin: 0 0;
-  font-size:9px;
-  font-weight:800;
-  letter-spacing:.02em;
-  color: rgba(18,49,61,.62);
-  text-shadow: 0 1px 0 rgba(255,255,255,.55);
-  user-select:none;
 }
 
 .wheel-center{
   position:absolute;
-  width:72px; height:72px;
-  left:50%; top:50%;
+  width:72px;
+  height:72px;
+  left:50%;
+  top:50%;
   transform: translate(-50%,-50%);
   border-radius:999px;
 
-  background: rgba(255,255,255,.92);
+  background:
+    radial-gradient(circle at 30% 30%, #ffffff, #f2f6f8);
 
-  /* brand border instead of grey */
-  border:8px solid rgba(0,184,169,.22);
-  box-shadow: inset 0 0 0 2px rgba(0,0,0,.05);
+  border:7px solid rgba(0,184,169,.22);
+
+  box-shadow:
+    0 4px 10px rgba(3,46,66,.18),
+    inset 0 0 0 2px rgba(255,255,255,.6);
 }
 
-/* pointer in brand colour (less harsh than black) */
 .wheel-pointer{
   position:absolute;
-  left:50%; top:-4px;
+  left:50%;
+  top:-4px;
   transform: translateX(-50%);
-  width:0; height:0;
+  width:0;
+  height:0;
+
   border-left:14px solid transparent;
   border-right:14px solid transparent;
   border-bottom:26px solid rgba(0,184,169,.55);
+
   filter: drop-shadow(0 6px 10px rgba(3,46,66,.18));
   z-index:5;
 }
+
 
   /* quick spin while waiting for API */
   /* Casino-style spin (with wobble) */
@@ -921,10 +918,6 @@ LAYOUT = """
       width:64px;
       height:64px;
       border-width:7px;
-    }
-    .wheel-label{
-      font-size:8px;
-      opacity:.55;
     }
   }
 
@@ -2327,9 +2320,7 @@ def hold_success(slug):
      <div id="wheel-zone" style="display:none; margin:18px auto 0; width:220px;">
        <div class="wheel-wrap">
          <div class="wheel-pointer"></div>
-         <div class="wheel" id="wheel">
-           <div class="wheel-labels" id="wheel-labels" aria-hidden="true"></div>
-         </div>
+         <div class="wheel" id="wheel"></div>
          <div class="wheel-center"></div>
        </div>
        <div class="muted" style="margin-top:10px;">Spinning...</div>
@@ -2520,32 +2511,6 @@ def hold_success(slug):
      const nudgeNum = document.getElementById("nudge-num");
      const nudgeAmt = document.getElementById("nudge-amt");
      const amount   = document.getElementById("amount"); // if present on this page
-     const wheelLabels = document.getElementById("wheel-labels");
-
-     function buildWheelNumbers(){
-       if (!wheelLabels) return;
-       if (wheelLabels.childElementCount > 0) return; // only build once
-
-       const segments = 36;            // roulette-ish
-       const radiusPx = 92;            // distance from center (tweak if needed)
-
-       for (let i = 1; i <= segments; i++){
-         const angle = (360 / segments) * (i - 1);
-
-         const s = document.createElement("span");
-         s.className = "wheel-label";
-         s.textContent = String(i);
-
-         // rotate to position around rim, translate outward, then counter-rotate text upright
-         s.style.transform = `rotate(${angle}deg) translateY(-${radiusPx}px) rotate(${-angle}deg)`;
-
-         wheelLabels.appendChild(s);
-       }
-     }
-
-     // build numbers immediately (safe even if wheel hidden initially)
-     buildWheelNumbers();
-
 
      function spinTo(deg) {
        wheel.classList.remove("wheel-spinning");
