@@ -779,55 +779,107 @@ LAYOUT = """
     width:220px; height:220px;
     margin:0 auto;
   }
+  
   .wheel{
-    position:absolute; inset:0;
-    border-radius:999px;
-    border:10px solid rgba(0,0,0,.10);
-    box-shadow: 0 18px 40px rgba(0,0,0,.12);
-    background:
-      conic-gradient(
-        rgba(0,0,0,.08) 0 20deg,
-        rgba(0,0,0,.02) 20deg 40deg,
-        rgba(0,0,0,.08) 40deg 60deg,
-        rgba(0,0,0,.02) 60deg 80deg,
-        rgba(0,0,0,.08) 80deg 100deg,
-        rgba(0,0,0,.02) 100deg 120deg,
-        rgba(0,0,0,.08) 120deg 140deg,
-        rgba(0,0,0,.02) 140deg 160deg,
-        rgba(0,0,0,.08) 160deg 180deg,
-        rgba(0,0,0,.02) 180deg 200deg,
-        rgba(0,0,0,.08) 200deg 220deg,
-        rgba(0,0,0,.02) 220deg 240deg,
-        rgba(0,0,0,.08) 240deg 260deg,
-        rgba(0,0,0,.02) 260deg 280deg,
-        rgba(0,0,0,.08) 280deg 300deg,
-        rgba(0,0,0,.02) 300deg 320deg,
-        rgba(0,0,0,.08) 320deg 340deg,
-        rgba(0,0,0,.02) 340deg 360deg
-      );
-    transform: rotate(0deg);
-  }
-  .wheel-center{
-    position:absolute;
-    width:72px; height:72px;
-    left:50%; top:50%;
-    transform: translate(-50%,-50%);
-    border-radius:999px;
-    background: rgba(255,255,255,.85);
-    border:8px solid rgba(0,0,0,.10);
-    box-shadow: inset 0 0 0 2px rgba(0,0,0,.05);
-  }
-  .wheel-pointer{
-    position:absolute;
-    left:50%; top:-4px;
-    transform: translateX(-50%);
-    width:0; height:0;
-    border-left:14px solid transparent;
-    border-right:14px solid transparent;
-    border-bottom:26px solid rgba(0,0,0,.35);
-    filter: drop-shadow(0 6px 10px rgba(0,0,0,.18));
-    z-index:5;
-  }
+  position:absolute; inset:0;
+  border-radius:999px;
+
+  /* on-brand ring instead of grey */
+  border:10px solid rgba(0,184,169,.22);
+  box-shadow: 0 18px 40px rgba(3,46,66,.12);
+
+  /* roulette-ish alternating slices using your brand colours */
+  background:
+    /* subtle highlight */
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,.35), transparent 55%),
+    /* outer dark ring */
+    radial-gradient(circle at center, transparent 62%, rgba(18,49,61,.12) 63% 72%, transparent 73%),
+    /* main slices */
+    repeating-conic-gradient(
+      from -90deg,
+      rgba(0,184,169,.22) 0 10deg,
+      rgba(39,198,214,.10) 10deg 20deg
+    );
+
+  overflow:hidden; /* so labels stay inside */
+  transform: rotate(0deg);
+  /* crisp edge */
+  outline: 1px solid rgba(18,49,61,.06);
+}
+
+/* Casino-style rim + fine tick marks */
+.wheel::before{
+  content:"";
+  position:absolute;
+  inset:10px;
+  border-radius:999px;
+  background:
+    /* thin tick marks every 10deg to match 36 segments */
+    repeating-conic-gradient(from -90deg,
+      rgba(255,255,255,.22) 0 1deg,
+      transparent 1deg 10deg
+    );
+  opacity:.35;
+  pointer-events:none;
+}
+
+.wheel::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:999px;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255,255,255,.22), transparent 55%),
+    radial-gradient(circle at 50% 60%, rgba(18,49,61,.10), transparent 62%);
+  pointer-events:none;
+}
+
+/* Container for tiny numbers */
+.wheel-labels{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+
+.wheel-label{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform-origin: 0 0;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.02em;
+  color: rgba(18,49,61,.62);
+  text-shadow: 0 1px 0 rgba(255,255,255,.55);
+  user-select:none;
+}
+
+.wheel-center{
+  position:absolute;
+  width:72px; height:72px;
+  left:50%; top:50%;
+  transform: translate(-50%,-50%);
+  border-radius:999px;
+
+  background: rgba(255,255,255,.92);
+
+  /* brand border instead of grey */
+  border:8px solid rgba(0,184,169,.22);
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.05);
+}
+
+/* pointer in brand colour (less harsh than black) */
+.wheel-pointer{
+  position:absolute;
+  left:50%; top:-4px;
+  transform: translateX(-50%);
+  width:0; height:0;
+  border-left:14px solid transparent;
+  border-right:14px solid transparent;
+  border-bottom:26px solid rgba(0,184,169,.55);
+  filter: drop-shadow(0 6px 10px rgba(3,46,66,.18));
+  z-index:5;
+}
 
   /* quick spin while waiting for API */
   /* Casino-style spin (with wobble) */
@@ -857,6 +909,22 @@ LAYOUT = """
   @media (max-width: 480px) {
     .row{
       gap:6px !important;
+    }
+    .wheel-wrap{
+      width:190px;
+      height:190px;
+    }
+    .wheel{
+      border-width:9px;
+    }
+    .wheel-center{
+      width:64px;
+      height:64px;
+      border-width:7px;
+    }
+    .wheel-label{
+      font-size:8px;
+      opacity:.55;
     }
   }
 
@@ -977,7 +1045,7 @@ def build_ticks_block(items, wrap_card=True):
     """
     lines_html = "\n".join(
         f"""
-        <div style="display:flex;align-items:center;gap:8px">
+        <div style="display:flex;align-items:flex-start;gap:8px">
           <span class="tick">&#10003;</span>
           <span>{item}</span>
         </div>
@@ -986,7 +1054,7 @@ def build_ticks_block(items, wrap_card=True):
     )
 
     inner = f"""
-    <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45">
+    <div class="muted" style="display:flex;flex-direction:column;gap:8px;line-height:1.45;text-align:left">
       {lines_html}
     </div>
     """.strip()
@@ -1232,7 +1300,7 @@ def home():
           <div class="step-icon">💳</div>
           <div>
             <div class="step-label">Step 3</div>
-            <div class="step-title">£200 temporary card hold</div>
+            <div class="step-title">Temporary card hold</div>
           </div>
         </div>
         <div class="step-body">
@@ -1280,7 +1348,7 @@ def home():
           </div>
         </div>
         <div class="step-body">
-          Any difference between the original £200 hold and your ticket amount is released
+          Any difference between the original hold and your ticket amount is released
           by your bank. You only donate the value of your final ticket number.
         </div>
       </div>
@@ -2259,7 +2327,9 @@ def hold_success(slug):
      <div id="wheel-zone" style="display:none; margin:18px auto 0; width:220px;">
        <div class="wheel-wrap">
          <div class="wheel-pointer"></div>
-         <div class="wheel" id="wheel"></div>
+         <div class="wheel" id="wheel">
+           <div class="wheel-labels" id="wheel-labels" aria-hidden="true"></div>
+         </div>
          <div class="wheel-center"></div>
        </div>
        <div class="muted" style="margin-top:10px;">Spinning...</div>
@@ -2450,6 +2520,32 @@ def hold_success(slug):
      const nudgeNum = document.getElementById("nudge-num");
      const nudgeAmt = document.getElementById("nudge-amt");
      const amount   = document.getElementById("amount"); // if present on this page
+     const wheelLabels = document.getElementById("wheel-labels");
+
+     function buildWheelNumbers(){
+       if (!wheelLabels) return;
+       if (wheelLabels.childElementCount > 0) return; // only build once
+
+       const segments = 36;            // roulette-ish
+       const radiusPx = 92;            // distance from center (tweak if needed)
+
+       for (let i = 1; i <= segments; i++){
+         const angle = (360 / segments) * (i - 1);
+
+         const s = document.createElement("span");
+         s.className = "wheel-label";
+         s.textContent = String(i);
+
+         // rotate to position around rim, translate outward, then counter-rotate text upright
+         s.style.transform = `rotate(${angle}deg) translateY(-${radiusPx}px) rotate(${-angle}deg)`;
+
+         wheelLabels.appendChild(s);
+       }
+     }
+
+     // build numbers immediately (safe even if wheel hidden initially)
+     buildWheelNumbers();
+
 
      function spinTo(deg) {
        wheel.classList.remove("wheel-spinning");
@@ -2545,7 +2641,14 @@ def hold_success(slug):
 
        // Stop continuous spin and land
        wheel.classList.remove("wheel-spinning");
-       const landing = ((data.ticket_number * 23) % 360) + 6;
+       const segments = 36;                 // keep in sync with wheel labels
+       const step = 360 / segments;         // 10 degrees
+       const base = (data.ticket_number * 23) % 360;
+
+       // snap to nearest segment, then land in the middle of it
+       const snapped = Math.round(base / step) * step;
+       const landing = snapped + (step / 2);
+
        requestAnimationFrame(() => spinTo(landing));
 
        // Reveal after landing finishes
@@ -2752,7 +2855,7 @@ def confirm_payment(entry_id):
     <div class="hero">
       <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
       <h1>Confirmed Donation</h1>
-      <p class="muted">You’re all set — good luck!</p>
+      <p class="muted">You’re all set — Good luck!</p>
     </div>
 
     <div class="card" style="padding:18px; max-width:720px; margin:0 auto;">
