@@ -169,7 +169,8 @@ class Charity(db.Model):
     skill_correct_answer = db.Column(db.Text, nullable=True)
     # How many options to show on the frontend (default 4)
     skill_display_count = db.Column(db.Integer, nullable=False, default=4)
-
+    # ===== Stripe Connect (per-charity payouts) =====
+    stripe_account_id = db.Column(db.String(64), nullable=True)  # e.g. acct_123...
 
 class Entry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -182,6 +183,7 @@ class Entry(db.Model):
     paid = db.Column(db.Boolean, nullable=False, default=False)
     paid_at = db.Column(db.DateTime, nullable=True)
     payment_intent_id = db.Column(db.String(255))   # ← NEW
+    stripe_account_id = db.Column(db.String(64), nullable=True)  # snapshot of charity acct at time of hold
     hold_amount_pence = db.Column(db.Integer, nullable=True)  # authorised hold amount for this entry
 
     __table_args__ = (UniqueConstraint("charity_id", "number", name="uq_charity_number"),)
@@ -1138,6 +1140,27 @@ def _parse_skill_answers(raw: str):
         dedup.append(s)
     return dedup
 
+def get_connect_status(acct_id):
+    """
+    Returns a dict like:
+      {"ok": True, "charges_enabled": True, "payouts_enabled": True, "due": [...]}
+    """
+    if not acct_id or not acct_id.startswith("acct_"):
+        return {"ok": False}
+
+    try:
+        a = stripe.Account.retrieve(acct_id)
+        req = a.get("requirements", {}) or {}
+        due = req.get("currently_due", []) or []
+        return {
+            "ok": True,
+            "charges_enabled": bool(a.get("charges_enabled")),
+            "payouts_enabled": bool(a.get("payouts_enabled")),
+            "due": due,
+        }
+    except Exception as e:
+        app.logger.error(f"Connect status fetch failed for {acct_id}: {e}")
+        return {"ok": False}
 
 def _choose_skill_options(all_answers, correct_answer, display_count=4):
     """
@@ -2167,6 +2190,10 @@ def start_hold(slug):
     if hold_amount_pence < min_hold:
         hold_amount_pence = min_hold
 
+    acct = (getattr(charity, "stripe_account_id", None) or "").strip()
+    if not acct.startswith("acct_"):
+        flash("This charity is not connected for payouts yet. Please contact support.")
+        return redirect(url_for("charity_page", slug=charity.slug))
 
     # Create Stripe Checkout Session for the hold (manual capture)
     try:
@@ -2191,6 +2218,7 @@ def start_hold(slug):
             },
             success_url=url_for("hold_success", slug=charity.slug, _external=True) + "?session_id={CHECKOUT_SESSION_ID}",
             cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
+            stripe_account=acct,
         )
     except Exception as e:
         app.logger.error(f"Stripe session create error (start_hold): {e}")
@@ -2219,10 +2247,14 @@ def hold_success(slug):
 
     # Retrieve Checkout Session AND expand the PaymentIntent
     try:
+        acct = (getattr(charity, "stripe_account_id", None) or "").strip()
+
         checkout_session = stripe.checkout.Session.retrieve(
             session_id,
             expand=["payment_intent"],
+            stripe_account=acct,
         )
+
     except Exception as e:
         app.logger.error(f"Stripe retrieve error (hold_success): {e}")
         flash("We could not verify your card hold. Please try again.")
@@ -2264,7 +2296,6 @@ def hold_success(slug):
         num = assign_number(charity)
         if not num:
             break  # sold out
-
         entry = Entry(
             charity_id=charity.id,
             name=name,
@@ -2273,12 +2304,26 @@ def hold_success(slug):
             number=num,
             payment_intent_id=payment_intent.get("id"),
             hold_amount_pence=int(payment_intent.get("amount") or 0),
+            stripe_account_id=acct,
         )
         db.session.add(entry)
 
         try:
             db.session.commit()
             session["reveal_entry_id"] = entry.id
+            # Attach entry_id to the PaymentIntent metadata (for webhooks + reconciliation)
+            try:
+                stripe.PaymentIntent.modify(
+                    entry.payment_intent_id,
+                    metadata={
+                        "entry_id": str(entry.id),
+                        "charity_slug": charity.slug,
+                        "flow": "hold_then_capture",
+                    },
+                    stripe_account=acct,
+                )
+            except Exception as e:
+                app.logger.error(f"Failed to set PI metadata for entry {entry.id}: {e}")
             break
         except IntegrityError:
             # Another request grabbed the same number first — retry with a fresh number
@@ -2701,6 +2746,11 @@ def confirm_payment(entry_id):
     held = int(entry.hold_amount_pence or 0)
     optional_ok = bool(getattr(charity, "optional_donation_enabled", False))
 
+    acct = (getattr(entry, "stripe_account_id", None) or getattr(charity, "stripe_account_id", None) or "").strip()
+    if not acct.startswith("acct_"):
+        flash("This donation cannot be processed because the charity payout account is missing.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
     if entry.paid:
         flash("This entry is already marked as paid. Thank you!")
         return redirect(url_for("charity_page", slug=charity.slug))
@@ -2749,10 +2799,14 @@ def confirm_payment(entry_id):
         app.logger.error(f"Invalid amount_to_capture for entry {entry.id}: {amount_pence} (held={held})")
         flash("Please enter a valid amount (0 or more).")
         return redirect(url_for("hold_success", slug=charity.slug))
-    # If £0 donation (only allowed when optional donations are enabled), cancel the PaymentIntent to release the authorisation
+    # If £0 donation (only allowed when optional donations are enabled),
+    # cancel the PaymentIntent to release the authorisation
     if optional_ok and amount_pence == 0:
         try:
-            stripe.PaymentIntent.cancel(entry.payment_intent_id)
+            stripe.PaymentIntent.cancel(
+                entry.payment_intent_id,
+                stripe_account=acct,  # IMPORTANT: this PaymentIntent lives on the connected account
+            )
             entry.paid = True
             entry.paid_at = datetime.utcnow()
             db.session.commit()
@@ -2763,7 +2817,6 @@ def confirm_payment(entry_id):
             flash("We couldn't release the hold automatically. Please contact support.")
             return redirect(url_for("charity_page", slug=charity.slug))
 
-
         app.logger.error(f"Invalid amount_to_capture for entry {entry.id}: {amount_pence} (held={held})")
         flash("Something went wrong with your raffle amount. Please contact us.")
         return redirect(url_for("charity_page", slug=charity.slug))
@@ -2773,6 +2826,7 @@ def confirm_payment(entry_id):
         captured_pi = stripe.PaymentIntent.capture(
             entry.payment_intent_id,
             amount_to_capture=amount_pence,
+            stripe_account=acct,
         )
     except Exception as e:
         app.logger.error(
@@ -2790,6 +2844,7 @@ def confirm_payment(entry_id):
         charges = stripe.Charge.list(
             payment_intent=entry.payment_intent_id,
             limit=1,
+            stripe_account=acct,
         )
         if charges.data:
             charge = charges.data[0]
@@ -2877,6 +2932,71 @@ def confirm_payment(entry_id):
         step_total=step_total,
         title=f"{charity.name} – Thank you",
     )
+
+@app.route("/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature", "")
+
+    # For Connect webhooks, Stripe will include this header for events from connected accounts
+    connected_acct = request.headers.get("Stripe-Account", None)
+
+    try:
+        if webhook_secret:
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        else:
+            # Not recommended for live: allows unsigned events
+            event = json.loads(payload)
+    except Exception as e:
+        app.logger.exception(e)
+        return ("Bad webhook signature", 400)
+
+    event_type = event["type"]
+    obj = event["data"]["object"]
+
+    # --- Payment succeeded (after capture) ---
+    if event_type == "payment_intent.succeeded":
+        try:
+            md = obj.get("metadata", {}) or {}
+            entry_id = md.get("entry_id")
+            if entry_id:
+                entry = Entry.query.get(int(entry_id))
+                if entry and not entry.paid:
+                    entry.paid = True
+                    entry.paid_at = datetime.utcnow()
+
+                    # Best effort: fetch receipt_url
+                    receipt_url = None
+                    try:
+                        acct = connected_acct or getattr(entry, "stripe_account_id", None)
+                        charges = stripe.Charge.list(
+                            payment_intent=obj.get("id"),
+                            limit=1,
+                            stripe_account=acct if acct else None,
+                        )
+                        if charges.data:
+                            receipt_url = charges.data[0].get("receipt_url")
+                    except Exception:
+                        receipt_url = None
+
+                    if receipt_url:
+                        entry.receipt_url = receipt_url  # only if you have this column
+                    db.session.commit()
+        except Exception as e:
+            app.logger.exception(e)
+
+    # --- Optional: payment failed ---
+    elif event_type == "payment_intent.payment_failed":
+        # You can log / notify if you want
+        pass
+
+    # --- Optional: checkout completed (authorisation done) ---
+    elif event_type == "checkout.session.completed":
+        # Typically not needed for you because you already handle hold_success()
+        pass
+
+    return ("OK", 200)
 
 @app.route("/<slug>/success")
 def success(slug):
@@ -2998,6 +3118,13 @@ def admin_charities():
 
     charities = Charity.query.order_by(Charity.name.asc()).all()
     remaining = {c.id: len(available_numbers(c)) for c in charities}
+    connect_status = {}
+    for c in charities:
+        acct = (getattr(c, "stripe_account_id", None) or "").strip()
+        if acct.startswith("acct_"):
+            connect_status[c.id] = get_connect_status(acct)
+        else:
+            connect_status[c.id] = {"ok": False}
 
     body = """
     <h2>Manage Charities</h2>
@@ -3052,7 +3179,28 @@ def admin_charities():
                 <a class="pill" href="{{ url_for('edit_charity', slug=c.slug) }}">Edit</a>
                 <a class="pill" href="{{ url_for('admin_charity_entries', slug=c.slug) }}">Entries</a>
                 <a class="pill" href="{{ url_for('admin_charity_users', slug=c.slug) }}">Users</a>
-
+                {# Stripe Connect status + onboarding button #}
+                {% set acct = (c.stripe_account_id or '') %}
+                {% if acct.startswith('acct_') %}
+                  <span class="badge ok" style="margin-left:6px">STRIPE CONNECTED</span>
+                  <form method="post" action="{{ url_for('admin_connect_stripe', slug=c.slug) }}"
+                        style="display:inline" title="Re-open onboarding if the charity needs to update details">
+                    <button class="pill" type="submit">Re-open Stripe</button>
+                  </form>
+                {% set cs = connect_status.get(c.id) %}
+                {% if cs and cs.ok %}
+                  {% if cs.charges_enabled and cs.payouts_enabled %}
+                       <span class="badge ok" style="margin-left:6px">READY</span>
+                  {% else %}
+                       <span class="badge warn" style="margin-left:6px">NEEDS INFO</span>
+                  {% endif %}
+                {% endif %}
+                {% else %}
+                  <form method="post" action="{{ url_for('admin_connect_stripe', slug=c.slug) }}"
+                        style="display:inline">
+                    <button class="pill" type="submit">Connect Stripe</button>
+                  </form>
+                {% endif %}
                 <form method="post" action="{{ url_for('admin_delete_charity', slug=c.slug) }}"
                       style="display:inline" onsubmit="return confirm('Delete this campaign and all its entries/users? This cannot be undone.');">
                   <button class="pill" type="submit">Delete</button>
@@ -3070,8 +3218,56 @@ def admin_charities():
         msg=msg,
         charities=charities,
         remaining=remaining,
+        connect_status=connect_status,
         title="Manage Charities",
     )
+
+@app.route("/admin/charity/<slug>/connect-stripe", methods=["POST"])
+def admin_connect_stripe(slug):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+
+    # 1) Create connected account if it doesn't exist
+    if not charity.stripe_account_id:
+        acct = stripe.Account.create(
+            type="express",
+            country="GB",
+            capabilities={
+                "card_payments": {"requested": True},
+                "transfers": {"requested": True},
+            },
+            metadata={
+                "charity_slug": charity.slug,
+                "charity_name": charity.name,
+            },
+        )
+        charity.stripe_account_id = acct["id"]
+        db.session.commit()
+
+    # 2) Generate Stripe onboarding link
+    refresh_url = url_for(
+        "edit_charity",
+        slug=charity.slug,
+        _external=True
+    ) + "?stripe=refresh"
+
+    return_url = url_for(
+        "edit_charity",
+        slug=charity.slug,
+        _external=True
+    ) + "?stripe=return"
+
+    link = stripe.AccountLink.create(
+        account=charity.stripe_account_id,
+        refresh_url=refresh_url,
+        return_url=return_url,
+        type="account_onboarding",
+    )
+
+    return redirect(link["url"])
+
 
 @app.post("/admin/charity/<slug>/status")
 def admin_set_campaign_status(slug):
@@ -3084,6 +3280,13 @@ def admin_set_campaign_status(slug):
     if new_status not in ("live", "inactive", "sold_out", "coming_soon"):
         flash("Invalid status.")
         return redirect(url_for("edit_charity", slug=slug))
+
+    # Hard safety: do not allow campaign to go LIVE unless Stripe Connect is set
+    if new_status == "live":
+        acct = (getattr(charity, "stripe_account_id", None) or "").strip()
+        if not acct.startswith("acct_"):
+            flash("Cannot set LIVE: this charity is not connected to Stripe for payouts yet.")
+            return redirect(url_for("edit_charity", slug=slug))
 
     charity.campaign_status = new_status
     db.session.commit()
@@ -3139,6 +3342,10 @@ def edit_charity(slug):
     if request.method == "POST":
         charity.name = request.form.get("name", charity.name).strip()
         charity.donation_url = request.form.get("donation_url", charity.donation_url).strip()
+        # Stripe Connect account (acct_...)
+        stripe_acct = (request.form.get("stripe_account_id") or "").strip()
+        charity.stripe_account_id = stripe_acct or None
+
 
         # Optional: replace logo if a new one is uploaded
         f = request.files.get("logo_file")
@@ -3230,6 +3437,10 @@ def edit_charity(slug):
     <form method="post" enctype="multipart/form-data" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
       <label>Donation URL <input type="url" name="donation_url" value="{{ charity.donation_url }}" required></label>
+      <label>Stripe Connected Account ID (acct_...)
+        <input type="text" name="stripe_account_id" value="{{ charity.stripe_account_id or '' }}" placeholder="acct_123...">
+        <small class="muted">This must match the connected charity account in Stripe Connect.</small>
+      </label>
       <label>Max number <input type="number" name="max_number" value="{{ charity.max_number }}" min="1"></label>
       <label>Draw date &amp; time (optional)
         <input type="datetime-local" name="draw_at" value="{{ draw_value }}">
@@ -3274,6 +3485,28 @@ def edit_charity(slug):
         <input type="checkbox" name="optional_donation_enabled" {% if charity.optional_donation_enabled %}checked{% endif %}>
         Optional donation amount (allow £0 / editable donation)
       </label>
+
+      <h3 style="margin-top:18px;">Stripe Connect (where donations get paid)</h3>
+
+      <label style="margin-top:10px;display:block">
+        Charity’s Stripe Connected Account ID
+        <input
+          type="text"
+          name="stripe_account_id"
+          value="{{ charity.stripe_account_id or '' }}"
+          placeholder="acct_1234..."
+        >
+        <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.4">
+          This should be the charity’s Stripe Connect account ID (starts with <code>acct_</code>).
+          Your code will use this to route captured donations to the correct charity.
+        </div>
+      </label>
+
+      {% if charity.stripe_account_id %}
+        <p class="muted" style="margin-top:8px">
+          Currently set to: <strong>{{ charity.stripe_account_id }}</strong>
+        </p>
+      {% endif %}
 
       <h3 style="margin-top:18px;">Skill-Based Question</h3>
 
@@ -3897,6 +4130,8 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN optional_donation_enabled BOOLEAN DEFAULT 0"))
             if 'skill_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_enabled BOOLEAN DEFAULT 0"))
+            if 'stripe_account_id' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN stripe_account_id VARCHAR(255)"))
             if 'skill_question' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_question TEXT"))
             if 'skill_image_data' not in charity_cols:
@@ -3919,12 +4154,23 @@ with app.app_context():
     db.create_all()
     try:
         insp = inspect(db.engine)
-        cols = {c['name'] for c in insp.get_columns('entry')}
+
+        # ---- entry table ----
+        entry_cols = {c['name'] for c in insp.get_columns('entry')}
         with db.engine.begin() as conn:
-            if 'paid' not in cols:
+            if 'paid' not in entry_cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN paid BOOLEAN DEFAULT 0"))
-            if 'paid_at' not in cols:
+            if 'paid_at' not in entry_cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN paid_at DATETIME"))
+            if 'stripe_account_id' not in entry_cols:
+                conn.execute(text("ALTER TABLE entry ADD COLUMN stripe_account_id VARCHAR(64)"))
+
+        # ---- charity table ----
+        charity_cols = {c['name'] for c in insp.get_columns('charity')}
+        with db.engine.begin() as conn:
+            if 'stripe_account_id' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN stripe_account_id VARCHAR(64)"))
+        
     except Exception as e:
         print("Auto-migration check failed:", e)
 
