@@ -352,11 +352,13 @@ LAYOUT = """
     border:1px solid rgba(207,227,234,0.95);
     background:rgba(228,243,247,0.55);
   }
+
   .cause-poster img{
     width:100%;
     height:110px;          /* keeps it compact */
-    object-fit:cover;      /* crops nicely */
+    object-fit:contain;    /* NO CROPPING */
     display:block;
+    background:rgba(255,255,255,0.65);  /* subtle letterbox if needed */
   }
 
   .tile-progress{
@@ -1914,8 +1916,18 @@ def charity_page(slug):
 
       {% if poster_data %}
         <img src="{{ poster_data }}" alt="{{ charity.name }} campaign poster"
-             style="width:100%;max-width:720px;margin:14px auto 0;border-radius:16px;display:block;border:1px solid var(--border);box-shadow:0 14px 34px rgba(3,46,66,0.14);">
+             style="
+               display:block;
+               margin:14px auto 0;
+               max-width:220px;     /* similar scale to old logo */
+               width:100%;
+               height:auto;         /* preserves aspect ratio */
+               border-radius:16px;
+               border:1px solid var(--border);
+               box-shadow:0 10px 24px rgba(3,46,66,0.12);
+             ">
       {% endif %}
+
             <p>
         We place a temporary hold on your card before giving you a number.
         Once your donation is confirmed, the hold will be released.
