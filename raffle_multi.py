@@ -154,6 +154,8 @@ class Charity(db.Model):
     draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)
     is_live = db.Column(db.Boolean, nullable=False, default=True)  # campaign on/off
     logo_data = db.Column(db.Text, nullable=True)  # data URI for uploaded logo
+    tile_about = db.Column(db.Text, nullable=True)   # short 1–2 sentence “about” for homepage tile
+    prizes_json = db.Column(db.Text, nullable=True)  # JSON array of prizes (strings)
     campaign_status = db.Column(db.String(20), nullable=False, default="live")    
     hold_amount_pence = db.Column(db.Integer, nullable=False, default=20000)
     is_sold_out = db.Column(db.Boolean, nullable=False, default=False)
@@ -271,6 +273,115 @@ LAYOUT = """
   .banner-remaining{
     background: rgba(0,0,0,.06);
     border: 1px solid rgba(0,0,0,.08);
+  }
+
+  .section-title{
+    text-align:center;
+    margin:6px 0 8px;
+  }
+  .section-subtitle{
+    text-align:center;
+    max-width:780px;
+    margin:0 auto 16px;
+  }
+
+  .tiles-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
+    justify-content:center;          /* keeps tiles centered as you add more */
+    gap:14px;
+    margin-top:14px;
+  }
+
+  .cause-tile{
+    position:relative;
+    background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,254,255,0.95));
+    border:1px solid rgba(207,227,234,0.95);
+    border-radius:18px;
+    box-shadow:0 16px 40px rgba(3,46,66,0.10);
+    overflow:hidden;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    min-height: 360px;
+  }
+
+  .cause-top{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:10px;
+  }
+
+  .cause-img{
+    width:54px;height:54px;
+    border-radius:14px;
+    border:1px solid rgba(207,227,234,0.95);
+    background:rgba(228,243,247,0.8);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+    flex:0 0 auto;
+  }
+  .cause-img img{width:100%;height:100%;object-fit:cover;display:block;}
+
+  .cause-name{
+    font-weight:900;
+    font-size:15px;
+    line-height:1.2;
+  }
+
+  .cause-prizes{
+    font-size:13px;
+    margin-top:6px;
+    line-height:1.35;
+  }
+
+  .cause-about{
+    margin-top:10px;
+    font-size:13px;
+    line-height:1.45;
+    color:var(--muted);
+    flex: 1 1 auto;
+  }
+
+  .tile-progress{
+    margin-top:12px;
+  }
+  .progress-track{
+    height:8px;
+    border-radius:999px;
+    background:rgba(207,227,234,0.75);
+    overflow:hidden;
+    border:1px solid rgba(207,227,234,0.9);
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg, var(--brand), var(--brand-2));
+  }
+
+  .tile-cta{
+    margin-top:12px;
+  }
+  .tile-cta .btn{
+    width:100%;
+    justify-content:center;
+  }
+  .btn[disabled]{
+    opacity:0.55;
+    cursor:not-allowed;
+  }
+
+  .ribbon{
+    position:absolute;
+    top:12px; right:12px;
+    padding:6px 10px;
+    font-size:12px;
+    font-weight:800;
+    border-radius:999px;
+    background:rgba(18,49,61,0.92);
+    color:#fff;
+    border:1px solid rgba(255,255,255,0.15);
   }
 
 @media (max-width:600px){
@@ -1140,6 +1251,54 @@ def _parse_skill_answers(raw: str):
         dedup.append(s)
     return dedup
 
+def _parse_prizes(raw: str):
+    """
+    Accepts either:
+      - newline separated prizes
+      - OR JSON array string
+    Returns: clean list[str]
+    """
+    if not raw:
+        return []
+    raw = raw.strip()
+    if not raw:
+        return []
+
+    # Try JSON first
+    try:
+        data = json.loads(raw)
+        if isinstance(data, list):
+            out = []
+            for x in data:
+                s = (str(x) if x is not None else "").strip()
+                if s:
+                    out.append(s)
+            # de-dupe preserving order (case-insensitive)
+            seen = set()
+            dedup = []
+            for s in out:
+                key = s.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                dedup.append(s)
+            return dedup[:20]
+    except Exception:
+        pass
+
+    # Fallback: newline list
+    lines = [ln.strip() for ln in raw.splitlines()]
+    out = [ln for ln in lines if ln]
+    seen = set()
+    dedup = []
+    for s in out:
+        key = s.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(s)
+    return dedup[:20]
+
 def get_connect_status(acct_id):
     """
     Returns a dict like:
@@ -1259,14 +1418,116 @@ def compute_hold_amount_pence(charity) -> int:
 @app.route("/")
 def home():
     charities = Charity.query.order_by(Charity.name.asc()).all()
+
+    tiles = []
+    for c in charities:
+        maxn = int(getattr(c, "max_number", 0) or 0)
+        rem = len(available_numbers(c)) if maxn > 0 else 0
+        sold = max(0, maxn - rem)
+        pct = int(round((sold / maxn) * 100)) if maxn > 0 else 0
+        pct = max(0, min(100, pct))
+
+        status = (getattr(c, "campaign_status", "live") or "live").strip()
+        # fall back to older boolean flags if present
+        if getattr(c, "is_sold_out", False):
+            status = "sold_out"
+        if getattr(c, "is_coming_soon", False):
+            status = "coming_soon"
+        if not getattr(c, "is_live", True) and status == "live":
+            status = "inactive"
+
+        banner = ""
+        if status == "sold_out":
+            banner = "SOLD OUT"
+        elif status == "coming_soon":
+            banner = "COMING SOON"
+        elif status == "inactive":
+            banner = "INACTIVE"
+
+        blocked = status in ("inactive", "sold_out", "coming_soon")
+
+        about = (getattr(c, "tile_about", None) or "").strip()
+
+        prizes = []
+        try:
+            prizes = _parse_prizes(getattr(c, "prizes_json", "") or "")
+        except Exception:
+            prizes = []
+
+        tiles.append({
+            "slug": c.slug,
+            "name": c.name,
+            "img": getattr(c, "logo_data", None),
+            "about": about,
+            "prizes": prizes,
+            "pct": pct,
+            "banner": banner,
+            "blocked": blocked,
+            "status": status,
+        })
+
     body = """
-    <h2>Pick a charity</h2>
-    <p class="muted">Choose a charity to support:</p>
-    <div>
-      {% for c in charities %}
-        <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}"><strong>{{ c.name }}</strong></a>
+    <div class="hero" style="text-align:center;">
+      <h1 class="section-title">Choose a Charity to Support</h1>
+      <p class="muted section-subtitle">
+        Your contribution matters. Select a charity below to ensure your ticket donation supports a cause you believe in.
+      </p>
+    </div>
+
+    <div class="tiles-grid">
+      {% for t in tiles %}
+        <div class="cause-tile">
+          {% if t.banner %}
+            <div class="ribbon">{{ t.banner }}</div>
+          {% endif %}
+
+          <div class="cause-top">
+            <div class="cause-img">
+              {% if t.img %}
+                <img src="{{ t.img }}" alt="{{ t.name }} logo">
+              {% else %}
+                <span style="font-size:18px">🤍</span>
+              {% endif %}
+            </div>
+            <div>
+              <div class="cause-name">{{ t.name }}</div>
+
+              {% if t.prizes and (t.prizes|length) > 0 %}
+                <div class="cause-prizes">
+                  <strong>{% if (t.prizes|length) == 1 %}Prize{% else %}Prizes{% endif %}:</strong>
+                  {{ t.prizes[:2] | join(" • ") }}{% if (t.prizes|length) > 2 %} • …{% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="cause-about">
+            {% if t.about %}
+              {{ t.about }}
+            {% else %}
+              Support this campaign by taking part and confirming your donation after your number is revealed.
+            {% endif %}
+          </div>
+
+          <div class="tile-progress">
+            <div class="muted" style="font-size:12px;margin-bottom:6px;">Tickets sold</div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width: {{ t.pct }}%;"></div>
+            </div>
+          </div>
+
+          <div class="tile-cta">
+            {% if not t.blocked %}
+              <a class="btn" href="{{ url_for('charity_page', slug=t.slug) }}">Select this Cause</a>
+            {% else %}
+              <button class="btn" type="button" disabled>
+                {% if t.status == "sold_out" %}Sold out{% elif t.status == "coming_soon" %}Coming Soon{% else %}Unavailable{% endif %}
+              </button>
+            {% endif %}
+          </div>
+        </div>
       {% else %}
-        <p class="muted">
+        <p class="muted" style="text-align:center;">
           No charities yet. Use <a href="{{ url_for('admin_charities') }}">Admin</a> to add one.
         </p>
       {% endfor %}
@@ -1275,21 +1536,21 @@ def home():
     <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
     <div class="hero">
-      <h1>How Get My Number Works</h1>
-      <p class="muted">
-        A simple, transparent raffle where your card is held for a maximum amount first,
-        and you only donate the value of the ticket number you receive.
+      <h1 class="section-title">How Get My Number Works</h1>
+      <p class="muted section-subtitle">
+        A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
       </p>
     </div>
 
     <div class="steps-grid">
-
+      <!-- keep your existing step cards exactly as they were -->
+      """ + """
       <div class="step-card">
         <div class="step-header">
           <div class="step-icon">👤</div>
           <div>
             <div class="step-label">Step 1</div>
-            <div class="step-title">Enter your details</div>
+            <div class="step-title">Enter your Details</div>
           </div>
         </div>
         <div class="step-body">
@@ -1302,12 +1563,12 @@ def home():
           <div class="step-icon">🧠</div>
           <div>
             <div class="step-label">Step 2</div>
-            <div class="step-title">Optional quick question</div>
+            <div class="step-title">Optional Multiple-Choice Question</div>
           </div>
         </div>
         <div class="step-body">
           Some campaigns include an optional multiple-choice question before you proceed.
-          If it’s enabled for that charity, you’ll need to answer the question correctly to continue.
+          If it is enabled for that charity, you will be recquired to answer the question correctly to continue.
         </div>
       </div>
 
@@ -1316,13 +1577,13 @@ def home():
           <div class="step-icon">💳</div>
           <div>
             <div class="step-label">Step 3</div>
-            <div class="step-title">Temporary card hold</div>
+            <div class="step-title">Temporary Card Hold</div>
           </div>
         </div>
         <div class="step-body">
-          You are redirected to our secure Stripe checkout where a temporary hold
+          You will be redirected to our secure Stripe checkout where a temporary hold
           is placed on your card. This is an authorisation only – no money is taken at this point.
-          Alternatively, there is a free postal route. 
+          Alternatively, there is a free postal route.
         </div>
       </div>
 
@@ -1331,13 +1592,12 @@ def home():
           <div class="step-icon">🎟️</div>
           <div>
             <div class="step-label">Step 4</div>
-            <div class="step-title">Receive your ticket number</div>
+            <div class="step-title">Receive your Ticket Number</div>
           </div>
         </div>
         <div class="step-body">
           Once the hold is confirmed, you are redirected back to Get My Number and assigned
-          a unique ticket number for your chosen charity. This number is shown on screen
-          and stored against your entry.
+          a unique ticket number for your chosen charity.
         </div>
       </div>
 
@@ -1346,11 +1606,11 @@ def home():
           <div class="step-icon">✅</div>
           <div>
             <div class="step-label">Step 5</div>
-            <div class="step-title">Donate your ticket amount</div>
+            <div class="step-title">Donate your Ticket Amount</div>
           </div>
         </div>
         <div class="step-body">
-          Confirm your donation for an amount equal to your ticket number
+          Confirm your donation for an amount equal to your ticket number.
           We capture only this amount from the original card hold.
         </div>
       </div>
@@ -1360,18 +1620,18 @@ def home():
           <div class="step-icon">💷</div>
           <div>
             <div class="step-label">Step 6</div>
-            <div class="step-title">Remaining hold is released</div>
+            <div class="step-title">Remaining Hold is Released</div>
           </div>
         </div>
         <div class="step-body">
           Any difference between the original hold and your ticket amount is released
-          by your bank. You only donate the value of your final ticket number.
+          by your bank.
         </div>
       </div>
-
     </div>
     """
-    return render(body, charities=charities, title="Get My Number")
+
+    return render(body, tiles=tiles, title="Get My Number")
 
 @app.route("/terms")
 def terms():
@@ -3088,6 +3348,12 @@ def admin_charities():
                     b64 = base64.b64encode(raw).decode("ascii")
                     logo_data = f"data:{mime};base64,{b64}"
 
+            tile_about = (request.form.get("tile_about") or "").strip()
+
+            raw_prizes = (request.form.get("prizes") or "").strip()
+            prizes_list = _parse_prizes(raw_prizes)
+            prizes_json = json.dumps(prizes_list) if prizes_list else None
+
             if not slug or not name or not url:
                 msg = "All fields are required."
             existing = Charity.query.filter_by(slug=slug).first()
@@ -3098,6 +3364,8 @@ def admin_charities():
                 existing.draw_at = draw_at
                 if logo_data:
                     existing.logo_data = logo_data
+                existing.tile_about = tile_about
+                existing.prizes_json = prizes_json
                 db.session.commit()
                 msg = f"Updated. Public page: /{slug}"
 
@@ -3111,6 +3379,8 @@ def admin_charities():
                     max_number=maxn,
                     draw_at=draw_at,
                     logo_data=logo_data,
+                    tile_about=tile_about,
+                    prizes_json=prizes_json,
                 )
                 db.session.add(c)
                 db.session.commit()
@@ -3147,8 +3417,16 @@ def admin_charities():
         <label>Draw date &amp; time (optional)
           <input type="datetime-local" name="draw_at">
         </label>
-        <label>Logo (optional)
+        <label>Tile image / logo (optional)
           <input type="file" name="logo_file" accept="image/*">
+        </label>
+
+        <label>Short “About” (homepage tile)
+          <textarea name="tile_about" rows="3" placeholder="1–2 sentences about this cause..."></textarea>
+        </label>
+
+        <label>Prizes (one per line)
+          <textarea name="prizes" rows="4" placeholder="Prize 1&#10;Prize 2&#10;Prize 3"></textarea>
         </label>
         <div style="margin-top:8px"><button class="btn">Add / Save</button></div>
       </form>
@@ -3355,6 +3633,11 @@ def edit_charity(slug):
                 mime = f.mimetype or "image/png"
                 b64 = base64.b64encode(raw).decode("ascii")
                 charity.logo_data = f"data:{mime};base64,{b64}"
+        charity.tile_about = (request.form.get("tile_about") or "").strip()
+
+        raw_prizes = (request.form.get("prizes") or "").strip()
+        prizes_list = _parse_prizes(raw_prizes)
+        charity.prizes_json = json.dumps(prizes_list) if prizes_list else None
 
         # New: update draw_at
         draw_raw = request.form.get("draw_at", "").strip()
@@ -3445,9 +3728,18 @@ def edit_charity(slug):
       <label>Draw date &amp; time (optional)
         <input type="datetime-local" name="draw_at" value="{{ draw_value }}">
       </label>
-      <label>Replace logo (optional)
+      <label>Tile image / logo (optional)
         <input type="file" name="logo_file" accept="image/*">
       </label>
+
+      <label>Short “About” (homepage tile)
+        <textarea name="tile_about" rows="3" placeholder="1–2 sentences about this cause...">{{ charity.tile_about or "" }}</textarea>
+      </label>
+
+      <label>Prizes (one per line)
+        <textarea name="prizes" rows="5" placeholder="Prize 1&#10;Prize 2&#10;Prize 3">{{ prizes_text or "" }}</textarea>
+      </label>
+
       <label>Hold amount (pence)
         <input
           type="number"
@@ -3596,6 +3888,12 @@ def edit_charity(slug):
     except Exception:
         skill_answers_text = ""
 
+    prizes_text = ""
+    try:
+        prizes_text = "\n".join(_parse_prizes(getattr(charity, "prizes_json", "") or ""))
+    except Exception:
+        prizes_text = ""
+
     return render(
         body, 
         charity=charity,
@@ -3604,6 +3902,7 @@ def edit_charity(slug):
         skill_answers_text=skill_answers_text, 
         min_hold=min_hold_gbp,
         current_hold_gbp=current_hold_gbp,
+        prizes_text=prizes_text,
         title=f"Edit {charity.name}",
     )
 
@@ -4170,6 +4469,10 @@ with app.app_context():
         with db.engine.begin() as conn:
             if 'stripe_account_id' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN stripe_account_id VARCHAR(64)"))
+            if 'tile_about' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN tile_about TEXT"))
+            if 'prizes_json' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN prizes_json TEXT"))
         
     except Exception as e:
         print("Auto-migration check failed:", e)
@@ -4205,7 +4508,7 @@ def charities():
 
     body = """
     <h2>Choose a charity</h2>
-    <p class="muted">Pick a charity raffle page below:</p>
+    <p class="muted">Pick a Charity raffle page below:</p>
     <div class="stack" style="margin-top:10px;flex-wrap:wrap;">
       {% for c in rows %}
         <a class="pill" href="{{ url_for('charity_page', slug=c.slug) }}">
