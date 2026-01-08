@@ -154,6 +154,7 @@ class Charity(db.Model):
     draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)
     is_live = db.Column(db.Boolean, nullable=False, default=True)  # campaign on/off
     logo_data = db.Column(db.Text, nullable=True)  # data URI for uploaded logo
+    poster_data = db.Column(db.Text, nullable=True)  # data URI for optional campaign poster
     tile_about = db.Column(db.Text, nullable=True)   # short 1–2 sentence “about” for homepage tile
     prizes_json = db.Column(db.Text, nullable=True)  # JSON array of prizes (strings)
     campaign_status = db.Column(db.String(20), nullable=False, default="live")    
@@ -342,6 +343,20 @@ LAYOUT = """
     line-height:1.45;
     color:var(--muted);
     flex: 1 1 auto;
+  }
+
+  .cause-poster{
+    margin-top:10px;
+    border-radius:16px;
+    overflow:hidden;
+    border:1px solid rgba(207,227,234,0.95);
+    background:rgba(228,243,247,0.55);
+  }
+  .cause-poster img{
+    width:100%;
+    height:110px;          /* keeps it compact */
+    object-fit:cover;      /* crops nicely */
+    display:block;
   }
 
   .tile-progress{
@@ -1458,6 +1473,7 @@ def home():
             "slug": c.slug,
             "name": c.name,
             "img": getattr(c, "logo_data", None),
+            "poster": getattr(c, "poster_data", None),
             "about": about,
             "prizes": prizes,
             "pct": pct,
@@ -1501,6 +1517,11 @@ def home():
             </div>
           </div>
 
+          {% if t.poster %}
+            <div class="cause-poster">
+              <img src="{{ t.poster }}" alt="{{ t.name }} poster">
+            </div>
+          {% endif %}
           <div class="cause-about">
             {% if t.about %}
               {{ t.about }}
@@ -1510,7 +1531,7 @@ def home():
           </div>
 
           <div class="tile-progress">
-            <div class="muted" style="font-size:12px;margin-bottom:6px;">Tickets sold</div>
+            <div class="muted" style="font-size:12px;margin-bottom:6px;">Tickets Sold</div>
             <div class="progress-track">
               <div class="progress-fill" style="width: {{ t.pct }}%;"></div>
             </div>
@@ -1535,7 +1556,7 @@ def home():
 
     <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
-    <div class="hero">
+    <div class="hero" style="text-align:center;">
       <h1 class="section-title">How Get My Number Works</h1>
       <p class="muted section-subtitle">
         A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
@@ -1589,7 +1610,7 @@ def home():
 
       <div class="step-card">
         <div class="step-header">
-          <div class="step-icon">🎟️</div>
+          <div class="step-icon">🏷️</div>
           <div>
             <div class="step-label">Step 4</div>
             <div class="step-title">Receive your Ticket Number</div>
@@ -1795,6 +1816,7 @@ def charity_page(slug):
     charity_logo = getattr(charity, "logo_data", None) or (
         KEHILLA_LOGO_DATA_URI if charity.slug == "thekehilla" else None
     )
+    poster_data = (getattr(charity, "poster_data", None) or "").strip() or None
 
     # Auto-switch to sold out if no tickets remain
     refresh_campaign_status(charity)
@@ -1870,7 +1892,6 @@ def charity_page(slug):
 
     <div class="hero">
       <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
-      <h1>{{ charity.name }}</h1>
       {% if status == "sold_out" %}
         <div class="banner banner-soldout">Sold out</div>
       {% elif status == "coming_soon" %}
@@ -1883,9 +1904,17 @@ def charity_page(slug):
         <div class="banner banner-remaining">{{ remaining_banner }}</div>
       {% endif %}
 
-      {% if charity_logo %}
-        <img src="{{ charity_logo }}" alt="{{ charity.name }} logo"
-             style="max-width:180px;margin:12px 0;border-radius:12px;">
+      <div style="display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:6px;">
+        {% if charity_logo %}
+          <img src="{{ charity_logo }}" alt="{{ charity.name }} logo"
+               style="width:52px;height:52px;border-radius:14px;border:1px solid var(--border);object-fit:cover;">
+        {% endif %}
+        <h1 style="margin:0">{{ charity.name }}</h1>
+      </div>
+
+      {% if poster_data %}
+        <img src="{{ poster_data }}" alt="{{ charity.name }} campaign poster"
+             style="width:100%;max-width:720px;margin:14px auto 0;border-radius:16px;display:block;border:1px solid var(--border);box-shadow:0 14px 34px rgba(3,46,66,0.14);">
       {% endif %}
             <p>
         We place a temporary hold on your card before giving you a number.
@@ -2011,6 +2040,7 @@ def charity_page(slug):
         step_total=step_total,
         draw_iso=draw_iso,
         charity_logo=charity_logo,
+        poster_data=poster_data,
         status=status,
         is_blocked=is_blocked
     )
@@ -3348,6 +3378,15 @@ def admin_charities():
                     b64 = base64.b64encode(raw).decode("ascii")
                     logo_data = f"data:{mime};base64,{b64}"
 
+            poster_data = None
+            pf = request.files.get("poster_file")
+            if pf and pf.filename:
+                raw = pf.read()
+                if raw:
+                    mime = pf.mimetype or "image/png"
+                    b64 = base64.b64encode(raw).decode("ascii")
+                    poster_data = f"data:{mime};base64,{b64}"
+
             tile_about = (request.form.get("tile_about") or "").strip()
 
             raw_prizes = (request.form.get("prizes") or "").strip()
@@ -3364,6 +3403,8 @@ def admin_charities():
                 existing.draw_at = draw_at
                 if logo_data:
                     existing.logo_data = logo_data
+                if poster_data:
+                    existing.poster_data = poster_data
                 existing.tile_about = tile_about
                 existing.prizes_json = prizes_json
                 db.session.commit()
@@ -3379,6 +3420,7 @@ def admin_charities():
                     max_number=maxn,
                     draw_at=draw_at,
                     logo_data=logo_data,
+                    poster_data=poster_data,
                     tile_about=tile_about,
                     prizes_json=prizes_json,
                 )
@@ -3420,6 +3462,9 @@ def admin_charities():
         <label>Tile image / logo (optional)
           <input type="file" name="logo_file" accept="image/*">
         </label>
+       <label>Campaign poster (optional)
+         <input type="file" name="poster_file" accept="image/*">
+       </label>
 
         <label>Short “About” (homepage tile)
           <textarea name="tile_about" rows="3" placeholder="1–2 sentences about this cause..."></textarea>
@@ -3633,6 +3678,14 @@ def edit_charity(slug):
                 mime = f.mimetype or "image/png"
                 b64 = base64.b64encode(raw).decode("ascii")
                 charity.logo_data = f"data:{mime};base64,{b64}"
+        # Optional: upload campaign poster (stored as data URI)
+        pf = request.files.get("poster_file")
+        if pf and pf.filename:
+            raw = pf.read()
+            if raw:
+                mime = pf.mimetype or "image/png"
+                b64 = base64.b64encode(raw).decode("ascii")
+                charity.poster_data = f"data:{mime};base64,{b64}"
         charity.tile_about = (request.form.get("tile_about") or "").strip()
 
         raw_prizes = (request.form.get("prizes") or "").strip()
@@ -3731,6 +3784,16 @@ def edit_charity(slug):
       <label>Tile image / logo (optional)
         <input type="file" name="logo_file" accept="image/*">
       </label>
+
+      <label>Campaign poster (optional)
+        <input type="file" name="poster_file" accept="image/*">
+      </label>
+
+      {% if charity.poster_data %}
+        <div class="muted" style="margin-top:6px;font-size:12px;">Current poster preview:</div>
+        <img src="{{ charity.poster_data }}" alt="Poster preview"
+             style="width:140px;height:86px;object-fit:cover;border-radius:12px;border:1px solid var(--border);display:block;margin-top:8px;">
+      {% endif %}
 
       <label>Short “About” (homepage tile)
         <textarea name="tile_about" rows="3" placeholder="1–2 sentences about this cause...">{{ charity.tile_about or "" }}</textarea>
@@ -4473,7 +4536,9 @@ with app.app_context():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN tile_about TEXT"))
             if 'prizes_json' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN prizes_json TEXT"))
-        
+            if 'poster_data' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN poster_data TEXT"))
+
     except Exception as e:
         print("Auto-migration check failed:", e)
 
