@@ -1152,7 +1152,7 @@ LAYOUT = """
          </div>
        </nav>
 
-       {% if flow_progress_pct is not none %}
+       {% if flow_progress_pct is defined and flow_progress_pct is not none %}
          <div class="flow-progress">
            <div class="flow-progress-meta">
              <div class="flow-progress-left">Step {{ step_current }} of {{ step_total }}</div>
@@ -3308,6 +3308,7 @@ def confirm_payment(entry_id):
         ticks_block_final=ticks_block_final,
         step_current=step_current,
         step_total=step_total,
+        flow_progress_pct=flow_progress_pct(charity, "confirmed"),
         title=f"{charity.name} – Thank you",
     )
 
