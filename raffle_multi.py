@@ -411,6 +411,162 @@ LAYOUT = """
     background:#fff;  
   }
 
+  /* --- Charity page (Stitch-style card layout) --- */
+  .campaign-card{
+    max-width:540px;
+    margin:18px auto 0;
+    background:#fff;
+    border:1px solid var(--border);
+    border-radius:22px;
+    box-shadow:0 18px 45px rgba(3,46,66,0.10);
+    overflow:hidden;
+  }
+
+  .campaign-header{
+    text-align:center;
+    padding:22px 22px 10px;
+  }
+
+  .campaign-logo{
+    width:66px;
+    height:66px;
+    margin:0 auto 10px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:#f6fbfd;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .campaign-logo img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+  }
+
+  .campaign-title{
+    margin:0;
+    font-size:28px;
+    letter-spacing:-0.02em;
+  }
+  .campaign-subtitle{
+    margin-top:6px;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.35;
+  }
+
+  .badge-row{
+    display:flex;
+    justify-content:center;
+    padding:14px 18px 0;
+  }
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 12px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    font-weight:700;
+    font-size:12px;
+    background:#f7fbfc;
+  }
+  .badge-soldout{ background:#fff3f3; }
+  .badge-comingsoon{ background:#fffbea; }
+  .badge-inactive{ background:#f2f4f7; }
+  .badge-remaining{ background:#f0fffb; }
+
+  .campaign-poster-wrap{
+    margin:8px 22px 0;
+    padding:18px;
+    background:#f6fbfd;
+    border:1px solid var(--border);
+    border-radius:18px;
+    display:flex;
+    justify-content:center;
+  }
+  .campaign-poster{
+    display:block;
+    width:100%;
+    max-width:240px;
+    height:auto;
+    border-radius:14px;
+    border:1px solid var(--border);
+    box-shadow:0 10px 24px rgba(3,46,66,0.12);
+  }
+
+  .campaign-form{
+    padding:18px 22px 8px;
+  }
+
+  .field{ display:block; margin:0 0 12px; }
+  .field-label{
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin:0 0 6px;
+  }
+  .field-label-row{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+  }
+
+  .btn.btn-lg{
+    padding:14px 16px;
+    border-radius:16px;
+    font-size:16px;
+  }
+
+  .micro-note{
+    text-align:center;
+    margin-top:10px;
+    font-size:12px;
+  }
+
+  .campaign-footer{
+    margin-top:10px;
+    padding:14px 22px 18px;
+    background:#fbfdfe;
+    border-top:1px solid var(--border);
+  }
+  .tickets-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:10px;
+    margin-bottom:8px;
+  }
+  .tickets-label{
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .tickets-value{
+    font-weight:800;
+    color:var(--ink);
+    font-size:13px;
+  }
+
+  .progress.progress-slim{
+    height:8px;
+    border-radius:999px;
+  }
+
+  .tickets-help{
+    margin-top:10px;
+    font-size:13px;
+    line-height:1.35;
+    text-align:center;
+  }
+
   .tile-progress{
     margin-top:12px;
   }
@@ -489,7 +645,6 @@ LAYOUT = """
     /* No animation, no movement */
     transition:box-shadow .25s ease;
    }
-
 
   .logo strong{
     letter-spacing:0.03em;
@@ -1962,151 +2117,89 @@ def charity_page(slug):
 
     body = """
 
-    <div class="hero">
-      {% if status == "sold_out" %}
-        <div class="banner banner-soldout">Sold out</div>
-      {% elif status == "coming_soon" %}
-        <div class="banner banner-comingsoon">Coming soon</div>
-      {% elif status == "inactive" %}
-        <div class="banner banner-inactive">Inactive</div>
-      {% endif %}
+        <div class="hero">
+          <div class="campaign-card">
 
-      {% if remaining_banner %}
-        <div class="banner banner-remaining">{{ remaining_banner }}</div>
-      {% endif %}
+            {% if status == "sold_out" %}
+              <div class="badge-row"><span class="badge badge-soldout">Sold Out</span></div>
+            {% elif status == "coming_soon" %}
+              <div class="badge-row"><span class="badge badge-comingsoon">Coming Soon</span></div>
+            {% elif status == "inactive" %}
+              <div class="badge-row"><span class="badge badge-inactive">Inactive</span></div>
+            {% endif %}
 
-      <div style="display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:6px;">
-        {% if charity_logo %}
-          <img src="{{ charity_logo }}" alt="{{ charity.name }} logo"
-               style="width:52px;height:52px;border-radius:14px;border:1px solid var(--border);object-fit:cover;">
-        {% endif %}
-        <h1 style="margin:0">{{ charity.name }}</h1>
-      </div>
+            {% if remaining_banner %}
+              <div class="badge-row"><span class="badge badge-remaining">{{ remaining_banner }}</span></div>
+            {% endif %}
 
-      {% if poster_data %}
-        <img src="{{ poster_data }}" alt="{{ charity.name }} campaign poster"
-             style="
-               display:block;
-               margin:14px auto 0;
-               max-width:220px;     /* similar scale to old logo */
-               width:100%;
-               height:auto;         /* preserves aspect ratio */
-               border-radius:16px;
-               border:1px solid var(--border);
-               box-shadow:0 10px 24px rgba(3,46,66,0.12);
-             ">
-      {% endif %}
-
-            <p>
-        We place a temporary hold on your card before giving you a number.
-        Once your donation is confirmed, the hold will be released.
-      </p>
-
-      {% if draw_iso %}
-      <div class="countdown-card">
-        <div class="countdown-label">
-          <div class="step-label">Raffle draw</div>
-          <div>Time left until the draw closes</div>
-        </div>
-        <div class="countdown-timer" data-target="{{ draw_iso }}">
-          <div class="cd-part">
-            <div class="cd-value" data-unit="days">--</div>
-            <div class="cd-caption">days</div>
-          </div>
-          <div class="cd-part">
-            <div class="cd-value" data-unit="hours">--</div>
-            <div class="cd-caption">hours</div>
-          </div>
-          <div class="cd-part">
-            <div class="cd-value" data-unit="minutes">--</div>
-            <div class="cd-caption">mins</div>
-          </div>
-          <div class="cd-part">
-            <div class="cd-value" data-unit="seconds">--</div>
-            <div class="cd-caption">secs</div>
-          </div>
-        </div>
-      </div>
-      {% endif %}
-
-      <div class="row" style="margin-top:10px">
-        <div style="flex:2;min-width:260px">
-        <div class="{% if is_blocked %}form-disabled{% endif %}">
-          <form method="post" data-safe-submit>
-            <label>Your Name
-              <input type="text" name="name" required placeholder="e.g. Sarah Cohen" {% if is_blocked %}disabled{% endif %}>
-            </label>
-
-            <label>Email
-              <input type="email" name="email" required placeholder="name@example.com" {% if is_blocked %}disabled{% endif %}>
-            </label>
-
-            <label>Phone (optional)
-              <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
-            </label>
-            <div class="row" style="margin-top:8px">
-
-              <button class="btn" type="submit" {% if is_blocked %}disabled{% endif %}>
-                {% if charity.preauth_page_enabled %}
-                  Continue
-                {% else %}
-                  Place Hold &amp; Get My Number
-                {% endif %}
-              </button>
+            <div class="campaign-header">
+              {% if charity_logo %}
+                <div class="campaign-logo">
+                  <img src="{{ charity_logo }}" alt="{{ charity.name }} logo">
+                </div>
+              {% endif %}
+              <h1 class="campaign-title">{{ charity.name }}</h1>
+              {% if charity.tile_about %}
+                <div class="campaign-subtitle">{{ charity.tile_about }}</div>
+              {% endif %}
             </div>
-          </form>
+
+            {% if poster_data %}
+              <div class="campaign-poster-wrap">
+                <img class="campaign-poster" src="{{ poster_data }}" alt="{{ charity.name }} campaign poster">
+              </div>
+            {% endif %}
+
+            <div class="campaign-form {% if is_blocked %}form-disabled{% endif %}">
+              <form method="post" data-safe-submit>
+
+                <label class="field">
+                  <div class="field-label">Your Name</div>
+                  <input type="text" name="name" required placeholder="e.g. Sarah Cohen" {% if is_blocked %}disabled{% endif %}>
+                </label>
+
+                <label class="field">
+                  <div class="field-label">Email Address</div>
+                  <input type="email" name="email" required placeholder="name@example.com" {% if is_blocked %}disabled{% endif %}>
+                </label>
+
+                <label class="field">
+                  <div class="field-label field-label-row">
+                    <span>Phone Number</span>
+                    <span class="muted">Optional</span>
+                  </div>
+                  <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
+                </label>
+
+                <button class="btn btn-lg" type="submit" {% if is_blocked %}disabled{% endif %}>
+                  {% if charity.preauth_page_enabled %}
+                    Continue
+                  {% else %}
+                    Place Hold &amp; Get My Number <span aria-hidden="true" style="margin-left:6px">→</span>
+                  {% endif %}
+                </button>
+
+                <div class="micro-note muted">
+                  256-bit SSL Secure Payment
+                </div>
+
+              </form>
+            </div>
+
+            <div class="campaign-footer">
+              <div class="tickets-row">
+                <div class="tickets-label">Tickets claimed</div>
+                <div class="tickets-value">{{ taken }} / {{ total }} ({{ pct }}%)</div>
+              </div>
+              <div class="progress progress-slim"><i style="width:{{ pct }}%"></i></div>
+              <div class="muted tickets-help">
+                You will be assigned a random number from the remaining pool. Your donation amount corresponds to your ticket number.
+              </div>
+            </div>
+
+          </div>
         </div>
-        <div class="sep"></div>
-        <div style="flex:1;min-width:180px">
-          <p class="muted">Taken: {{ taken }} / {{ total }} ({{ pct }}%)</p>
-          <div class="progress"><i style="width:{{ pct }}%"></i></div>
-          <p class="muted" style="margin-top:8px">
-            You will be given a random number still available.
-            Your donation amount equals your number.
-          </p>
-        </div>
-      </div>
-    {% if draw_iso %}
-    <script>
-      (function(){
-        const el = document.querySelector('.countdown-timer');
-        if (!el) return;
-        const targetStr = el.dataset.target;
-        const target = new Date(targetStr);
 
-        function pad(n){ return n < 10 ? '0' + n : '' + n; }
-
-        function update(){
-          const now = new Date();
-          let diff = target - now;
-          if (diff <= 0){
-            el.innerHTML = '<span class="muted">The raffle draw time has passed.</span>';
-            clearInterval(timer);
-            return;
-          }
-          const totalSeconds = Math.floor(diff / 1000);
-          const days = Math.floor(totalSeconds / 86400);
-          const hours = Math.floor((totalSeconds % 86400) / 3600);
-          const mins = Math.floor((totalSeconds % 3600) / 60);
-          const secs = totalSeconds % 60;
-
-          const dEl = el.querySelector('[data-unit="days"]');
-          const hEl = el.querySelector('[data-unit="hours"]');
-          const mEl = el.querySelector('[data-unit="minutes"]');
-          const sEl = el.querySelector('[data-unit="seconds"]');
-
-          if (dEl) dEl.textContent = days;
-          if (hEl) hEl.textContent = pad(hours);
-          if (mEl) mEl.textContent = pad(mins);
-          if (sEl) sEl.textContent = pad(secs);
-        }
-
-        update();
-        const timer = setInterval(update, 1000);
-      })();
-    </script>
-    {% endif %}
-    </div>
     """
     return render(
         body,
