@@ -2897,7 +2897,7 @@ def hold_success(slug):
        <p class="muted">Press the button to reveal your ticket number.</p>
      </div>
 
-     <div class="card" style="text-align:center;">
+     <div style="text-align:center;">
        <button id="reveal-btn" class="btn" type="button">Get My Number</button>
      <div id="reveal-status" class="small muted" style="display:none;">
        Revealing your ticket number…
