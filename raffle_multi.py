@@ -306,6 +306,23 @@ LAYOUT = """
   text-align:center;
 }
 
+/* Skill page: compact side-by-side actions */
+.skill-actions{
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  margin-top:14px;
+  flex-wrap:wrap; /* safe on small screens */
+}
+
+/* Opt-out of full-width buttons for skill page */
+.skill-actions .btn-skill{
+  width:auto;              /* override .layout-narrow .btn{ width:100% } */
+  padding:8px 18px;
+  font-size:14px;
+  border-radius:14px;
+}
+
 /* Progress bar should match card width cleanly */
 .layout-narrow .flow-progress{
   padding:0;
@@ -2313,9 +2330,16 @@ def skill_gate(slug):
             </div>
 
             <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-              <button id="skillSubmit" class="btn" type="submit">Submit answer</button>
-              <a class="pill" href="{{ url_for('charity_page', slug=charity.slug) }}">Cancel</a>
-            </div>
+              <div class="skill-actions">
+                <button class="btn btn-skill" type="submit">
+                  Submit Answer
+                </button>
+
+                <a class="btn btn-skill secondary"
+                   href="{{ url_for('charity_page', slug=charity.slug) }}">
+                  Cancel
+                </a>
+              </div>
 
             <p class="muted" style="margin-top:12px;font-size:12px;text-align:center;line-height:1.4;">
               See
