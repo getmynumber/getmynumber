@@ -262,9 +262,16 @@ LAYOUT = """
     display:flex;
     align-items:center;
     justify-content:space-between;
+
+    /* FULL WIDTH BAR */
+    width:100vw;
+    margin-left:calc(50% - 50vw);
+    margin-right:calc(50% - 50vw);
+
     margin-bottom:20px;
-    padding:10px 16px;
-    border-radius:999px;
+    padding:12px 24px;
+    border-radius:0;
+
     background:rgba(255,255,255,0.96);
     border:1px solid var(--border);
     box-shadow:0 16px 35px rgba(3,46,66,0.15);
@@ -288,6 +295,51 @@ LAYOUT = """
     width: 0%;
     background: linear-gradient(90deg, var(--brand), var(--brand-2));
   }
+
+/* Narrow layout: keep the nav full width, but make progress + main card tighter */
+.layout-narrow .flow-progress,
+.layout-narrow .main-card{
+  max-width:680px;
+  margin-left:auto;
+  margin-right:auto;
+}
+
+/* Progress bar should match card width cleanly */
+.layout-narrow .flow-progress{
+  padding:0;
+}
+
+/* Make the main card feel tighter and more "form-card" premium */
+.layout-narrow .main-card{
+  padding:22px 18px;
+  text-align:center;
+}
+
+/* Make form elements align like the Stitch card */
+.layout-narrow .main-card form{
+  margin-top:12px;
+}
+.layout-narrow .main-card label{
+  text-align:center;
+}
+.layout-narrow .main-card input{
+  text-align:center;
+}
+
+/* Button same width as inputs */
+.layout-narrow .main-card .btn{
+  width:100%;
+  justify-content:center;
+}
+
+/* Soft inner panel used for Tickets Claimed */
+.soft-panel{
+  margin-top:14px;
+  padding:14px 14px;
+  border-radius:16px;
+  background:rgba(228,243,247,0.55);
+  border:1px solid rgba(207,227,234,0.95);
+}
 
   .banner-remaining{
     background: rgba(0,0,0,.06);
@@ -454,9 +506,8 @@ LAYOUT = """
 @media (max-width:600px){
   .nav{
     padding-inline:12px;
-    border-radius:16px;
+    border-radius:0;
 
-    /* override sticky for mobile */
     position:static;
     top:auto;
   }
@@ -1139,7 +1190,7 @@ LAYOUT = """
    </script>
 
    </head>
-   <body>
+   <body class="{{ layout_mode }}">
      <div class="wrap">
        <nav class="nav">
          <a class="logo" href="{{ url_for('home') }}">
@@ -1165,7 +1216,7 @@ LAYOUT = """
          </div>
        {% endif %}
  
-    <section class="card">
+    <section class="card main-card">
       {% with messages = get_flashed_messages() %}
         {% if messages %}
           <div class="stack" style="margin-bottom:10px">
@@ -1255,15 +1306,21 @@ def build_ticks_block(items, wrap_card=True):
     """.strip()
 
 def render(body, **ctx):
-    # Allow copy on admin/partner pages only (switchable here)
     path = request.path or ""
     allow_copy = path.startswith("/admin") or path.startswith("/partner")
     ctx.setdefault("allow_copy", allow_copy)
 
-    ctx.setdefault("HOLD_AMOUNT_PENCE", HOLD_AMOUNT_PENCE)    
+    # Layout mode:
+    # - wide: homepage + admin/partner pages
+    # - narrow: public flow pages like /<slug>, /<slug>/authorise, /<slug>/reveal, etc
+    layout_mode = "layout-wide"
+    if not (path == "/" or path.startswith("/admin") or path.startswith("/partner")):
+        layout_mode = "layout-narrow"
+    ctx.setdefault("layout_mode", layout_mode)
+
+    ctx.setdefault("HOLD_AMOUNT_PENCE", HOLD_AMOUNT_PENCE)
     inner = render_template_string(body, request=request, datetime=datetime, **ctx)
     return render_template_string(LAYOUT, body=inner, request=request, datetime=datetime, **ctx)
-
 
 # ====== HELPERS ===============================================================
 
@@ -1962,7 +2019,7 @@ def charity_page(slug):
 
     body = """
 
-    <div class="hero">
+    <div class="hero" style="text-align:center;">
       {% if status == "sold_out" %}
         <div class="banner banner-soldout">Sold out</div>
       {% elif status == "coming_soon" %}
@@ -2029,43 +2086,50 @@ def charity_page(slug):
       </div>
       {% endif %}
 
-      <div class="row" style="margin-top:10px">
-        <div style="flex:2;min-width:260px">
-        <div class="{% if is_blocked %}form-disabled{% endif %}">
-          <form method="post" data-safe-submit>
-            <label>Your Name
-              <input type="text" name="name" required placeholder="e.g. Sarah Cohen" {% if is_blocked %}disabled{% endif %}>
-            </label>
+      <div class="{% if is_blocked %}form-disabled{% endif %}">
+        <form method="post" data-safe-submit>
+          <label>Your Name
+            <input type="text" name="name" required placeholder="e.g. Sarah Cohen" {% if is_blocked %}disabled{% endif %}>
+          </label>
 
-            <label>Email
-              <input type="email" name="email" required placeholder="name@example.com" {% if is_blocked %}disabled{% endif %}>
-            </label>
+          <label>Email
+            <input type="email" name="email" required placeholder="name@example.com" {% if is_blocked %}disabled{% endif %}>
+          </label>
 
-            <label>Phone (optional)
-              <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
-            </label>
-            <div class="row" style="margin-top:8px">
+          <label>Phone (optional)
+            <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
+          </label>
 
-              <button class="btn" type="submit" {% if is_blocked %}disabled{% endif %}>
-                {% if charity.preauth_page_enabled %}
-                  Continue
-                {% else %}
-                  Place Hold &amp; Get My Number
-                {% endif %}
-              </button>
-            </div>
-          </form>
-        </div>
-        <div class="sep"></div>
-        <div style="flex:1;min-width:180px">
-          <p class="muted">Taken: {{ taken }} / {{ total }} ({{ pct }}%)</p>
-          <div class="progress"><i style="width:{{ pct }}%"></i></div>
-          <p class="muted" style="margin-top:8px">
-            You will be given a random number still available.
-            Your donation amount equals your number.
-          </p>
-        </div>
+          <button class="btn" type="submit" style="margin-top:10px" {% if is_blocked %}disabled{% endif %}>
+            {% if charity.preauth_page_enabled %}
+              Continue
+            {% else %}
+              Place Hold &amp; Get My Number
+            {% endif %}
+          </button>
+        </form>
       </div>
+
+      <div class="soft-panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+          <div style="font-weight:900;letter-spacing:.08em;font-size:11px;opacity:.85;">
+            TICKETS CLAIMED
+          </div>
+          <div style="font-weight:800;font-size:12px;">
+            {{ taken }} / {{ total }} ({{ pct }}%)
+          </div>
+        </div>
+
+        <div class="progress" style="margin-top:10px">
+          <i style="width:{{ pct }}%"></i>
+        </div>
+
+        <p class="muted" style="margin-top:10px;margin-bottom:0;">
+          You will be assigned a random number from the remaining pool.<br>
+          Your donation amount corresponds to your ticket number.
+        </p>
+      </div>
+
     {% if draw_iso %}
     <script>
       (function(){
