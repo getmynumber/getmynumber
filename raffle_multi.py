@@ -269,7 +269,7 @@ LAYOUT = """
     margin-right:calc(50% - 50vw);
 
     margin-bottom:20px;
-    padding:12px 24px;
+    padding:18px 32px;
     border-radius:0;
 
     background:rgba(255,255,255,0.96);
@@ -519,17 +519,14 @@ LAYOUT = """
 
 @media (max-width:600px){
   .nav{
-    padding-inline:12px;
+    padding:16px 16px;
     border-radius:0;
-
-    position:static;
-    top:auto;
   }
 }
 
   .logo{
     display:flex;
-    gap:10px;
+    gap:14px;
     align-items:center;
     color:var(--text);
   }
@@ -545,6 +542,8 @@ LAYOUT = """
     color:white;
 
     font-size:22px;
+    position:relative;
+    top:-1px;
 
     /* Clean teal glow */
     box-shadow:
@@ -557,7 +556,7 @@ LAYOUT = """
 
 
   .logo strong{
-    letter-spacing:0.03em;
+    letter-spacing:0.06em;
     font-size:20px;
   }
 
@@ -580,13 +579,6 @@ LAYOUT = """
     border-color:var(--border);
     color:var(--text);
     background:rgba(0,184,169,0.06);
-  }
-
-  @media (max-width:600px){
-    .nav{
-      padding-inline:12px;
-      border-radius:0;
-    }
   }
 
   .card{
