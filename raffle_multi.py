@@ -252,7 +252,7 @@ LAYOUT = """
   .wrap{
     max-width:1100px;
     margin:0 auto;
-    padding:24px 18px 32px;
+    padding:0 18px 32px;
   }
 
   .nav{
@@ -301,11 +301,6 @@ LAYOUT = """
 .layout-narrow .main-card{
   padding:22px 18px 0;   /* bottom padding removed so the soft-panel becomes the true bottom section */
   text-align:center;
-
-  /* lighter teal feel */
-  background:
-    radial-gradient(circle at top left, rgba(0,184,169,0.08), transparent 60%),
-    linear-gradient(180deg, rgba(228,243,247,0.70), rgba(248,254,255,0.95));
 }
 
 /* Progress bar should match card width cleanly */
@@ -336,28 +331,28 @@ LAYOUT = """
   justify-content:center;
 }
 
-/* Tickets Claimed becomes the full-width bottom section of the main card */
+/* Tickets Claimed = true bottom of the main card */
 .soft-panel{
   margin-top:16px;
 
-  /* stretch to the card edges (card uses ~18px side padding in narrow mode) */
+  /* stretch to card edges */
   margin-left:-18px;
   margin-right:-18px;
 
-  /* pull down to meet the bottom edge cleanly */
-  margin-bottom:-1px;
+  /* pull to absolute bottom of card */
+  margin-bottom:-22px;
 
-  padding:16px 18px 18px;
+  padding:16px 18px 20px;
 
-  /* no inner rounding (outer card rounding stays) */
-  border-radius:0;
+  /* inherit card bottom rounding */
+  border-radius:0 0 22px 22px;
 
-  /* lighter + softer (not dark) */
-  background:rgba(228,243,247,0.32);
+  /* very light teal */
+  background:rgba(228,243,247,0.28);
 
-  /* only a top divider line */
+  /* clean divider from form */
   border:0;
-  border-top:1px solid rgba(207,227,234,0.95);
+  border-top:1px solid rgba(207,227,234,0.9);
 }
 
   .banner-remaining{
@@ -540,16 +535,16 @@ LAYOUT = """
   }
 
  .logo-badge{
-    width:34px;
-    height:34px;
-    border-radius:11px;
+    width:44px;
+    height:44px;
+    border-radius:14px;
     display:grid;
     place-items:center;
 
     background:linear-gradient(135deg,var(--brand),var(--brand-2));
     color:white;
 
-    font-size:18px;
+    font-size:22px;
 
     /* Clean teal glow */
     box-shadow:
@@ -563,7 +558,7 @@ LAYOUT = """
 
   .logo strong{
     letter-spacing:0.03em;
-    font-size:16px;
+    font-size:20px;
   }
 
   .nav-links{
@@ -574,10 +569,10 @@ LAYOUT = """
 
   .nav-links a{
     color:var(--muted);
-    padding:7px 12px;
+    padding:10px 16px;
     border-radius:999px;
     border:1px solid transparent;
-    font-size:13px;
+    font-size:15px;
     white-space:nowrap;
   }
 
@@ -590,7 +585,7 @@ LAYOUT = """
   @media (max-width:600px){
     .nav{
       padding-inline:12px;
-      border-radius:16px;
+      border-radius:0;
     }
   }
 
