@@ -3415,7 +3415,7 @@ def confirm_payment(entry_id):
         f"Paid &pound;<strong>{paid_gbp}</strong> to <strong>{charity.name}</strong>",
         f"&pound;<strong>{held_gbp}</strong> was temporarily held",
         f"&pound;<strong>{released_gbp}</strong> will be released",
-    ], wrap_card=True)
+    ], wrap_card=False)
 
     step_current, step_total = flow_step_meta(charity, "confirmed")
    
@@ -3425,27 +3425,24 @@ def confirm_payment(entry_id):
       <p class="muted">You’re all set — Good luck!</p>
     </div>
 
-    <div class="card" style="padding:18px; max-width:720px; margin:0 auto;">
-      <div style="font-weight:800; font-size:14px; margin-bottom:10px;">
-        Donation Confirmed
-      </div>
-
+    <!-- Secondary card: ONLY the 3 tick lines -->
+    <div class="card secondary" style="margin-top:14px;">
       <div style="font-size:14px;">
         {{ ticks_block_final|safe }}
       </div>
+    </div>
 
-      {% if receipt_url %}
-        <div class="row" style="margin-top:14px; gap:10px; justify-content:flex-start;">
-          <form action="{{ receipt_url }}" method="GET" target="_blank" style="margin:0;">
-            <button class="btn" type="submit">View Receipt</button>
-          </form>
-        </div>
-      {% endif %}
-
-      <div class="row" style="margin-top:14px; gap:10px; justify-content:center;">
-        <a class="btn pill outline" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
-        <a class="btn pill outline" href="{{ url_for('home') }}">Back to Home</a>
+    {% if receipt_url %}
+      <div class="row" style="margin-top:14px; gap:10px; justify-content:flex-start;">
+        <form action="{{ receipt_url }}" method="GET" target="_blank" style="margin:0;">
+          <button class="btn" type="submit">View Receipt</button>
+        </form>
       </div>
+    {% endif %}
+
+    <div class="row" style="margin-top:14px; gap:10px; justify-content:center;">
+      <a class="btn pill outline" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
+      <a class="btn pill outline" href="{{ url_for('home') }}">Back to Home</a>
     </div>
 
     <!-- Optional confetti (keep it, but make it subtle) -->
