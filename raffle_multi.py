@@ -668,7 +668,7 @@ LAYOUT = """
     border-radius:999px;
     border:1px solid var(--border);
     color:var(--text);
-    background:#f6fcfd;
+    background:#f8fafc;   /* very light neutral grey */
     cursor:pointer;
     font-size:13px;
     line-height:1.1;
@@ -736,7 +736,7 @@ LAYOUT = """
     padding:7px 9px;
     border-radius:12px;
     border:1px solid var(--border);
-    background:#f4f6f8;   /* very light neutral grey */
+    background:#f8fafc;   /* lighter neutral grey */
     color:var(--text);
     outline:none;
     transition:border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
@@ -2306,7 +2306,7 @@ def skill_gate(slug):
 
           /* The INNER card on top of the main card = light grey */
           .skill-inner{
-            background:#f1f4f6 !important;
+            background:#f8fafc !important;
             border:1px solid rgba(207,227,234,0.9) !important;
             box-shadow:none !important;
           }
