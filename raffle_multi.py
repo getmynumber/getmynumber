@@ -351,7 +351,7 @@ LAYOUT = """
   border-radius:0 0 22px 22px;
 
   /* very light teal */
-  background:rgba(228,243,247,0.28);
+  background:rgba(248,254,255,0.85);
 
   /* clean divider from form */
   border:0;
@@ -586,14 +586,16 @@ LAYOUT = """
 
   .card{
     margin-top:10px;
-    background:
-      radial-gradient(circle at top left, rgba(0,184,169,0.10), transparent 55%),
-      linear-gradient(180deg,var(--card),var(--card-2));
+
+    /* SOLID light-teal card */
+    background: var(--card-2);
+
     border:1px solid var(--border);
     border-radius:var(--radius);
     padding:24px 20px 22px;
     box-shadow:var(--shadow);
   }
+
 
   .hero{
     display:flex;
@@ -707,9 +709,9 @@ LAYOUT = """
   input,select,textarea{
     font:inherit;
     padding:7px 9px;
-    border-radius:999px;
+    border-radius:12px;
     border:1px solid var(--border);
-    background:#f9fdfe;
+    background:#ffffff;
     color:var(--text);
     outline:none;
     transition:border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
