@@ -271,6 +271,23 @@ LAYOUT = """
     backdrop-filter:blur(12px);
   }
 
+  .flow-progress {
+    margin: -10px 0 14px;
+    padding: 0 12px;
+  }
+  .flow-progress-track {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(207,227,234,0.75);
+    overflow: hidden;
+    border: 1px solid rgba(207,227,234,0.9);
+  }
+  .flow-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  }
+
   .banner-remaining{
     background: rgba(0,0,0,.06);
     border: 1px solid rgba(0,0,0,.08);
@@ -358,7 +375,7 @@ LAYOUT = """
     height:110px;          /* keeps it compact */
     object-fit:contain;    /* NO CROPPING */
     display:block;
-    background:rgba(255,255,255,0.65);  /* subtle letterbox if needed */
+    background:#fff;  
   }
 
   .tile-progress{
@@ -1102,6 +1119,14 @@ LAYOUT = """
          </div>
        </nav>
 
+       {% if flow_progress_pct is not none %}
+         <div class="flow-progress">
+           <div class="flow-progress-track">
+             <div class="flow-progress-fill" style="width: {{ flow_progress_pct }}%"></div>
+           </div>
+         </div>
+       {% endif %}
+
     <section class="card">
       {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -1450,8 +1475,8 @@ def home():
             status = "sold_out"
         if getattr(c, "is_coming_soon", False):
             status = "coming_soon"
-        if not getattr(c, "is_live", True) and status == "live":
-            status = "inactive"
+        # IMPORTANT: do NOT override campaign_status with legacy is_live here.
+        # campaign_status is the single source of truth for public display.
 
         banner = ""
         if status == "sold_out":
@@ -1893,7 +1918,6 @@ def charity_page(slug):
     body = """
 
     <div class="hero">
-      <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
       {% if status == "sold_out" %}
         <div class="banner banner-soldout">Sold out</div>
       {% elif status == "coming_soon" %}
@@ -1964,7 +1988,7 @@ def charity_page(slug):
         <div style="flex:2;min-width:260px">
         <div class="{% if is_blocked %}form-disabled{% endif %}">
           <form method="post" data-safe-submit>
-            <label>Your name
+            <label>Your Name
               <input type="text" name="name" required placeholder="e.g. Sarah Cohen" {% if is_blocked %}disabled{% endif %}>
             </label>
 
@@ -2048,8 +2072,7 @@ def charity_page(slug):
         taken=taken,
         pct=pct,
         title=charity.name,
-        step_current=step_current,
-        step_total=step_total,
+        flow_progress_pct=flow_progress_pct(charity, "details"),
         draw_iso=draw_iso,
         charity_logo=charity_logo,
         poster_data=poster_data,
@@ -2136,7 +2159,6 @@ def skill_gate(slug):
         </style>
 
         <div class="hero">
-          <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
           <h1>Quick question before you continue to hold</h1>
           <p class="muted" style="margin-top:6px;line-height:1.45;">
             Please answer this multiple-choice question correctly to proceed.
@@ -2283,6 +2305,7 @@ def skill_gate(slug):
             options=session.get("skill_options") or make_options(),
             step_current=step_current,
             step_total=step_total,
+            flow_progress_pct=flow_progress_pct(charity, "skill"),
             remaining=remaining,
             title=f"Skill check – {charity.name}",
         )
@@ -2369,6 +2392,14 @@ def flow_step_meta(charity, page_key: str):
     current = (steps_skill if skill_on else steps_no_skill).get(page_key)
     return current, total
 
+def flow_progress_pct(charity, page_key: str):
+    current, total = flow_step_meta(charity, page_key)
+    if not current or not total:
+        return None
+    # e.g. step 1/4 => 25, step 4/4 => 100
+    pct = int(round((current / total) * 100))
+    return max(0, min(100, pct))
+
 def _continue_after_skill(charity):
     """
     After skill gate success (or if disabled), continue your existing flow:
@@ -2407,7 +2438,6 @@ def authorise_hold(slug):
 
     body = """
     <div class="hero">
-      <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
       <h1>Confirm Your Entry</h1>
       <p style="margin-top:10px;line-height:1.5;">
         We will place a temporary card authorisation to reserve your entry.
@@ -2471,7 +2501,7 @@ def authorise_hold(slug):
       {% endif %}
     </div>
     """
-    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, step_current=step_current, step_total=step_total, title="Authorise hold")
+    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, step_current=step_current, step_total=step_total, flow_progress_pct=flow_progress_pct(charity, "authorise"), title="Authorise hold")
 
 @app.route("/<slug>/start-hold", methods=["POST"])
 def start_hold(slug):
@@ -2653,7 +2683,6 @@ def hold_success(slug):
     # Show a page with their number and a 'Confirm & Pay' button
     body = """
      <div class="hero">
-       <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
        <h1>Your Ticket Number</h1>
        <p class="muted">Press the button to reveal your ticket number.</p>
      </div>
@@ -3008,6 +3037,7 @@ def hold_success(slug):
         name=name,
         ticks_block=ticks_block,
         step_current=step_current,
+        flow_progress_pct=flow_progress_pct(charity, "reveal"),
         step_total=step_total,
         title="Hold Confirmed",
     )
@@ -3175,7 +3205,6 @@ def confirm_payment(entry_id):
    
     body = """
     <div class="hero">
-      <div class="step-kicker">Step {{ step_current }} of {{ step_total }}</div>
       <h1>Confirmed Donation</h1>
       <p class="muted">You’re all set — Good luck!</p>
     </div>
@@ -3322,7 +3351,7 @@ def success(slug):
       </div>
     </div>
     """
-    return render(body, charity=charity, num=num, name=name, title=charity.name)
+    return render(body, charity=charity, num=num, name=name, flow_progress_pct=flow_progress_pct(charity, "confirmed"), title=charity.name)
 
 # ====== ADMIN (env guarded) ===================================================
 
@@ -3624,7 +3653,12 @@ def admin_set_campaign_status(slug):
             return redirect(url_for("edit_charity", slug=slug))
 
     charity.campaign_status = new_status
+
+    # Keep legacy boolean in sync (prevents homepage confusion if any code still checks is_live)
+    charity.is_live = (new_status == "live")
+
     db.session.commit()
+
     flash(f"Status set to: {new_status.replace('_',' ')}")
     return redirect(url_for("edit_charity", slug=slug))
 
