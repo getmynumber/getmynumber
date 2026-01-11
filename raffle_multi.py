@@ -592,10 +592,19 @@ LAYOUT = """
    }
 
 
-  .logo strong{
-    letter-spacing:0.06em;
-    font-size:20px;
-  }
+   .logo strong{
+     letter-spacing:0.06em;
+     font-size:20px;
+     white-space:nowrap;      /* prevents line break */
+   }
+
+   /* Mobile: shrink brand text slightly so it never wraps */
+   @media (max-width:420px){
+     .logo strong{
+       font-size:16px;
+       letter-spacing:0.04em;
+     }
+   }
 
   .nav-links{
     display:flex;
@@ -672,7 +681,7 @@ LAYOUT = """
     align-items:center;
     justify-content:center;
     gap:8px;
-    padding:8px 13px;
+    padding:11px 14px;
     border-radius:999px;
     border:1px solid var(--border);
     color:var(--text);
@@ -2288,14 +2297,14 @@ def skill_gate(slug):
             border:1px solid rgba(207,227,234,0.95) !important;
           }
 
-          /* The INNER card on top of the main card = light grey */
+          /* The INNER card on top of the main card = very light grey */
           .skill-inner{
-            background:#f1f4f6 !important;
+            background:#f8fafc !important;
             border:1px solid rgba(207,227,234,0.9) !important;
             box-shadow:none !important;
           }
 
-          /* 2x2 grid for the 4 answers */
+          /* 2x2 grid for the answers */
           #optionsWrap{
             display:grid;
             grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -2305,21 +2314,14 @@ def skill_gate(slug):
 
           /* each answer tile */
           #optionsWrap label.pill{
-            background:#fff;
-            border:1px solid rgba(207,227,234,0.95);
-            border-radius:14px;
-            box-shadow:none;
-          }
-
-          /* Answer options: pure white, clearer, slightly larger */
-          .skill-option{
             background:#ffffff !important;
             border:1px solid rgba(207,227,234,0.95) !important;
             border-radius:14px !important;
             padding:14px 14px !important;
+            box-shadow:none !important;
           }
 
-          .skill-option span{
+          #optionsWrap label.pill span{
             font-size:16px !important;
             color:#12313d !important;
           }
@@ -2339,22 +2341,20 @@ def skill_gate(slug):
             min-width:160px;
             padding:12px 16px !important;
           }
- 
+
           /* Terms below buttons */
           .skill-terms{
             margin-top:12px;
             font-size:12px;
             text-align:center;
-            line-height:1.4;
           }
 
-          /* mobile: keep readable */
-          @media (max-width: 420px){
-            #optionsWrap{
-              grid-template-columns:1fr;
-            }
+          /* Only stack to 1 column on very small screens */
+          @media (max-width:480px){
+            #optionsWrap{ grid-template-columns:1fr; }
           }
         </style>
+
 
         <div class="hero">
           <h1>Quick question before you continue to hold</h1>
@@ -2655,20 +2655,20 @@ def authorise_hold(slug):
         is released automatically.
       </p>
 
-      <div class="card" style="margin-top:14px">
+      <div class="banner-remaining" style="margin-top:14px;padding:14px 16px;border-radius:16px;text-align:left;">
         <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
           {{ ticks_block|safe }}
         </div>
+      </div>
 
-        <form method="post" action="{{ url_for('start_hold', slug=charity.slug) }}" style="margin-top:14px">
-          <button class="btn" type="submit">
-            Continue to Card Authorisation
-          </button>
-        </form>
+      <form method="post" action="{{ url_for('start_hold', slug=charity.slug) }}" style="margin-top:14px">
+        <button class="btn" type="submit">
+          Continue to Card Authorisation
+        </button>
+      </form>
 
-        <div class="muted" style="margin-top:10px;font-size:12px;text-align:center">
-          🔒 Secured by Stripe
-        </div>
+      <div class="muted" style="margin-top:10px;font-size:12px;text-align:center">
+        🔒 Secured by Stripe
       </div>
 
       {% if charity.optional_donation_enabled%}
