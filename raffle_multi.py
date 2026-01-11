@@ -2883,7 +2883,7 @@ def hold_success(slug):
         "&pound;<strong><span id='hold-amt'></span></strong> temporarily held on your card",
         "You will donate &pound;<strong><span id='pay-amt'></span></strong>",
         "&pound;<strong><span id='release-amt'></span></strong> will be released",
-    ], wrap_card=True)
+    ], wrap_card=False)
 
     # Clean up the session data used for pending
     session.pop("pending_entry", None)
@@ -2924,12 +2924,17 @@ def hold_success(slug):
          Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
        </div>
 
-       <div id="confirm-card" class="card" style="display:none; margin-top:14px;">
-         <div style="font-size:14px;">
-           {{ ticks_block|safe }}
+       <div id="confirm-card" style="display:none; margin-top:14px;">
+
+         <!-- Secondary card: ONLY the 3 tick lines -->
+         <div class="card secondary" style="margin-top:0;">
+           <div style="font-size:14px;">
+             {{ ticks_block|safe }}
+           </div>
          </div>
 
-         <form method="post" action="{{ url_for('confirm_payment', entry_id=entry.id) }}" data-safe-submit style="margin-top:18px;">
+         <!-- Everything else stays in the main card (not inside secondary) -->
+         <form method="post" action="{{ url_for('confirm_payment', slug=charity.slug, entry_id=entry.id) }}" data-safe-submit style="margin-top:14px;">
 
            {% if charity.optional_donation_enabled %}
              <label style="display:flex; align-items:center; gap:10px; justify-content:center; flex-wrap:wrap;">
@@ -2950,7 +2955,7 @@ def hold_success(slug):
            {% endif %}
 
            {% if charity.optional_donation_enabled %}
-             <div id="match-nudge" class="card" style="display:none; margin:12px auto 0; max-width:520px; padding:12px;">
+             <div id="match-nudge" class="card secondary" style="display:none; margin:12px auto 0; max-width:520px; padding:12px;">
                <div class="muted" style="margin:0; line-height:1.45;">
                  <div style="margin-bottom:6px;">
                    Most supporters choose to match their number in full.
@@ -2974,6 +2979,7 @@ def hold_success(slug):
              {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; Donate{% endif %}
            </button>
          </form>
+
        </div>
 
        <script>
