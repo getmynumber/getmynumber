@@ -932,21 +932,19 @@ LAYOUT = """
  }
 
    .countdown-card{
-    margin-top:12px;
-    padding:12px 14px;
-    border-radius:16px;
-    border:1px dashed rgba(0,184,169,0.45);
-    background:var(--bg-soft);
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    flex-wrap:wrap;
-  }
+     border:1px solid rgba(207,227,234,0.9);
+     background: var(--card-2);
+     display:flex;
+     align-items:center;
+     justify-content:space-between;
+     gap:10px;
+     flex-wrap:wrap;
+   }
 
   .countdown-label{
     font-size:13px;
     color:var(--text-soft);
+    text-align:left;
   }
 
   .countdown-label .step-label{
@@ -2326,6 +2324,11 @@ def skill_gate(slug):
             color:#12313d !important;
           }
 
+          #optionsWrap input[type="radio"]:checked + span,
+          #optionsWrap input[type="checkbox"]:checked + span{
+            background:transparent !important;
+          }
+     
           /* Buttons: side-by-side and not full-width */
           .skill-actions{
             display:flex;
@@ -2635,9 +2638,9 @@ def authorise_hold(slug):
 
     ticks_block = build_ticks_block([
         f"&pound;<strong>{hold_gbp}</strong> will be temporarily held on your card",
-        "You will only be charged your <strong>ticket number amount</strong>",
-        "The remaining hold is <strong>released</strong> after you confirm",
-    ])
+        f"You will be allocated a random number after authorisation",
+        f"Any remaining hold will be released automatically",
+    ], wrap_card=False)
 
     step_current, step_total = flow_step_meta(charity, "authorise")
 
