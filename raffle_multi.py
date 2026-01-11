@@ -350,8 +350,7 @@ LAYOUT = """
   /* inherit card bottom rounding */
   border-radius:0 0 22px 22px;
 
-  /* very light teal */
-  background:rgba(248,254,255,0.85);
+  background: var(--card-2);
 
   /* clean divider from form */
   border:0;
@@ -587,8 +586,7 @@ LAYOUT = """
   .card{
     margin-top:10px;
 
-    /* SOLID light-teal card */
-    background: var(--card-2);
+    background:#ffffff
 
     border:1px solid var(--border);
     border-radius:var(--radius);
@@ -711,7 +709,7 @@ LAYOUT = """
     padding:7px 9px;
     border-radius:12px;
     border:1px solid var(--border);
-    background:#ffffff;
+    background: var(--card-2);   /* slight teal-white tint, lighter than page bg */
     color:var(--text);
     outline:none;
     transition:border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
@@ -2123,10 +2121,10 @@ def charity_page(slug):
 
       <div class="soft-panel">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-          <div style="font-weight:900;letter-spacing:.08em;font-size:11px;opacity:.85;">
+          <div style="font-weight:900;letter-spacing:.08em;font-size:14px;opacity:.85;">
             Tickets Claimed
           </div>
-          <div style="font-weight:800;font-size:12px;">
+          <div style="font-weight:800;font-size:14px;">
             {{ taken }} / {{ total }} ({{ pct }}%)
           </div>
         </div>
