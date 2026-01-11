@@ -149,7 +149,7 @@ class Charity(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     slug = db.Column(db.String(80), unique=True, nullable=False)        # URL slug
     name = db.Column(db.String(200), nullable=False)
-    donation_url = db.Column(db.String(500), nullable=False)
+    donation_url = db.Column(db.String(500), nullable=True)
     max_number = db.Column(db.Integer, nullable=False, default=500)     # 1..max
     draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)
     is_live = db.Column(db.Boolean, nullable=False, default=True)  # campaign on/off
@@ -3630,6 +3630,9 @@ def admin_charities():
         charities=charities,
         remaining=remaining,
         connect_status=connect_status,
+        flow_progress_pct=None,
+        step_current=None,
+        step_total=None,
         title="Manage Charities",
     )
 
@@ -3757,7 +3760,7 @@ def edit_charity(slug):
 
     if request.method == "POST":
         charity.name = request.form.get("name", charity.name).strip()
-        charity.donation_url = request.form.get("donation_url", charity.donation_url).strip()
+        charity.donation_url = request.form.get("donation_url", charity.donation_url).strip() or None
         # Stripe Connect account (acct_...)
         stripe_acct = (request.form.get("stripe_account_id") or "").strip()
         charity.stripe_account_id = stripe_acct or None
@@ -3865,7 +3868,10 @@ def edit_charity(slug):
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" enctype="multipart/form-data" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
-      <label>Donation URL <input type="url" name="donation_url" value="{{ charity.donation_url }}" required></label>
+      <label>
+        Donation URL <span class="muted">(optional)</span>
+        <input name="donation_url" value="{{ charity.donation_url or '' }}">
+      </label>
       <label>Stripe Connected Account ID (acct_...)
         <input type="text" name="stripe_account_id" value="{{ charity.stripe_account_id or '' }}" placeholder="acct_123...">
         <small class="muted">This must match the connected charity account in Stripe Connect.</small>
