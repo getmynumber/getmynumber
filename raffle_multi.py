@@ -726,7 +726,7 @@ LAYOUT = """
     padding:7px 9px;
     border-radius:12px;
     border:1px solid var(--border);
-    background: var(--card-2);   /* slight teal-white tint, lighter than page bg */
+    background:#f4f6f8;   /* very light neutral grey */
     color:var(--text);
     outline:none;
     transition:border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
