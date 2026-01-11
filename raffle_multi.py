@@ -434,7 +434,7 @@ LAYOUT = """
     margin:6px 0 8px;
   }
   .section-subtitle{
-    text-align:center;
+    text-align:center !important;
     max-width:780px;
     margin:0 auto 16px;
   }
@@ -638,6 +638,13 @@ LAYOUT = """
     box-shadow:var(--shadow);
   }
 
+  /* Secondary (inner) card – very light grey */
+  .card.secondary{
+    background:#f8fafc;
+    box-shadow:none;
+    padding:16px 16px;
+    border-radius:14px;
+  }
 
   .hero{
     display:flex;
@@ -939,6 +946,9 @@ LAYOUT = """
      justify-content:space-between;
      gap:10px;
      flex-wrap:wrap;
+
+     border-radius:999px;
+     padding:12px 16px;
    }
 
   .countdown-label{
@@ -958,8 +968,8 @@ LAYOUT = """
 
   .cd-part{
     min-width:58px;
-    padding:6px 8px;
-    border-radius:12px;
+    padding:9px 10px;
+    border-radius:14px;
     background:#ffffff;
     text-align:center;
     box-shadow:0 4px 12px rgba(3,46,66,0.08);
@@ -2295,13 +2305,6 @@ def skill_gate(slug):
             border:1px solid rgba(207,227,234,0.95) !important;
           }
 
-          /* The INNER card on top of the main card = very light grey */
-          .skill-inner{
-            background:#f8fafc !important;
-            border:1px solid rgba(207,227,234,0.9) !important;
-            box-shadow:none !important;
-          }
-
           /* 2x2 grid for the answers */
           #optionsWrap{
             display:grid;
@@ -2353,11 +2356,10 @@ def skill_gate(slug):
           }
 
           /* Only stack to 1 column on very small screens */
-          @media (max-width:480px){
+          @media (max-width:560px){
             #optionsWrap{ grid-template-columns:1fr; }
           }
         </style>
-
 
         <div class="hero">
           <h1>Quick question before you continue to hold</h1>
@@ -2366,7 +2368,7 @@ def skill_gate(slug):
           </p>
         </div>
 
-        <div class="card skill-inner">
+        <div class="card secondary skill-inner">
           <div class="muted" style="font-size:12px;margin-bottom:10px;">
             Attempts remaining: <strong id="attemptsRemaining">{{ remaining }}</strong> (max 3)
           </div>
@@ -2658,7 +2660,7 @@ def authorise_hold(slug):
         is released automatically.
       </p>
 
-      <div class="banner-remaining" style="margin-top:14px;padding:14px 16px;border-radius:16px;text-align:left;">
+      <div class="card secondary" style="margin-top:14px">
         <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
           {{ ticks_block|safe }}
         </div>
