@@ -1242,7 +1242,7 @@ LAYOUT = """
          </div>
        {% endif %}
  
-    <section class="card main-card">
+    <section class="card {{ page_class or '' }}">
       {% with messages = get_flashed_messages() %}
         {% if messages %}
           <div class="stack" style="margin-bottom:10px">
@@ -2264,34 +2264,54 @@ def skill_gate(slug):
 
         body = """
         <style>
-          /* Skill question answer grid */
-          #optionsWrap {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
+          /* Make the OUTER main card (the layout <section class="card">) pure white on /skill only */
+          .page-skill{
+            background:#ffffff !important;
+            border:1px solid rgba(207,227,234,0.95) !important;
           }
 
-          /* Make all answer pills equal height */
-          #optionsWrap > label.pill {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            height: 100%;
-            min-height: 56px;   /* tweak if you want taller pills */
-            box-sizing: border-box;
+          /* The INNER card on top of the main card = light grey */
+          .skill-inner{
+            background:#f1f4f6 !important;
+            border:1px solid rgba(207,227,234,0.9) !important;
+            box-shadow:none !important;
           }
 
-          /* Improve radio + text alignment */
-          #optionsWrap > label.pill span {
-            line-height: 1.35;
+          /* Answer options: pure white, clearer, slightly larger */
+          .skill-option{
+            background:#ffffff !important;
+            border:1px solid rgba(207,227,234,0.95) !important;
+            border-radius:14px !important;
+            padding:14px 14px !important;
           }
 
-          /* Mobile fallback: stack answers */
-          @media (max-width: 640px) {
-            #optionsWrap {
-              grid-template-columns: 1fr;
-            }
+          .skill-option span{
+            font-size:16px !important;
+            color:#12313d !important;
+          }
+
+          /* Buttons: side-by-side and not full-width */
+          .skill-actions{
+            display:flex;
+            gap:10px;
+            justify-content:center;
+            align-items:center;
+            margin-top:14px;
+            flex-wrap:wrap;
+          }
+
+          .btn.btn-skill{
+            width:auto !important;
+            min-width:160px;
+            padding:12px 16px !important;
+          }
+
+          /* Terms below buttons */
+          .skill-terms{
+            margin-top:12px;
+            font-size:12px;
+            text-align:center;
+            line-height:1.4;
           }
         </style>
 
@@ -2302,7 +2322,7 @@ def skill_gate(slug):
           </p>
         </div>
 
-        <div class="card">
+        <div class="card skill-inner">
           <div class="muted" style="font-size:12px;margin-bottom:10px;">
             Attempts remaining: <strong id="attemptsRemaining">{{ remaining }}</strong> (max 3)
           </div>
@@ -2322,26 +2342,25 @@ def skill_gate(slug):
           <form id="skillForm" data-safe-submit>
             <div id="optionsWrap" style="margin-top:6px;">
               {% for opt in options %}
-                <label class="pill" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;">
+                <label class="pill skill-option" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
                   <input type="radio" name="answer" value="{{ opt }}" required>
-                  <span style="font-size:14px;">{{ opt }}</span>
+                  <span>{{ opt }}</span>
                 </label>
               {% endfor %}
             </div>
 
-            <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-              <div class="skill-actions">
-                <button class="btn btn-skill" type="submit">
-                  Submit Answer
-                </button>
+            <div class="skill-actions">
+              <button class="btn btn-skill" type="submit">
+                Submit Answer
+              </button>
 
-                <a class="btn btn-skill secondary"
-                   href="{{ url_for('charity_page', slug=charity.slug) }}">
-                  Cancel
-                </a>
-              </div>
+              <a class="btn btn-skill secondary"
+                 href="{{ url_for('charity_page', slug=charity.slug) }}">
+                Cancel
+              </a>
+            </div>
 
-            <p class="muted" style="margin-top:12px;font-size:12px;text-align:center;line-height:1.4;">
+            <p class="muted skill-terms">
               See
               <a href="/terms" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a>.
             </p>
@@ -2368,11 +2387,11 @@ def skill_gate(slug):
             optionsWrap.innerHTML = "";
             (options || []).forEach(opt => {
               const label = document.createElement("label");
-              label.className = "pill";
-              label.style.cssText = "cursor:pointer;padding:12px 14px;";
+              label.className = "pill skill-option";
+              label.style.cssText = "cursor:pointer;";
               label.innerHTML = `
                 <input type="radio" name="answer" value="${String(opt).replace(/"/g,'&quot;')}" required>
-                <span style="font-size:14px;">${String(opt)}</span>
+                <span>${String(opt)}</span>
               `;
               optionsWrap.appendChild(label);
             });
@@ -2451,6 +2470,7 @@ def skill_gate(slug):
             step_total=step_total,
             flow_progress_pct=flow_progress_pct(charity, "skill"),
             remaining=remaining,
+            page_class="page-skill",
             title=f"Skill check – {charity.name}",
         )
 
