@@ -899,12 +899,14 @@ LAYOUT = """
    display:flex;
    flex-direction:column;
    gap:8px;
+   text-align:center;
  }
 
  .step-header{
   display:flex;
   align-items:center;
   gap:8px;
+  justify-content:center;
  }
 
  .step-icon{
@@ -936,6 +938,7 @@ LAYOUT = """
    font-size:13px;
    color:var(--muted);
    line-height:1.5;
+   text-align:center;
  }
 
    .countdown-card{
@@ -2893,6 +2896,7 @@ def hold_success(slug):
     # Show a page with their number and a 'Confirm & Pay' button
     body = """
      <div class="hero">
+     <div style="text-aliogn:center;">
        <h1>Your Ticket Number</h1>
        <p class="muted">Press the button to reveal your ticket number.</p>
      </div>
@@ -3421,6 +3425,7 @@ def confirm_payment(entry_id):
    
     body = """
     <div class="hero">
+    <div style="text-align:center;">
       <h1>Confirmed Donation</h1>
       <p class="muted">You’re all set — Good luck!</p>
     </div>
