@@ -268,12 +268,15 @@ LAYOUT = """
     margin-left:calc(50% - 50vw);
     margin-right:calc(50% - 50vw);
 
+    margin-top:0;
+
     margin-bottom:20px;
     padding:18px 32px;
     border-radius:0;
 
-    background:rgba(255,255,255,0.96);
-    border:1px solid var(--border);
+    background:#ffffff;
+    border:0;
+    border-bottom:1px solid var(--border);
     box-shadow:0 16px 35px rgba(3,46,66,0.15);
     backdrop-filter:blur(12px);
   }
@@ -2119,7 +2122,7 @@ def charity_page(slug):
       <div class="soft-panel">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
           <div style="font-weight:900;letter-spacing:.08em;font-size:11px;opacity:.85;">
-            TICKETS CLAIMED
+            Tickets Claimed
           </div>
           <div style="font-weight:800;font-size:12px;">
             {{ taken }} / {{ total }} ({{ pct }}%)
