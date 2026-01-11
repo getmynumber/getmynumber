@@ -299,9 +299,13 @@ LAYOUT = """
 /* Narrow layout: keep the nav full width, but make progress + main card tighter */
 .layout-narrow .flow-progress,
 .layout-narrow .main-card{
-  max-width:680px;
-  margin-left:auto;
-  margin-right:auto;
+  padding:22px 18px 0;   /* bottom padding removed so the soft-panel becomes the true bottom section */
+  text-align:center;
+
+  /* lighter teal feel */
+  background:
+    radial-gradient(circle at top left, rgba(0,184,169,0.08), transparent 60%),
+    linear-gradient(180deg, rgba(228,243,247,0.70), rgba(248,254,255,0.95));
 }
 
 /* Progress bar should match card width cleanly */
@@ -320,10 +324,10 @@ LAYOUT = """
   margin-top:12px;
 }
 .layout-narrow .main-card label{
-  text-align:center;
+  text-align:left;
 }
 .layout-narrow .main-card input{
-  text-align:center;
+  text-align:left;
 }
 
 /* Button same width as inputs */
@@ -332,13 +336,28 @@ LAYOUT = """
   justify-content:center;
 }
 
-/* Soft inner panel used for Tickets Claimed */
+/* Tickets Claimed becomes the full-width bottom section of the main card */
 .soft-panel{
-  margin-top:14px;
-  padding:14px 14px;
-  border-radius:16px;
-  background:rgba(228,243,247,0.55);
-  border:1px solid rgba(207,227,234,0.95);
+  margin-top:16px;
+
+  /* stretch to the card edges (card uses ~18px side padding in narrow mode) */
+  margin-left:-18px;
+  margin-right:-18px;
+
+  /* pull down to meet the bottom edge cleanly */
+  margin-bottom:-1px;
+
+  padding:16px 18px 18px;
+
+  /* no inner rounding (outer card rounding stays) */
+  border-radius:0;
+
+  /* lighter + softer (not dark) */
+  background:rgba(228,243,247,0.32);
+
+  /* only a top divider line */
+  border:0;
+  border-top:1px solid rgba(207,227,234,0.95);
 }
 
   .banner-remaining{
