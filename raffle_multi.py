@@ -306,6 +306,14 @@ LAYOUT = """
   text-align:center;
 }
 
+/* Make entry bars span almost full width of the main card */
+.layout-narrow .card form input[type="text"],
+.layout-narrow .card form input[type="email"],
+.layout-narrow .card form input[type="tel"]{
+  width:100%;
+  box-sizing:border-box;
+}
+
 /* Skill page: compact side-by-side actions */
 .skill-actions{
   display:flex;
@@ -385,9 +393,9 @@ LAYOUT = """
 }
 
   .banner-remaining{
-    background: rgba(0,0,0,.06);
-    border: 1px solid rgba(0,0,0,.08);
-  }
+  background: rgba(0,0,0,0.06);
+  border: 1px solid rgba(0,0,0,0.08);
+}
 
 .flow-progress{
   margin: 10px 0 14px 0;
@@ -733,7 +741,7 @@ LAYOUT = """
 
   input,select,textarea{
     font:inherit;
-    padding:7px 9px;
+    padding:11px 14px;
     border-radius:12px;
     border:1px solid var(--border);
     background:#f8fafc;   /* lighter neutral grey */
@@ -2280,6 +2288,13 @@ def skill_gate(slug):
             border:1px solid rgba(207,227,234,0.95) !important;
           }
 
+          /* The INNER card on top of the main card = light grey */
+          .skill-inner{
+            background:#f1f4f6 !important;
+            border:1px solid rgba(207,227,234,0.9) !important;
+            box-shadow:none !important;
+          }
+
           /* 2x2 grid for the 4 answers */
           #optionsWrap{
             display:grid;
@@ -2294,21 +2309,6 @@ def skill_gate(slug):
             border:1px solid rgba(207,227,234,0.95);
             border-radius:14px;
             box-shadow:none;
-          }
-
-          /* mobile: keep readable */
-          @media (max-width: 560px){
-            #optionsWrap{
-              grid-template-columns:1fr;
-            }
-          }
-        </style>
-
-          /* The INNER card on top of the main card = light grey */
-          .skill-inner{
-            background:#f8fafc !important;
-            border:1px solid rgba(207,227,234,0.9) !important;
-            box-shadow:none !important;
           }
 
           /* Answer options: pure white, clearer, slightly larger */
@@ -2339,13 +2339,20 @@ def skill_gate(slug):
             min-width:160px;
             padding:12px 16px !important;
           }
-
+ 
           /* Terms below buttons */
           .skill-terms{
             margin-top:12px;
             font-size:12px;
             text-align:center;
             line-height:1.4;
+          }
+
+          /* mobile: keep readable */
+          @media (max-width: 560px){
+            #optionsWrap{
+              grid-template-columns:1fr;
+            }
           }
         </style>
 
