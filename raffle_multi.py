@@ -2380,7 +2380,7 @@ def skill_gate(slug):
 
           <div id="skillAlert" class="notice error" style="display:none;margin-bottom:12px;"></div>
 
-          <form id="skillForm" data-safe-submit>
+          <form id="skillForm"
             <div id="optionsWrap" style="margin-top:6px;">
               {% for opt in options %}
                 <label class="pill skill-option" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -2391,7 +2391,7 @@ def skill_gate(slug):
             </div>
 
             <div class="skill-actions">
-              <button class="btn btn-skill" type="submit">
+              <button id="skillSubmit" class="btn btn-skill" type="submit">
                 Submit Answer
               </button>
 
@@ -2414,7 +2414,7 @@ def skill_gate(slug):
           const alertBox = document.getElementById("skillAlert");
           const optionsWrap = document.getElementById("optionsWrap");
           const remainingEl = document.getElementById("attemptsRemaining");
-          const submitBtn = document.getElementById("skillSubmit");
+          const submitBtn = document.getElementById("skillSubmit") || form.querySelector('button[type="submit"]');
 
           function showError(msg){
             alertBox.style.display = "block";
