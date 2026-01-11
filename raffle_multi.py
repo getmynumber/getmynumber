@@ -345,6 +345,16 @@ LAYOUT = """
   text-align:left;
 }
 
+/* Force entry form labels + inputs left-aligned (Name / Email / Phone) */
+.layout-narrow .card form label{
+  text-align:left;
+  align-items:flex-start;
+}
+
+.layout-narrow .card form input::placeholder{
+  text-align:left;
+}
+
 /* Button same width as inputs */
 .layout-narrow .main-card .btn{
   width:100%;
@@ -2269,6 +2279,30 @@ def skill_gate(slug):
             background:#ffffff !important;
             border:1px solid rgba(207,227,234,0.95) !important;
           }
+
+          /* 2x2 grid for the 4 answers */
+          #optionsWrap{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:12px;
+            margin-top:12px;
+          }
+
+          /* each answer tile */
+          #optionsWrap label.pill{
+            background:#fff;
+            border:1px solid rgba(207,227,234,0.95);
+            border-radius:14px;
+            box-shadow:none;
+          }
+
+          /* mobile: keep readable */
+          @media (max-width: 560px){
+            #optionsWrap{
+              grid-template-columns:1fr;
+            }
+          }
+        </style>
 
           /* The INNER card on top of the main card = light grey */
           .skill-inner{
