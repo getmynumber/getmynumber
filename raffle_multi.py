@@ -275,6 +275,7 @@ LAYOUT = """
     margin: -10px 0 14px;
     padding: 0 12px;
   }
+
   .flow-progress-track {
     height: 10px;
     border-radius: 999px;
@@ -292,6 +293,38 @@ LAYOUT = """
     background: rgba(0,0,0,.06);
     border: 1px solid rgba(0,0,0,.08);
   }
+
+.flow-progress{
+  margin: 10px 0 14px 0;
+}
+
+.flow-progress-meta{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom:8px;
+  font-size:12px;
+  font-weight:700;
+  opacity:0.9;
+}
+
+.flow-progress-left,
+.flow-progress-right{
+  white-space:nowrap;
+}
+
+.flow-progress-track{
+  height:10px;
+  border-radius:999px;
+  background: rgba(255,255,255,0.10);
+  overflow:hidden;
+}
+
+.flow-progress-fill{
+  height:100%;
+  border-radius:999px;
+}
 
   .section-title{
     text-align:center;
@@ -1121,12 +1154,17 @@ LAYOUT = """
 
        {% if flow_progress_pct is not none %}
          <div class="flow-progress">
+           <div class="flow-progress-meta">
+             <div class="flow-progress-left">Step {{ step_current }} of {{ step_total }}</div>
+             <div class="flow-progress-right">{{ flow_progress_pct }}%</div>
+           </div>
+
            <div class="flow-progress-track">
              <div class="flow-progress-fill" style="width: {{ flow_progress_pct }}%"></div>
            </div>
          </div>
        {% endif %}
-
+ 
     <section class="card">
       {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -2072,6 +2110,8 @@ def charity_page(slug):
         taken=taken,
         pct=pct,
         title=charity.name,
+        step_current=step_current,
+        step_total=step_total,
         flow_progress_pct=flow_progress_pct(charity, "details"),
         draw_iso=draw_iso,
         charity_logo=charity_logo,
