@@ -603,7 +603,7 @@ LAYOUT = """
   .card{
     margin-top:10px;
 
-    background:#ffffff
+    background:#ffffff;
 
     border:1px solid var(--border);
     border-radius:var(--radius);
