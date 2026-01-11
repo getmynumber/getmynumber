@@ -2349,7 +2349,7 @@ def skill_gate(slug):
           }
 
           /* mobile: keep readable */
-          @media (max-width: 560px){
+          @media (max-width: 420px){
             #optionsWrap{
               grid-template-columns:1fr;
             }
