@@ -1717,7 +1717,14 @@ def home():
     </div>
     """
 
-    return render(body, tiles=tiles, title="Get My Number")
+    return render(
+        body,
+        tiles=tiles,
+        title="Get My Number",
+        flow_progress_pct=None,
+        step_current=None,
+        step_total=None,
+    )
 
 @app.route("/terms")
 def terms():
