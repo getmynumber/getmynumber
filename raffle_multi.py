@@ -2896,7 +2896,7 @@ def hold_success(slug):
     # Show a page with their number and a 'Confirm & Pay' button
     body = """
      <div class="hero">
-     <div style="text-aliogn:center;">
+     <div style="text-align:center;">
        <h1>Your Ticket Number</h1>
        <p class="muted">Press the button to reveal your ticket number.</p>
      </div>
