@@ -320,7 +320,7 @@ LAYOUT = """
     margin-top:0;
 
     margin-bottom:20px;
-    padding:4px 32px;
+    padding:2px 32px;
     border-radius:0;
 
     background:#ffffff;
@@ -663,7 +663,7 @@ LAYOUT = """
 .logo{
   display:flex;
   align-items:center;
-  gap:6px;
+  gap:4px;
   text-decoration:none;
   color:var(--text);
 }
@@ -692,7 +692,7 @@ LAYOUT = """
   .logo-badge-img{
     height:56px;
     width:auto;
-    gap:8px;
+    gap:4px;
     max-width:56px;
   }
 
@@ -2463,6 +2463,20 @@ def skill_gate(slug):
           #optionsWrap input[type="radio"]:checked + span,
           #optionsWrap input[type="checkbox"]:checked + span{
             background:transparent !important;
+          }
+
+          /* FORCE skill answers to be pure white (override global .pill styles) */
+          #optionsWrap .pill{
+            background:#ffffff !important;
+          }
+
+          #optionsWrap .pill:hover{
+            background:#ffffff !important;
+          }
+
+          #optionsWrap input:checked + span,
+          #optionsWrap .pill:has(input:checked){
+            background:#ffffff !important;
           }
      
           /* Buttons: side-by-side and not full-width */
