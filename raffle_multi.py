@@ -319,8 +319,8 @@ LAYOUT = """
 
     margin-top:0;
 
-    margin-bottom:20px;
-    padding:2px 32px;
+    margin-bottom:14px;
+    padding:6px 24px;
     border-radius:0;
 
     background:#ffffff;
@@ -651,7 +651,7 @@ LAYOUT = """
 
 @media (max-width:600px){
   .nav{
-    padding:10px 10px;
+    padding:6px 12px;
     border-radius:0;
   }
 }
@@ -668,13 +668,15 @@ LAYOUT = """
   color:var(--text);
 }
 
-/* BIG, dominant logo */
 .logo-badge-img{
-  height:100px;          /* ⬅ control size by HEIGHT only */
-  width:auto;           /* ⬅ preserve aspect ratio */
-  max-width:100px;
+  height:78px;              /* was 100px (also helps banner thickness) */
+  width:auto;
+  max-width:110px;          /* allow it to occupy a wider box */
   flex-shrink:0;
   display:block;
+  object-fit:contain;
+  transform:scaleX(1.12);   /* subtle “wider” look */
+  transform-origin:left center;
 }
 
 /* Keep text visually lighter */
@@ -690,10 +692,12 @@ LAYOUT = """
 
 @media (max-width:420px){
   .logo-badge-img{
-    height:56px;
+    height:52px;
     width:auto;
     gap:4px;
-    max-width:56px;
+    max-width:74px;
+    transform:scaleX(1.10);
+    transform-origin:left center;
   }
 
   .logo strong{
@@ -792,7 +796,7 @@ LAYOUT = """
     border-radius:999px;
     border:1px solid var(--border);
     color:var(--text);
-    background:#f8fafc;   /* very light neutral grey */
+    background:#ffffff;
     cursor:pointer;
     font-size:13px;
     line-height:1.1;
@@ -806,7 +810,7 @@ LAYOUT = """
   }
 
   .pill:hover{
-    background:#e5f6f7;
+    background:#f3fafc;
     border-color:#9ad7e0;
     transform:translateY(-1px);
     box-shadow:0 10px 24px rgba(3,46,66,0.16);
