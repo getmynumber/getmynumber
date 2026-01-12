@@ -153,6 +153,31 @@ if SITE_LOGO_DATA_URI:
     if not SITE_LOGO_DATA_URI.startswith("data:"):
         SITE_LOGO_DATA_URI = "data:image/png;base64," + SITE_LOGO_DATA_URI
 
+import base64
+
+def _site_logo_png_bytes():
+    """Return PNG bytes for the site logo from SITE_LOGO_DATA_URI (data URI or raw base64)."""
+    if not SITE_LOGO_DATA_URI:
+        return None
+
+    s = (SITE_LOGO_DATA_URI or "").strip().strip('"').strip("'")
+    if not s:
+        return None
+
+    # data:image/png;base64,....
+    if s.startswith("data:"):
+        try:
+            _, b64 = s.split(",", 1)
+        except ValueError:
+            return None
+    else:
+        # raw base64
+        b64 = s
+
+    try:
+        return base64.b64decode(b64)
+    except Exception:
+        return None
 
 # ====== MODELS ================================================================
 
@@ -221,16 +246,14 @@ LAYOUT = """
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title or "Get My Number" }}</title>
 {% if SITE_LOGO_DATA_URI %}
-  <link rel="icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" href="/favicon.ico">
+  <link rel="icon" href="{{ url_for('favicon') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('site_logo_png') }}">
 
-  <meta property="og:image" content="/favicon.ico">
-  <meta name="twitter:image" content="/favicon.ico">
+  <meta property="og:image" content="{{ url_for('site_logo_png', _external=True) }}">
+  <meta name="twitter:image" content="{{ url_for('site_logo_png', _external=True) }}">
 
-  <meta property="og:image" content="{{ SITE_LOGO_DATA_URI }}">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="{{ SITE_LOGO_DATA_URI }}">
 {% endif %}
 <meta name="color-scheme" content="light dark">
 <style>
@@ -2099,25 +2122,21 @@ def privacy():
     """
     return render(body, title="Privacy")
 
+@app.route("/site-logo.png")
+def site_logo_png():
+    png = _site_logo_png_bytes()
+    if not png:
+        return "", 404
+    return send_file(io.BytesIO(png), mimetype="image/png")
+
 @app.route("/favicon.ico")
 def favicon():
-    if not SITE_LOGO_DATA_URI:
+    png = _site_logo_png_bytes()
+    if not png:
         return "", 404
+    # It’s fine to serve PNG at /favicon.ico (widely supported)
+    return send_file(io.BytesIO(png), mimetype="image/png")
 
-    # SITE_LOGO_DATA_URI may be full data URI or raw base64
-    data = SITE_LOGO_DATA_URI.strip()
-
-    if data.startswith("data:"):
-        header, b64 = data.split(",", 1)
-    else:
-        b64 = data
-
-    try:
-        png_bytes = base64.b64decode(b64)
-    except Exception:
-        return "", 404
-
-    return Response(png_bytes, mimetype="image/png")
 
 @app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
