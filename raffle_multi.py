@@ -10,7 +10,7 @@
 
 from flask import (
     Flask, render_template_string, request, redirect,
-    url_for, session, flash, abort, send_file, jsonify
+    url_for, session, flash, abort, Response, send_file, jsonify
 )
 import os, random, csv, io, json
 from datetime import datetime, timedelta
@@ -221,8 +221,11 @@ LAYOUT = """
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title or "Get My Number" }}</title>
 {% if SITE_LOGO_DATA_URI %}
-  <link rel="icon" type="image/png" href="{{ SITE_LOGO_DATA_URI }}">
-  <link rel="apple-touch-icon" href="{{ SITE_LOGO_DATA_URI }}">
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/favicon.ico">
+
+  <meta property="og:image" content="/favicon.ico">
+  <meta name="twitter:image" content="/favicon.ico">
 
   <meta property="og:image" content="{{ SITE_LOGO_DATA_URI }}">
   <meta property="og:type" content="website">
@@ -2095,6 +2098,26 @@ def privacy():
     </div>
     """
     return render(body, title="Privacy")
+
+@app.route("/favicon.ico")
+def favicon():
+    if not SITE_LOGO_DATA_URI:
+        return "", 404
+
+    # SITE_LOGO_DATA_URI may be full data URI or raw base64
+    data = SITE_LOGO_DATA_URI.strip()
+
+    if data.startswith("data:"):
+        header, b64 = data.split(",", 1)
+    else:
+        b64 = data
+
+    try:
+        png_bytes = base64.b64decode(b64)
+    except Exception:
+        return "", 404
+
+    return Response(png_bytes, mimetype="image/png")
 
 @app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
