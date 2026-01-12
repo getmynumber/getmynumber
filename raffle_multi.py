@@ -702,6 +702,15 @@ LAYOUT = """
      white-space:nowrap;      /* prevents line break */
    }
 
+   .logo{
+     display:flex;
+     align-items:center;
+     gap:10px;
+     color:var(--text);
+     text-decoration:none;
+     min-width:0;
+   }
+
    /* Mobile: shrink brand text slightly so it never wraps */
    @media (max-width:420px){
      .logo-badge-img{
@@ -1375,7 +1384,7 @@ LAYOUT = """
        <nav class="nav">
          <a class="logo" href="{{ url_for('home') }}">
            {% if SITE_LOGO_DATA_URI %}
-             <img class="logo-badge-img" src="{{ SITE_LOGO_DATA_URI }}" alt="Get My Number logo">
+             <img class="logo-badge-img" src="{{ url_for('site_logo_png') }}" alt="Get My Number logo">
            {% else %}
              <span class="logo-badge">🎟️</span>
            {% endif %}
