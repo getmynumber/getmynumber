@@ -320,7 +320,7 @@ LAYOUT = """
     margin-top:0;
 
     margin-bottom:20px;
-    padding:10px 32px;
+    padding:6px 32px;
     border-radius:0;
 
     background:#ffffff;
@@ -663,7 +663,7 @@ LAYOUT = """
 .logo{
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:6px;
   text-decoration:none;
   color:var(--text);
 }
@@ -708,7 +708,7 @@ LAYOUT = """
 
   .nav-links{
     display:flex;
-    gap:6px;
+    gap:4px;
     align-items:center;
   }
 
