@@ -210,6 +210,53 @@ LAYOUT = """
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title or "Get My Number" }}</title>
 <meta name="color-scheme" content="light dark">
+
+/* --- Tick rows: perfect circle + aligned text --- */
+
+/* Try to catch your tick wrapper regardless of exact class name */
+.ticks,
+.ticks-block,
+.tick-list{
+  text-align:left;
+}
+
+/* Each tick line becomes a clean flex row */
+.tick,
+.tick-line,
+.ticks .row,
+.ticks-block .row{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+}
+
+/* The circular ✓ badge (cover common class names) */
+.tick-badge,
+.tick-dot,
+.tick-icon,
+.tick-circle,
+.ticks .badge,
+.ticks-block .badge{
+  width:22px;
+  height:22px;
+  min-width:22px;
+  min-height:22px;
+  border-radius:50% !important;     /* force perfect circle */
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;                   /* stop vertical wobble */
+  flex:0 0 22px;                    /* never stretch */
+}
+
+/* If your ✓ is an SVG or pseudo element inside, keep it centered */
+.tick-badge svg,
+.tick-icon svg,
+.tick-circle svg{
+  width:14px;
+  height:14px;
+}
+
 <style>
   :root{
     --bg:#f3fafc;
@@ -436,7 +483,7 @@ LAYOUT = """
   .section-subtitle{
     text-align:center !important;
     max-width:780px;
-    margin:0 auto 16px;
+    margin:0 auto 12px;
   }
 
   .tiles-grid{
@@ -502,7 +549,7 @@ LAYOUT = """
     margin-top:10px;
     border-radius:16px;
     overflow:hidden;
-    border:1px solid rgba(207,227,234,0.95);
+    border:0;
     background:rgba(228,243,247,0.55);
   }
 
@@ -640,7 +687,7 @@ LAYOUT = """
 
   /* Secondary (inner) card – very light grey */
   .card.secondary{
-    background:#f8fafc;
+    background:var(--card-2);
     box-shadow:none;
     padding:16px 16px;
     border-radius:14px;
@@ -892,19 +939,19 @@ LAYOUT = """
 
  .step-card{
    background:var(--card);
-   border-radius:20px;
+   border-radius:var(--radius);
    padding:14px 14px 16px;
    border:1px solid rgba(207,227,234,0.8);
    box-shadow:0 10px 30px rgba(3,46,66,0.08);
    display:flex;
    flex-direction:column;
    gap:8px;
-   text-align:center;
+   text-align:left;
  }
 
  .step-header{
   display:flex;
-  align-items:center;
+  align-items:left;
   gap:8px;
   justify-content:center;
  }
@@ -938,7 +985,7 @@ LAYOUT = """
    font-size:13px;
    color:var(--muted);
    line-height:1.5;
-   text-align:center;
+   text-align:left;
  }
 
    .countdown-card{
@@ -1669,7 +1716,7 @@ def home():
         })
 
     body = """
-    <div class="hero" style="text-align:center;">
+    <div class="hero" style="text-align:center;align-items:center;">
       <h1 class="section-title">Choose a Charity to Support</h1>
       <p class="muted section-subtitle">
         Your contribution matters. Select a charity below to ensure your ticket donation supports a cause you believe in.
@@ -1742,7 +1789,7 @@ def home():
 
     <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
-    <div class="hero" style="text-align:center;">
+    <div class="hero" style="text-align:center;align-items:center;">
       <h1 class="section-title">How Get My Number Works</h1>
       <p class="muted section-subtitle">
         A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
@@ -2664,7 +2711,7 @@ def authorise_hold(slug):
       </p>
 
       <div class="card secondary" style="margin-top:14px">
-        <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
+        <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;text-align:left;">
           {{ ticks_block|safe }}
         </div>
       </div>
