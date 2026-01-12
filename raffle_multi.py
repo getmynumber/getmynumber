@@ -248,7 +248,6 @@ LAYOUT = """
 {% if SITE_LOGO_DATA_URI %}
   <link rel="icon" href="{{ url_for('favicon') }}">
   <link rel="apple-touch-icon" href="{{ url_for('site_logo_png') }}">
-
   <meta property="og:image" content="{{ url_for('site_logo_png', _external=True) }}">
   <meta name="twitter:image" content="{{ url_for('site_logo_png', _external=True) }}">
 
@@ -2124,19 +2123,21 @@ def privacy():
 
 @app.route("/site-logo.png")
 def site_logo_png():
-    png = _site_logo_png_bytes()
-    if not png:
+    path = os.path.join(BASE_DIR, "site-logo.png")
+    if not os.path.exists(path):
         return "", 404
-    return send_file(io.BytesIO(png), mimetype="image/png")
+    return send_file(path, mimetype="image/png")
 
 @app.route("/favicon.ico")
 def favicon():
-    png = _site_logo_png_bytes()
-    if not png:
-        return "", 404
-    # It’s fine to serve PNG at /favicon.ico (widely supported)
-    return send_file(io.BytesIO(png), mimetype="image/png")
-
+    path = os.path.join(BASE_DIR, "favicon.ico")
+    if not os.path.exists(path):
+        # fallback to the PNG if ico isn't present
+        png = os.path.join(BASE_DIR, "site-logo.png")
+        if not os.path.exists(png):
+            return "", 404
+        return send_file(png, mimetype="image/png")
+    return send_file(path, mimetype="image/x-icon")
 
 @app.route("/<slug>", methods=["GET","POST"])
 def charity_page(slug):
