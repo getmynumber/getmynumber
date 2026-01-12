@@ -621,11 +621,13 @@ LAYOUT = """
   }
 }
 
-  .logo{
-    display:flex;
-    gap:14px;
-    align-items:center;
-    color:var(--text);
+  .logo-badge-img{
+    width:52px;
+    height:52px;
+    display:block;
+    object-fit:contain;
+    flex:0 0 52px;
+    transform:translateY(-1px);
   }
 
  .logo-badge{
@@ -661,11 +663,18 @@ LAYOUT = """
    .logo strong{
      letter-spacing:0.06em;
      font-size:20px;
+     line-height:1;
      white-space:nowrap;      /* prevents line break */
    }
 
    /* Mobile: shrink brand text slightly so it never wraps */
    @media (max-width:420px){
+     .logo-badge-img{
+       width:44px;
+       height:44px;
+       flex:0 0 44px;
+       transform:translateY(-1px);
+     }
      .logo strong{
        font-size:16px;
        letter-spacing:0.04em;
