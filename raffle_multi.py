@@ -651,7 +651,7 @@ LAYOUT = """
 
 @media (max-width:600px){
   .nav{
-    padding:16px 16px;
+    padding:10px 10px;
     border-radius:0;
   }
 }
@@ -663,16 +663,16 @@ LAYOUT = """
 .logo{
   display:flex;
   align-items:center;
-  gap:14px;
+  gap:8px;
   text-decoration:none;
   color:var(--text);
 }
 
 /* BIG, dominant logo */
 .logo-badge-img{
-  height:80px;          /* ⬅ control size by HEIGHT only */
+  height:100px;          /* ⬅ control size by HEIGHT only */
   width:auto;           /* ⬅ preserve aspect ratio */
-  max-width:80px;
+  max-width:100px;
   flex-shrink:0;
   display:block;
 }
@@ -692,6 +692,7 @@ LAYOUT = """
   .logo-badge-img{
     height:56px;
     width:auto;
+    gap:8px;
     max-width:56px;
   }
 
@@ -702,7 +703,7 @@ LAYOUT = """
 }
 
 .logo strong{
-  padding-top:2px;
+  padding-top:0px;
 }
 
   .nav-links{
