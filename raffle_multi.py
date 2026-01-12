@@ -670,9 +670,9 @@ LAYOUT = """
 
 /* Logo image */
 .logo-badge-img{
-  width:60px;
-  height:60px;
-  flex:0 0 60px;
+  width:80px;
+  height:80px;
+  flex:0 0 80px;
   display:block;
   object-fit:contain;
 }
@@ -693,15 +693,19 @@ LAYOUT = """
 /* Mobile refinement */
 @media (max-width:420px){
   .logo-badge-img{
-    width:48px;
-    height:48px;
-    flex:0 0 48px;
+    width:54px;
+    height:54px;
+    flex:0 0 54px;
   }
 
   .logo strong{
     font-size:16px;
     letter-spacing:0.04em;
   }
+}
+
+.logo strong{
+  padding-top:2px;
 }
 
   .nav-links{
