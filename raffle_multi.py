@@ -656,74 +656,53 @@ LAYOUT = """
   }
 }
 
+/* =========================
+   NAVBAR LOGO – PRO VERSION
+   ========================= */
+
+.logo{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  text-decoration:none;
+  color:var(--text);
+}
+
+/* Logo image */
+.logo-badge-img{
+  width:44px;
+  height:44px;
+  flex:0 0 44px;
+  display:block;
+  object-fit:contain;
+}
+
+/* Text */
+.logo strong{
+  display:flex;
+  align-items:center;
+  font-size:20px;
+  font-weight:800;
+  letter-spacing:0.05em;
+  line-height:1;
+  margin:0;
+  padding:0;
+  white-space:nowrap;
+}
+
+/* Mobile refinement */
+@media (max-width:420px){
   .logo-badge-img{
-    width:52px;
-    height:52px;
-    display:block;
-    object-fit:contain;
-    flex:0 0 52px;
-    transform:translateY(-1px);
+    width:36px;
+    height:36px;
+    flex:0 0 36px;
   }
 
- .logo-badge{
-    width:44px;
-    height:44px;
-    border-radius:14px;
-    display:grid;
-    place-items:center;
-
-    background:linear-gradient(135deg,var(--brand),var(--brand-2));
-    color:white;
-
-    font-size:22px;
-    position:relative;
-    top:-1px;
-
-    /* Clean teal glow */
-    box-shadow:
-      0 8px 18px rgba(0,184,169,0.35),
-      0 0 10px rgba(0,184,169,0.45);
-
-    /* No animation, no movement */
-    transition:box-shadow .25s ease;
-   }
- 
-   .logo-badge-img{
-     width:52px;
-     height:52px;
-     display:block;
-     object-fit:contain;
-   }
-
-   .logo strong{
-     letter-spacing:0.06em;
-     font-size:20px;
-     line-height:1;
-     white-space:nowrap;      /* prevents line break */
-   }
-
-   .logo{
-     display:flex;
-     align-items:center;
-     gap:10px;
-     color:var(--text);
-     text-decoration:none;
-     min-width:0;
-   }
-
-   /* Mobile: shrink brand text slightly so it never wraps */
-   @media (max-width:420px){
-     .logo-badge-img{
-       width:44px;
-       height:44px;
-       flex:0 0 44px;
-       transform:translateY(-1px);
-     }
-     .logo strong{
-       font-size:16px;
-       letter-spacing:0.04em;
-     }
-   }
+  .logo strong{
+    font-size:16px;
+    letter-spacing:0.04em;
+  }
+}
 
   .nav-links{
     display:flex;
