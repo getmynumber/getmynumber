@@ -250,6 +250,10 @@ LAYOUT = """
   <link rel="apple-touch-icon" href="{{ url_for('site_logo_png') }}">
   <meta property="og:image" content="{{ url_for('site_logo_png', _external=True) }}">
   <meta name="twitter:image" content="{{ url_for('site_logo_png', _external=True) }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="manifest" href="/site.webmanifest">
 
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
