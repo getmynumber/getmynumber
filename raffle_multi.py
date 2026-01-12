@@ -145,7 +145,7 @@ KEHILLA_LOGO_DATA_URI = _load_text_file(
 
 SITE_LOGO_DATA_URI = _load_text_file(
     os.path.join(BASE_DIR, "getmynumber_logo_data_uri.txt")
-)
+) or (os.environ.get("SITE_LOGO_DATA_URI", "") or "").strip()
 
 # If the file contains raw base64 (no data: prefix), convert to a proper data URI
 if SITE_LOGO_DATA_URI:
