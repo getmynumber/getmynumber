@@ -143,6 +143,11 @@ KEHILLA_LOGO_DATA_URI = _load_text_file(
 	os.path.join(BASE_DIR, "kehilla_logo_data_uri.txt")
 )
 
+SITE_LOGO_DATA_URI = _load_text_file(
+    os.path.join(BASE_DIR, "getmynumber_logo_data_uri.txt")
+)
+
+
 # ====== MODELS ================================================================
 
 class Charity(db.Model):
@@ -209,54 +214,16 @@ LAYOUT = """
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ title or "Get My Number" }}</title>
+{% if SITE_LOGO_DATA_URI %}
+  <link rel="icon" type="image/png" href="{{ SITE_LOGO_DATA_URI }}">
+  <link rel="apple-touch-icon" href="{{ SITE_LOGO_DATA_URI }}">
+
+  <meta property="og:image" content="{{ SITE_LOGO_DATA_URI }}">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ SITE_LOGO_DATA_URI }}">
+{% endif %}
 <meta name="color-scheme" content="light dark">
-
-/* --- Tick rows: perfect circle + aligned text --- */
-
-/* Try to catch your tick wrapper regardless of exact class name */
-.ticks,
-.ticks-block,
-.tick-list{
-  text-align:left;
-}
-
-/* Each tick line becomes a clean flex row */
-.tick,
-.tick-line,
-.ticks .row,
-.ticks-block .row{
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-}
-
-/* The circular ✓ badge (cover common class names) */
-.tick-badge,
-.tick-dot,
-.tick-icon,
-.tick-circle,
-.ticks .badge,
-.ticks-block .badge{
-  width:22px;
-  height:22px;
-  min-width:22px;
-  min-height:22px;
-  border-radius:50% !important;     /* force perfect circle */
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  line-height:1;                   /* stop vertical wobble */
-  flex:0 0 22px;                    /* never stretch */
-}
-
-/* If your ✓ is an SVG or pseudo element inside, keep it centered */
-.tick-badge svg,
-.tick-icon svg,
-.tick-circle svg{
-  width:14px;
-  height:14px;
-}
-
 <style>
   :root{
     --bg:#f3fafc;
@@ -483,7 +450,7 @@ LAYOUT = """
   .section-subtitle{
     text-align:center !important;
     max-width:780px;
-    margin:0 auto 12px;
+    margin:0 auto 16px;
   }
 
   .tiles-grid{
@@ -577,6 +544,52 @@ LAYOUT = """
     background:linear-gradient(90deg, var(--brand), var(--brand-2));
   }
 
+/* --- Tick rows: perfect circle + aligned text --- */
+
+/* Try to catch your tick wrapper regardless of exact class name */
+.ticks,
+.ticks-block,
+.tick-list{
+  text-align:left;
+}
+
+/* Each tick line becomes a clean flex row */
+.tick,
+.tick-line,
+.ticks .row,
+.ticks-block .row{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+}
+
+/* The circular ✓ badge (cover common class names) */
+.tick-badge,
+.tick-dot,
+.tick-icon,
+.tick-circle,
+.ticks .badge,
+.ticks-block .badge{
+  width:22px;
+  height:22px;
+  min-width:22px;
+  min-height:22px;
+  border-radius:50% !important;     /* force perfect circle */
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;                   /* stop vertical wobble */
+  flex:0 0 22px;                    /* never stretch */
+}
+
+/* If your ✓ is an SVG or pseudo element inside, keep it centered */
+.tick-badge svg,
+.tick-icon svg,
+.tick-circle svg{
+  width:14px;
+  height:14px;
+}
+
   .tile-cta{
     margin-top:12px;
   }
@@ -637,7 +650,13 @@ LAYOUT = """
     /* No animation, no movement */
     transition:box-shadow .25s ease;
    }
-
+ 
+   .logo-badge-img{
+     width:52px;
+     height:52px;
+     display:block;
+     object-fit:contain;
+   }
 
    .logo strong{
      letter-spacing:0.06em;
@@ -950,10 +969,10 @@ LAYOUT = """
  }
 
  .step-header{
-  display:flex;
-  align-items:left;
-  gap:8px;
-  justify-content:center;
+   display:flex;
+   align-items:center;
+   gap:8px;
+   justify-content:flex-start;
  }
 
  .step-icon{
@@ -985,6 +1004,12 @@ LAYOUT = """
    font-size:13px;
    color:var(--muted);
    line-height:1.5;
+   text-align:left;
+ }
+
+ .step-header strong,
+ .step-header .step-title,
+ .step-header div{
    text-align:left;
  }
 
@@ -1305,8 +1330,12 @@ LAYOUT = """
      <div class="wrap">
        <nav class="nav">
          <a class="logo" href="{{ url_for('home') }}">
-           <span class="logo-badge">🎟️</span>
-           <strong>Get My Number</strong>
+           {% if SITE_LOGO_DATA_URI %}
+             <img class="logo-badge-img" src="{{ SITE_LOGO_DATA_URI }}" alt="Get My Number logo">
+           {% else %}
+             <span class="logo-badge">🎟️</span>
+           {% endif %}
+             <strong>Get My Number</strong>
          </a>
          <div class="nav-links">
            <a href="{{ url_for('admin_charities') }}">Admin</a>
@@ -1428,6 +1457,8 @@ def render(body, **ctx):
     if not (path == "/" or path.startswith("/admin") or path.startswith("/partner")):
         layout_mode = "layout-narrow"
     ctx.setdefault("layout_mode", layout_mode)
+
+    ctx.setdefault("SITE_LOGO_DATA_URI", SITE_LOGO_DATA_URI)
 
     ctx.setdefault("HOLD_AMOUNT_PENCE", HOLD_AMOUNT_PENCE)
     inner = render_template_string(body, request=request, datetime=datetime, **ctx)
