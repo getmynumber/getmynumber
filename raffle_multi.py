@@ -320,7 +320,7 @@ LAYOUT = """
     margin-top:0;
 
     margin-bottom:20px;
-    padding:6px 32px;
+    padding:4px 32px;
     border-radius:0;
 
     background:#ffffff;
