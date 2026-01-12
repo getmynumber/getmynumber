@@ -320,7 +320,7 @@ LAYOUT = """
     margin-top:0;
 
     margin-bottom:20px;
-    padding:18px 32px;
+    padding:10px 32px;
     border-radius:0;
 
     background:#ffffff;
@@ -663,21 +663,21 @@ LAYOUT = """
 .logo{
   display:flex;
   align-items:center;
-  gap:12px;
+  gap:14px;
   text-decoration:none;
   color:var(--text);
 }
 
-/* Logo image */
+/* BIG, dominant logo */
 .logo-badge-img{
-  width:80px;
-  height:80px;
-  flex:0 0 80px;
+  height:80px;          /* ⬅ control size by HEIGHT only */
+  width:auto;           /* ⬅ preserve aspect ratio */
+  max-width:80px;
+  flex-shrink:0;
   display:block;
-  object-fit:contain;
 }
 
-/* Text */
+/* Keep text visually lighter */
 .logo strong{
   display:flex;
   align-items:center;
@@ -685,17 +685,14 @@ LAYOUT = """
   font-weight:800;
   letter-spacing:0.05em;
   line-height:1;
-  margin:0;
-  padding:0;
   white-space:nowrap;
 }
 
-/* Mobile refinement */
 @media (max-width:420px){
   .logo-badge-img{
-    width:54px;
-    height:54px;
-    flex:0 0 54px;
+    height:56px;
+    width:auto;
+    max-width:56px;
   }
 
   .logo strong{
