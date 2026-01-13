@@ -1824,7 +1824,7 @@ def home():
 
           <div class="tile-cta">
             {% if not t.blocked %}
-              <a class="btn" href="{{ url_for('charity_page', slug=t.slug) }}">Select this Cause</a>
+              <a class="btn" href="{{ url_for('charity_page', slug=t.slug) }}">Select this Campaign</a>
             {% else %}
               <button class="btn" type="button" disabled>
                 {% if t.status == "sold_out" %}Sold out{% elif t.status == "coming_soon" %}Coming Soon{% else %}Unavailable{% endif %}
@@ -3116,14 +3116,16 @@ def hold_success(slug):
 
            {% if charity.optional_donation_enabled and charity.continue_without_donating_enabled %}
              <div style="margin-top:10px;text-align:center;">
-               <form method="post"
-                     action="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
-                     data-safe-submit
-                     style="display:inline;">
-                 <button class="pill" type="submit" style="padding:10px 14px;">
-                   Continue without donating
-                 </button>
-               </form>
+               <button
+                 class="pill"
+                 type="submit"
+                 formaction="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
+                 formmethod="post"
+                 data-safe-submit
+                 style="padding:10px 14px;"
+               >
+                 Continue without donating
+               </button>
              </div>
            {% endif %}
          </form>
