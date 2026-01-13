@@ -133,7 +133,7 @@ def add_security_headers(resp):
 def _load_text_file(path: str) -> str:
     try:
         with open(path, "r", encoding="utf-8") as f:
-	    return (f.read() or "").strip()
+            return (f.read() or "").strip()
         except Exception:
             return ""
 
