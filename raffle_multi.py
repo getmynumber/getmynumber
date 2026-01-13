@@ -2810,7 +2810,7 @@ def authorise_hold(slug):
         🔒 Secured by Stripe
       </div>
 
-      {% if charity.optional_donation_enabled%}
+      {% if charity.postal_entry_enabled %}
       <details style="margin-top:14px">
         <summary class="pill" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px">
           Free Postal Entry
@@ -3113,22 +3113,17 @@ def hold_success(slug):
            <button class="btn" type="submit" style="width:100%; margin-top:12px;">
              {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; Donate{% endif %}
            </button>
-
-           {% if charity.optional_donation_enabled and charity.continue_without_donating_enabled %}
-             <div style="margin-top:10px;text-align:center;">
-               <button
-                 class="pill"
-                 type="submit"
-                 formaction="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
-                 formmethod="post"
-                 data-safe-submit
-                 style="padding:10px 14px;"
-               >
-                 Continue without donating
-               </button>
-             </div>
-           {% endif %}
          </form>
+         {% if charity.continue_without_donating_enabled %}
+           <form method="post"
+                 action="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
+                 data-safe-submit
+                 style="margin-top:10px;text-align:center;">
+             <button class="pill" type="submit" style="padding:10px 14px;">
+               Continue without donating
+             </button>
+           </form>
+         {% endif %}
        </div>
 
        <script>
@@ -3139,7 +3134,7 @@ def hold_success(slug):
          const ticketVal = document.getElementById('ticket-val');  // revealed ticket value (£ticket)
          const holdAmt = document.getElementById('hold-amt');      // revealed hold (£max)
          const releaseAmt = document.getElementById('release-amt');// NEW: released amount
-         const freeEnabled = {{ 'true' if charity.optional_donation_enabled else 'false' }};
+         const freeEnabled = {{ 'true' if charity.free_entry_enabled else 'false' }};
          const nudgeNum = document.getElementById('nudge-num');
          const nudgeAmt = document.getElementById('nudge-amt');
          const matchNudge = document.getElementById('match-nudge');
@@ -3165,7 +3160,7 @@ def hold_success(slug):
          const btnZero = document.getElementById('btn-zero');
 
          // Server decides whether free entry is enabled for THIS charity:
-         const freeEntryEnabled = {{ 'true' if charity.optional_donation_enabled else 'false' }};
+         const freeEntryEnabled = {{ 'true' if charity.free_entry_enabled else 'false' }};
 
          function intOr0(x){
            const n = parseInt(String(x || '0').replace(/[^\d]/g,''), 10);
@@ -4319,8 +4314,8 @@ def edit_charity(slug):
       </label>
 
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
-        <input type="checkbox" name="optional_donation_enabled" {% if charity.optional_donation_enabled %}checked{% endif %}>
-        Free entry available (optional donation)
+        <input type="checkbox" name="free_entry_enabled" {% if charity.free_entry_enabled %}checked{% endif %}>
+        Free entry available (allow £0 path)
       </label>
 
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
