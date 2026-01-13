@@ -134,13 +134,13 @@ def _load_text_file(path: str) -> str:
     try:
         with open(path, "r", encoding="utf-8") as f:
             return (f.read() or "").strip()
-        except Exception:
-            return ""
+    except Exception:
+        return ""
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 KEHILLA_LOGO_DATA_URI = _load_text_file(
-	os.path.join(BASE_DIR, "kehilla_logo_data_uri.txt")
+    os.path.join(BASE_DIR, "kehilla_logo_data_uri.txt")
 )
 
 SITE_LOGO_DATA_URI = _load_text_file(
@@ -152,8 +152,6 @@ if SITE_LOGO_DATA_URI:
     SITE_LOGO_DATA_URI = SITE_LOGO_DATA_URI.strip().strip('"').strip("'")
     if not SITE_LOGO_DATA_URI.startswith("data:"):
         SITE_LOGO_DATA_URI = "data:image/png;base64," + SITE_LOGO_DATA_URI
-
-import base64
 
 def _site_logo_png_bytes():
     """Return PNG bytes for the site logo from SITE_LOGO_DATA_URI (data URI or raw base64)."""
