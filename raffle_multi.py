@@ -875,6 +875,21 @@ LAYOUT = """
     background:#ffffff;
   }
 
+  /* Discrete text-style action (e.g., "Continue without donating") */
+  .btn.link{
+    background:transparent;
+    border:none;
+    color:var(--brand);
+    padding:4px 0;
+    font-weight:700;
+    box-shadow:none;
+  }
+  .btn.link:hover{
+    text-decoration:underline;
+    box-shadow:none;
+    transform:none;
+  }
+
   /* Outline pill buttons (used on final confirmation page) */
   .btn.outline{
     background: transparent;
@@ -3114,15 +3129,17 @@ def hold_success(slug):
              {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; Donate{% endif %}
            </button>
          </form>
-         {% if charity.continue_without_donating_enabled %}
-           <form method="post"
-                 action="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
-                 data-safe-submit
-                 style="margin-top:10px;text-align:center;">
-             <button class="pill" type="submit" style="padding:10px 14px;">
-               Continue without donating
-             </button>
-           </form>
+         {% if charity.optional_donation_enabled and charity.continue_without_donating_enabled %}
+           <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+             <form method="post"
+                   action="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
+                   data-safe-submit
+                   style="margin:0;">
+               <button type="submit" class="pill outline" style="padding:10px 12px; font-size:13px;">
+                 Continue without donating
+               </button>
+             </form>
+           </div>
          {% endif %}
        </div>
 
@@ -3437,6 +3454,10 @@ def confirm_payment(entry_id):
     charity = Charity.query.get_or_404(entry.charity_id)
     held = int(entry.hold_amount_pence or 0)
     optional_ok = bool(getattr(charity, "optional_donation_enabled", False))
+    no_donation_req = (request.form.get("no_donation") == "1")
+    no_donation_enabled = bool(getattr(charity, "continue_without_donating_enabled", False))
+    allow_zero = optional_ok or (no_donation_enabled and no_donation_req)
+
 
     acct = (getattr(entry, "stripe_account_id", None) or getattr(charity, "stripe_account_id", None) or "").strip()
     if not acct.startswith("acct_"):
@@ -3453,19 +3474,22 @@ def confirm_payment(entry_id):
 
     # Amount is user-confirmed only if optional donations are enabled.
     # Otherwise we force the capture amount to the ticket number.
-    if not optional_ok:
+    if allow_zero and no_donation_req:
+        amount_gbp = 0
+    elif not optional_ok:
         amount_gbp = int(entry.number or 0)
     else:
         raw = (request.form.get("amount_gbp", "") or "").strip()
-        try:
-            amount_gbp = int(raw)
-        except ValueError:
-            amount_gbp = -1
+    try:
+        amount_gbp = int(raw)
+    except ValueError:
+        amount_gbp = -1
+
 
     amount_pence = amount_gbp * 100
     paid_gbp = amount_gbp
 
-    if (not optional_ok) and amount_gbp < 1:
+    if (not allow_zero) and amount_gbp < 1:
         flash("This campaign requires a minimum donation of £1.")
         return redirect(url_for("hold_success", slug=charity.slug))
 
@@ -3553,8 +3577,6 @@ def confirm_payment(entry_id):
     db.session.commit()
 
     # 4) Final confirmation page with optional Stripe receipt button
-        # 4) Final confirmation page with optional Stripe receipt button
-
     ticks_block_final = build_ticks_block([
         f"Paid &pound;<strong>{paid_gbp}</strong> to <strong>{charity.name}</strong>",
         f"&pound;<strong>{held_gbp}</strong> was temporarily held",
@@ -3617,6 +3639,28 @@ def confirm_payment(entry_id):
         held_gbp=held_gbp,
         released_gbp=released_gbp,
         ticks_block_final=ticks_block_final,
+        step_current=step_current,
+        step_total=step_total,
+        flow_progress_pct=flow_progress_pct(charity, "confirmed"),
+        title=f"{charity.name} – Thank you",
+    )
+@app.get("/no-donation-done/<int:entry_id>")
+def no_donation_done(entry_id):
+    entry = Entry.query.get_or_404(entry_id)
+    charity = Charity.query.get_or_404(entry.charity_id)
+
+    body = """
+    <div class="hero">
+      <h1>Thank you — you're all set</h1>
+      <p class="muted">Your temporary hold will be returned to you.</p>
+    </div>
+    """
+
+    step_current, step_total = flow_step_meta(charity, "confirmed")
+    return render(
+        body,
+        charity=charity,
+        entry=entry,
         step_current=step_current,
         step_total=step_total,
         flow_progress_pct=flow_progress_pct(charity, "confirmed"),
@@ -4984,6 +5028,8 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN postal_entry_enabled BOOLEAN DEFAULT 0"))
             if 'optional_donation_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN optional_donation_enabled BOOLEAN DEFAULT 0"))
+            if 'continue_without_donating_enabled' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN continue_without_donating_enabled BOOLEAN DEFAULT 0"))
             if 'skill_enabled' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_enabled BOOLEAN DEFAULT 0"))
             if 'stripe_account_id' not in charity_cols:
