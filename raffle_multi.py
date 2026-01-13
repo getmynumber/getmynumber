@@ -131,11 +131,11 @@ def add_security_headers(resp):
     return resp
 
 def _load_text_file(path: str) -> str:
-	try:
-		with open(path, "r", encoding="utf-8") as f:
-			return (f.read() or "").strip()
-	except Exception:
-		return ""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+	    return (f.read() or "").strip()
+        except Exception:
+            return ""
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -200,6 +200,7 @@ class Charity(db.Model):
     free_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
     postal_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
     optional_donation_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    continue_without_donating_enabled = db.Column(db.Boolean, nullable=False, default=False)
     # ===== Skill-based entry (optional) =====
     skill_enabled = db.Column(db.Boolean, nullable=False, default=False)
     skill_question = db.Column(db.Text, nullable=True)
@@ -319,8 +320,8 @@ LAYOUT = """
 
     margin-top:0;
 
-    margin-bottom:14px;
-    padding:6px 24px;
+    margin-bottom:7px;
+    padding:2px 24px;
     border-radius:0;
 
     background:#ffffff;
@@ -669,9 +670,9 @@ LAYOUT = """
 }
 
 .logo-badge-img{
-  height:100px;              /* was 100px (also helps banner thickness) */
+  height:90px;              /* was 100px (also helps banner thickness) */
   width:auto;
-  max-width:105px;          /* allow it to occupy a wider box */
+  max-width:110px;          /* allow it to occupy a wider box */
   flex-shrink:0;
   display:block;
   object-fit:contain;
@@ -683,7 +684,7 @@ LAYOUT = """
   align-items:center;
   font-size:20px;
   font-weight:800;
-  letter-spacing:0.05em;
+  letter-spacing:0.04em;
   line-height:1;
   white-space:nowrap;
 }
@@ -691,9 +692,7 @@ LAYOUT = """
 @media (max-width:420px){
   .logo-badge-img{
     height:56px;
-    width:auto;
-    gap:2px;
-    max-width:56px; 
+    max-width:64px; 
   }
 
   .logo strong{
@@ -1683,16 +1682,6 @@ def partner_guard(slug):
     c = Charity.query.filter_by(slug=slug).first()
     if not c or session.get("partner_charity_id") != c.id: return None
     return c
-
-def refresh_campaign_status(c: Charity) -> None:
-    """Auto-set sold_out if no tickets remain. Never auto-change other statuses."""
-    try:
-        remaining = len(available_numbers(c))
-        if remaining <= 0 and (getattr(c, "campaign_status", "live") != "sold_out"):
-            c.campaign_status = "sold_out"
-            db.session.commit()
-    except Exception:
-        db.session.rollback()
 
 def build_tickbox(title: str, lines_html: list[str]) -> Markup:
     """
@@ -3126,8 +3115,20 @@ def hold_success(slug):
            <button class="btn" type="submit" style="width:100%; margin-top:12px;">
              {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; Donate{% endif %}
            </button>
-         </form>
 
+           {% if charity.optional_donation_enabled and charity.continue_without_donating_enabled %}
+             <div style="margin-top:10px;text-align:center;">
+               <form method="post"
+                     action="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
+                     data-safe-submit
+                     style="display:inline;">
+                 <button class="pill" type="submit" style="padding:10px 14px;">
+                   Continue without donating
+                 </button>
+               </form>
+             </div>
+           {% endif %}
+         </form>
        </div>
 
        <script>
@@ -3625,6 +3626,80 @@ def confirm_payment(entry_id):
         step_total=step_total,
         flow_progress_pct=flow_progress_pct(charity, "confirmed"),
         title=f"{charity.name} – Thank you",
+    )
+
+@app.route("/entry/<int:entry_id>/continue-without-donating", methods=["POST"])
+def continue_without_donating(entry_id):
+    entry = Entry.query.get_or_404(entry_id)
+    charity = Charity.query.get_or_404(entry.charity_id)
+
+    # Must be enabled per charity, and optional donation must be on (because £0 is allowed only then)
+    if not getattr(charity, "optional_donation_enabled", False):
+        flash("This campaign does not allow £0 completion.")
+        return redirect(url_for("hold_success", slug=charity.slug))
+
+    if not getattr(charity, "continue_without_donating_enabled", False):
+        flash("This option is not available for this campaign.")
+        return redirect(url_for("hold_success", slug=charity.slug))
+
+    # Connected account (where the PaymentIntent lives)
+    acct = (getattr(entry, "stripe_account_id", None) or getattr(charity, "stripe_account_id", None) or "").strip()
+    if not acct.startswith("acct_"):
+        flash("Payment configuration is missing. Please contact support.")
+        return redirect(url_for("hold_success", slug=charity.slug))
+
+    # If already marked paid, just show the final page
+    if getattr(entry, "paid", False):
+        step_current, step_total = flow_step_meta(charity, "confirm")
+        body = """
+        <div class="hero">
+          <h1>Thank you — you’re all set</h1>
+          <p class="muted" style="margin-top:10px;line-height:1.5;">
+            Your card hold will be returned to you automatically.
+          </p>
+        </div>
+        """
+        return render(
+            body,
+            charity=charity,
+            entry=entry,
+            step_current=step_current,
+            step_total=step_total,
+            flow_progress_pct=flow_progress_pct(charity, "confirm"),
+        )
+
+    try:
+        # Cancel releases the authorisation (manual capture PI)
+        stripe.PaymentIntent.cancel(
+            entry.payment_intent_id,
+            stripe_account=acct,
+        )
+
+        entry.paid = True
+        entry.paid_at = datetime.utcnow()
+        db.session.commit()
+
+    except Exception as e:
+        app.logger.exception(e)
+        flash("We couldn't release the hold automatically. Please contact support.")
+        return redirect(url_for("hold_success", slug=charity.slug))
+
+    step_current, step_total = flow_step_meta(charity, "confirm")
+    body = """
+    <div class="hero">
+      <h1>Thank you — you’re all set</h1>
+      <p class="muted" style="margin-top:10px;line-height:1.5;">
+        Your card hold will be returned to you automatically.
+      </p>
+    </div>
+    """
+    return render(
+        body,
+        charity=charity,
+        entry=entry,
+        step_current=step_current,
+        step_total=step_total,
+        flow_progress_pct=flow_progress_pct(charity, "confirm"),
     )
 
 @app.route("/stripe/webhook", methods=["POST"])
@@ -4160,6 +4235,8 @@ def edit_charity(slug):
         charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
         charity.postal_entry_enabled = bool(request.form.get("postal_entry_enabled"))
         charity.optional_donation_enabled = bool(request.form.get("optional_donation_enabled"))
+        charity.continue_without_donating_enabled = bool(request.form.get("continue_without_donating_enabled"))
+
 
         try:
             raw_hold = int(request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence)
@@ -4255,6 +4332,13 @@ def edit_charity(slug):
         <input type="checkbox" name="optional_donation_enabled" {% if charity.optional_donation_enabled %}checked{% endif %}>
         Optional donation amount (allow £0 / editable donation)
       </label>
+
+      <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <input type="checkbox" name="continue_without_donating_enabled"
+               {% if charity.continue_without_donating_enabled %}checked{% endif %}>
+        Show “Continue without donating” button (ends flow with £0 and releases hold)
+      </label>
+
 
       <h3 style="margin-top:18px;">Stripe Connect (where donations get paid)</h3>
 
