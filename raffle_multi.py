@@ -669,14 +669,12 @@ LAYOUT = """
 }
 
 .logo-badge-img{
-  height:78px;              /* was 100px (also helps banner thickness) */
+  height:100px;              /* was 100px (also helps banner thickness) */
   width:auto;
-  max-width:110px;          /* allow it to occupy a wider box */
+  max-width:105px;          /* allow it to occupy a wider box */
   flex-shrink:0;
   display:block;
   object-fit:contain;
-  transform:scaleX(1.12);   /* subtle “wider” look */
-  transform-origin:left center;
 }
 
 /* Keep text visually lighter */
@@ -692,12 +690,10 @@ LAYOUT = """
 
 @media (max-width:420px){
   .logo-badge-img{
-    height:52px;
+    height:56px;
     width:auto;
-    gap:4px;
-    max-width:74px;
-    transform:scaleX(1.10);
-    transform-origin:left center;
+    gap:2px;
+    max-width:56px; 
   }
 
   .logo strong{
@@ -1891,7 +1887,7 @@ def home():
         </div>
         <div class="step-body">
           Some campaigns include an optional multiple-choice question before you proceed.
-          If it is enabled for that charity, you will be recquired to answer the question correctly to continue.
+          When enable, you will be recquired to answer the question correctly to continue.
         </div>
       </div>
 
@@ -1906,7 +1902,7 @@ def home():
         <div class="step-body">
           You will be redirected to our secure Stripe checkout where a temporary hold
           is placed on your card. This is an authorisation only – no money is taken at this point.
-          Alternatively, there is a free postal route.
+          There is a free postal route option at this step.
         </div>
       </div>
 
@@ -1929,11 +1925,11 @@ def home():
           <div class="step-icon">✅</div>
           <div>
             <div class="step-label">Step 5</div>
-            <div class="step-title">Donate your Ticket Amount</div>
+            <div class="step-title">Confirm your Donation</div>
           </div>
         </div>
         <div class="step-body">
-          Confirm your donation for an amount equal to your ticket number.
+          You can confirm your donation for an amount equal to your ticket number to supprt the chairty.
           We capture only this amount from the original card hold.
         </div>
       </div>
@@ -2011,7 +2007,7 @@ def terms():
 
       <p><strong>How To Enter:</strong><br>
       3. The campaign will be open until the date and time specified on Our Website for each campaign.<br>
-      4. To enter, you must follow the entry instructions on Our Website. You will be required to provide your name, email, and phone number. You will also be required to authorise a temporary card hold via Stripe before being issued a number. Following this, you will be issued with a number. Your number will be the amount you will donate to the charity to confirm the entry.<br>
+      4. To enter, you must follow the entry instructions on Our Website. You will be required to provide your name, email, and phone number. You will also be required to authorise a temporary card hold via Stripe before being issued a number. Following this, you will be issued with a number. Your number will be the amount you can donate to the charity to confirm the entry.<br>
       5. By entering any campaign on Our Website, you accept these T&amp;Cs and any campaign specific rules set out on Our Website. We recommend that you print and keep safe, or save to your device, a copy of the T&amp;Cs for future reference.</p>
 
       <p>7. The winner (&ldquo;the Winner&rdquo;) of the campaign will be selected at random from all eligible entries received by the closing date and time. Random selection may be performed by a random number generator.</p>
@@ -3032,8 +3028,8 @@ def hold_success(slug):
 
     ticks_block = build_ticks_block([
         "&pound;<strong><span id='hold-amt'></span></strong> temporarily held on your card",
-        "You will donate &pound;<strong><span id='pay-amt'></span></strong>",
-        "&pound;<strong><span id='release-amt'></span></strong> will be released",
+        "You can donate &pound;<strong><span id='pay-amt'></span></strong>",
+        "&pound;<strong><span id='release-amt'></span></strong> would be released",
     ], wrap_card=False)
 
     # Clean up the session data used for pending
