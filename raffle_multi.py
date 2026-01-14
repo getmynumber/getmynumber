@@ -837,6 +837,22 @@ LAYOUT = """
     transform:none;
   }
 
+  /* Discreet secondary action (Continue without donating) */
+  .btn-discreet {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px solid rgba(0, 128, 128, 0.35);
+    color: rgba(0, 90, 90, 0.85);
+    opacity: 0.75;
+  }
+
+  .btn-discreet:hover {
+    opacity: 1;
+    background: rgba(0, 128, 128, 0.04);
+  }
+
   form{
     display:flex;
     flex-direction:column;
@@ -3129,19 +3145,40 @@ def hold_success(slug):
              {% if charity.optional_donation_enabled %}Confirm Donation{% else %}Confirm &amp; Donate{% endif %}
            </button>
          </form>
-         {% if charity.optional_donation_enabled and charity.continue_without_donating_enabled %}
-           <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+         {% if charity.continue_without_donating_enabled %}        
+           <div style="display:flex; justify-content:flex-end; margin-top:8px;">
              <form method="post"
                    action="{{ url_for('continue_without_donating', entry_id=entry.id) }}"
                    data-safe-submit
                    style="margin:0;">
-               <button type="submit" class="pill outline" style="padding:10px 12px; font-size:13px;">
+               <button
+                 id="no-donation-btn"
+                 class="btn btn-discreet"
+                 type="submit"
+                 name="no_donation"
+                 value="1"
+               >
                  Continue without donating
                </button>
              </form>
            </div>
          {% endif %}
        </div>
+
+            <script>
+              (function(){
+                const btn = document.getElementById("no-donation-btn");
+                if (!btn) return;
+
+                btn.addEventListener("click", function(){
+                  const amt = document.getElementById("donation-amount");
+                  if (amt){
+                    amt.value = "0";
+                    amt.required = false;
+                  }
+                });
+              })();
+            </script>
 
        <script>
        (function(){
@@ -3480,10 +3517,10 @@ def confirm_payment(entry_id):
         amount_gbp = int(entry.number or 0)
     else:
         raw = (request.form.get("amount_gbp", "") or "").strip()
-    try:
-        amount_gbp = int(raw)
-    except ValueError:
-        amount_gbp = -1
+        try:
+            amount_gbp = int(raw)
+        except ValueError:
+            amount_gbp = -1
 
 
     amount_pence = amount_gbp * 100
@@ -3517,7 +3554,7 @@ def confirm_payment(entry_id):
         return redirect(url_for("hold_success", slug=charity.slug))
     # If £0 donation (only allowed when optional donations are enabled),
     # cancel the PaymentIntent to release the authorisation
-    if optional_ok and amount_pence == 0:
+    if allow_zero and amount_pence == 0:
         try:
             stripe.PaymentIntent.cancel(
                 entry.payment_intent_id,
@@ -3672,11 +3709,7 @@ def continue_without_donating(entry_id):
     entry = Entry.query.get_or_404(entry_id)
     charity = Charity.query.get_or_404(entry.charity_id)
 
-    # Must be enabled per charity, and optional donation must be on (because £0 is allowed only then)
-    if not getattr(charity, "optional_donation_enabled", False):
-        flash("This campaign does not allow £0 completion.")
-        return redirect(url_for("hold_success", slug=charity.slug))
-
+    
     if not getattr(charity, "continue_without_donating_enabled", False):
         flash("This option is not available for this campaign.")
         return redirect(url_for("hold_success", slug=charity.slug))
