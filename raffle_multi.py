@@ -2370,6 +2370,28 @@ def charity_page(slug):
             {% endif %}
           </button>
         </form>
+ 
+        <script>
+        (function () {
+          const radios = document.querySelectorAll('input[data-earmark-radio="1"]');
+          if (!radios.length) return;
+
+          radios.forEach((r) => {
+            // Use mousedown so we capture "was it already checked" BEFORE the browser toggles it
+            r.addEventListener("mousedown", function () {
+              this.dataset.preChecked = this.checked ? "1" : "0";
+            });
+
+            r.addEventListener("click", function () {
+              if (this.dataset.preChecked === "1") {
+                this.checked = false;
+              }
+              // clear helper
+              this.dataset.preChecked = "0";
+            });
+          });
+        })();
+        </script>
       </div>
 
       <div class="soft-panel">
@@ -2430,24 +2452,6 @@ def charity_page(slug):
         update();
         const timer = setInterval(update, 1000);
       })();
-    </script>
-    <script>
-    (function () {
-      // Allow radio buttons to be unselected by clicking again
-      const radios = document.querySelectorAll('input[data-earmark-radio]');
-
-      radios.forEach(radio => {
-        radio.addEventListener('click', function () {
-          if (this.wasChecked) {
-            this.checked = false;
-            this.wasChecked = false;
-          } else {
-            radios.forEach(r => r.wasChecked = false);
-            this.wasChecked = true;
-          }
-        });
-      });
-    })();
     </script>
     {% endif %}
     </div>
