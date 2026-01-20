@@ -199,6 +199,8 @@ class Charity(db.Model):
     postal_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
     optional_donation_enabled = db.Column(db.Boolean, nullable=False, default=False)
     continue_without_donating_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    earmark_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    earmark_options_json = db.Column(db.Text, nullable=True)  # JSON list of strings
     # ===== Skill-based entry (optional) =====
     skill_enabled = db.Column(db.Boolean, nullable=False, default=False)
     skill_question = db.Column(db.Text, nullable=True)
@@ -217,6 +219,7 @@ class Entry(db.Model):
     email = db.Column(db.String(255), nullable=False)
     phone = db.Column(db.String(40))
     number = db.Column(db.Integer, nullable=False)
+    earmark_arm = db.Column(db.String(255), nullable=True)  # optional earmark choice
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     paid = db.Column(db.Boolean, nullable=False, default=False)
     paid_at = db.Column(db.DateTime, nullable=True)
@@ -1537,6 +1540,13 @@ def available_numbers(c: Charity):
     taken = {n for (n,) in db.session.query(Entry.number).filter(Entry.charity_id == c.id).all()}
     return [i for i in range(1, c.max_number + 1) if i not in taken]
 
+@app.template_filter("safe_loads_json")
+def safe_loads_json(s):
+    try:
+        return json.loads(s or "[]") or []
+    except Exception:
+        return []
+
 def assign_number(c: Charity):
     avail = available_numbers(c)
     return random.choice(avail) if avail else None
@@ -1905,7 +1915,7 @@ def home():
         </div>
         <div class="step-body">
           Some campaigns include an optional multiple-choice question before you proceed.
-          When enable, you will be recquired to answer the question correctly to continue.
+          When enabled, you will be required to answer the question correctly before continuing.
         </div>
       </div>
 
@@ -1947,7 +1957,7 @@ def home():
           </div>
         </div>
         <div class="step-body">
-          You can confirm your donation for an amount equal to your ticket number to supprt the chairty.
+          You can confirm your donation for an amount equal to your ticket number to support the charity.
           We capture only this amount from the original card hold.
         </div>
       </div>
@@ -2193,12 +2203,25 @@ def charity_page(slug):
         else:
             hold_amount_pence = compute_hold_amount_pence(charity)
 
+            # Optional earmark (arm of the charity)
+            earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
+            earmark_opts = []
+            try:
+                if getattr(charity, "earmark_enabled", False) and getattr(charity, "earmark_options_json", None):
+                    earmark_opts = json.loads(charity.earmark_options_json or "[]") or []
+            except Exception:
+                earmark_opts = []
+
+            if (not earmark_arm) or (earmark_arm not in earmark_opts):
+                earmark_arm = None
+
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
                 "email": email,
                 "phone": phone,
                 "hold_amount_pence": hold_amount_pence,
+                "earmark_arm": earmark_arm,
             }
 
             if getattr(charity, "skill_enabled", False):
@@ -2318,6 +2341,32 @@ def charity_page(slug):
             {% else %}
               Place Hold &amp; Get My Number
             {% endif %}
+            {% set earmark_opts = [] %}
+            {% if charity.earmark_enabled and charity.earmark_options_json %}
+              {% set earmark_opts = (charity.earmark_options_json | safe_loads_json) %}
+            {% endif %}
+ 
+            {% if earmark_opts and (earmark_opts|length) > 0 %}
+              <div class="card secondary" style="margin:14px auto 12px; max-width:560px; padding:12px; text-align:center;">
+                <div class="muted" style="font-size:13px; line-height:1.45; margin:0 0 10px 0;">
+                  You can choose to specifically direct your donation to one of the options below,
+                  otherwise your donation will go to <strong>{{ charity.name }}</strong>.
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+                  {% for opt in earmark_opts %}
+                    <label class="pill outline" style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:520px; width:100%; padding:10px 12px;">
+                      <input type="radio" name="earmark_arm" value="{{ opt }}" style="transform:scale(1.05);">
+                      <span style="font-weight:700;">{{ opt }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+
+               <div class="muted" style="font-size:12px; margin-top:8px;">
+                 Optional — leave unselected if you have no preference.
+               </div>
+             </div>
+           {% endif %}
           </button>
         </form>
       </div>
@@ -3009,6 +3058,7 @@ def hold_success(slug):
             email=email,
             phone=phone,
             number=num,
+            earmark_arm=(pending.get("earmark_arm") or None),
             payment_intent_id=payment_intent.get("id"),
             hold_amount_pence=int(payment_intent.get("amount") or 0),
             stripe_account_id=acct,
@@ -3509,19 +3559,22 @@ def confirm_payment(entry_id):
         flash("We could not find the original card authorisation. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Amount is user-confirmed only if optional donations are enabled.
-    # Otherwise we force the capture amount to the ticket number.
+    raw = None
+
     if allow_zero and no_donation_req:
         amount_gbp = 0
+
     elif not optional_ok:
+        # Fixed donation = ticket number
         amount_gbp = int(entry.number or 0)
+
     else:
+        # Optional donation enabled -> user supplies amount
         raw = (request.form.get("amount_gbp", "") or "").strip()
         try:
             amount_gbp = int(raw)
         except ValueError:
             amount_gbp = -1
-
 
     amount_pence = amount_gbp * 100
     paid_gbp = amount_gbp
@@ -4308,7 +4361,24 @@ def edit_charity(slug):
         charity.postal_entry_enabled = bool(request.form.get("postal_entry_enabled"))
         charity.optional_donation_enabled = bool(request.form.get("optional_donation_enabled"))
         charity.continue_without_donating_enabled = bool(request.form.get("continue_without_donating_enabled"))
+        charity.earmark_enabled = bool(request.form.get("earmark_enabled"))
 
+        # Earmark options: one per line in admin textarea
+        earmark_raw = (request.form.get("earmark_options") or "").strip()
+        earmark_opts = []
+        if earmark_raw:
+            seen = set()
+            for ln in earmark_raw.splitlines():
+                ln = (ln or "").strip()
+                if not ln:
+                    continue
+                k = ln.lower()
+                if k in seen:
+                    continue
+                seen.add(k)
+                earmark_opts.append(ln)
+
+        charity.earmark_options_json = json.dumps(earmark_opts) if earmark_opts else None
 
         try:
             raw_hold = int(request.form.get("hold_amount_pence", charity.hold_amount_pence) or charity.hold_amount_pence)
@@ -4321,6 +4391,14 @@ def edit_charity(slug):
         if not msg:
             db.session.commit()
             msg = "Charity updated successfully."
+
+    # Pre-populate earmark options textarea (one per line)
+    earmark_options_raw = ""
+    try:
+        if getattr(charity, "earmark_options_json", None):
+            earmark_options_raw = "\n".join(json.loads(charity.earmark_options_json or "[]") or [])
+    except Exception:
+        earmark_options_raw = ""
 
     # Pre-populate datetime-local value
     draw_value = charity.draw_at.strftime("%Y-%m-%dT%H:%M") if charity.draw_at else ""
@@ -4410,6 +4488,26 @@ def edit_charity(slug):
                {% if charity.continue_without_donating_enabled %}checked{% endif %}>
         Show “Continue without donating” button (ends flow with £0 and releases hold)
       </label>
+
+      <label style="display:flex;align-items:center;gap:10px;margin-top:12px;">
+        <input type="checkbox" name="earmark_enabled" {% if charity.earmark_enabled %}checked{% endif %}>
+        <div>
+          <div style="font-weight:800;">Enable donation direction options</div>
+          <div class="muted" style="font-size:12px;">
+            Allows supporters to optionally direct their donation to a specific arm of {{ charity.name }}.
+          </div>
+        </div>
+      </label>
+
+      <div style="margin-top:10px;">
+        <label style="display:block;font-weight:800;margin-bottom:6px;">
+          Donation options (one per line)
+        </label>
+        <textarea name="earmark_options" rows="5" style="width:100%;border-radius:14px;padding:10px;">{{ earmark_options_raw }}</textarea>
+        <div class="muted" style="font-size:12px;margin-top:6px;">
+          Example: “Youth programme”, “Food bank”, “Education fund”.
+        </div>
+      </div>
 
 
       <h3 style="margin-top:18px;">Stripe Connect (where donations get paid)</h3>
@@ -4532,6 +4630,7 @@ def edit_charity(slug):
         body, 
         charity=charity,
         msg=msg, 
+        earmark_options_raw=earmark_options_raw,
         draw_value=draw_value,
         skill_answers_text=skill_answers_text, 
         min_hold=min_hold_gbp,
