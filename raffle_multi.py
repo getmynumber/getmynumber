@@ -2349,7 +2349,7 @@ def charity_page(slug):
               <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
                 {% for opt in earmark_opts %}
                   <label class="pill outline"
-                         style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:520px; width:100%; padding:8px 12px;">
+                         style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:360px; width:100%; padding:8px 12px;">
                     <input type="radio" name="earmark_arm" value="{{ opt }}" style="transform:scale(1.05);">
                     <span style="font-weight:700;">{{ opt }}</span>
                   </label>
