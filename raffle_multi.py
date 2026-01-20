@@ -2335,38 +2335,35 @@ def charity_page(slug):
             <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
           </label>
 
+          {% set earmark_opts = [] %}
+          {% if charity.earmark_enabled and charity.earmark_options_json %}
+            {% set earmark_opts = (charity.earmark_options_json | safe_loads_json) %}
+          {% endif %}
+
+          {% if earmark_opts and (earmark_opts|length) > 0 %}
+            <div style="margin-top:10px; text-align:center;">
+              <div class="muted" style="font-size:12px; line-height:1.35; margin-bottom:8px;">
+                Optional: Direct your donation, otherwise it goes to <strong>{{ charity.name }}</strong>.
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+                {% for opt in earmark_opts %}
+                  <label class="pill outline"
+                         style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:520px; width:100%; padding:8px 12px;">
+                    <input type="radio" name="earmark_arm" value="{{ opt }}" style="transform:scale(1.05);">
+                    <span style="font-weight:700;">{{ opt }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
           <button class="btn" type="submit" style="margin-top:10px" {% if is_blocked %}disabled{% endif %}>
             {% if charity.preauth_page_enabled %}
               Continue
             {% else %}
               Place Hold &amp; Get My Number
             {% endif %}
-            {% set earmark_opts = [] %}
-            {% if charity.earmark_enabled and charity.earmark_options_json %}
-              {% set earmark_opts = (charity.earmark_options_json | safe_loads_json) %}
-            {% endif %}
- 
-            {% if earmark_opts and (earmark_opts|length) > 0 %}
-              <div class="card secondary" style="margin:14px auto 12px; max-width:560px; padding:12px; text-align:center;">
-                <div class="muted" style="font-size:13px; line-height:1.45; margin:0 0 10px 0;">
-                  You can choose to specifically direct your donation to one of the options below,
-                  otherwise your donation will go to <strong>{{ charity.name }}</strong>.
-                </div>
-
-                <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
-                  {% for opt in earmark_opts %}
-                    <label class="pill outline" style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:520px; width:100%; padding:10px 12px;">
-                      <input type="radio" name="earmark_arm" value="{{ opt }}" style="transform:scale(1.05);">
-                      <span style="font-weight:700;">{{ opt }}</span>
-                    </label>
-                  {% endfor %}
-                </div>
-
-               <div class="muted" style="font-size:12px; margin-top:8px;">
-                 Optional — leave unselected if you have no preference.
-               </div>
-             </div>
-           {% endif %}
           </button>
         </form>
       </div>
