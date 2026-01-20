@@ -2349,15 +2349,15 @@ def charity_page(slug):
               <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
                 {% for opt in earmark_opts %}
                   <label class="pill outline"
-                         style="position:relative; display:flex; align-items:center; justify-content:center; cursor:pointer; max-width:360px; width:100%; padding:8px 12px;">
-                    <input type="radio"
-                           name="earmark_arm"
-                           value="{{ opt }}"
-                           data-earmark-radio="1"
-                           style="position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer;">
-                    <span style="font-weight:700; pointer-events:none;">{{ opt }}</span>
-                  </label>
-                {% endfor %}
+                         style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:360px; width:100%; padding:8px 12px;">
+                   <input type="radio"
+                          name="earmark_arm"
+                          value="{{ opt }}"
+                          data-earmark-radio="1"
+                          style="transform:scale(1.05);">
+                   <span style="font-weight:700;">{{ opt }}</span>
+                 </label>
+               {% endfor %}
               </div>
             </div>
           {% endif %}
@@ -2373,21 +2373,36 @@ def charity_page(slug):
  
         <script>
         (function () {
-          const radios = document.querySelectorAll('input[data-earmark-radio="1"]');
-          if (!radios.length) return;
+          // Full-pill deselect while keeping normal radio UI
+          const labels = document.querySelectorAll('label.pill input[data-earmark-radio="1"]');
+          if (!labels.length) return;
+
+          // Map each radio -> its label
+          const radios = Array.from(labels);
+          const radioToLabel = new Map();
 
           radios.forEach((r) => {
-            // Use mousedown so we capture "was it already checked" BEFORE the browser toggles it
-            r.addEventListener("mousedown", function () {
-              this.dataset.preChecked = this.checked ? "1" : "0";
+            const lab = r.closest("label");
+            if (lab) radioToLabel.set(r, lab);
+          });
+
+          radios.forEach((r) => {
+            const lab = radioToLabel.get(r);
+            if (!lab) return;
+
+            // Capture whether it was already checked BEFORE the click toggles it
+            lab.addEventListener("mousedown", function () {
+              r.dataset.preChecked = r.checked ? "1" : "0";
             });
 
-            r.addEventListener("click", function () {
-              if (this.dataset.preChecked === "1") {
-                this.checked = false;
+            // Handle click on the whole pill (label)
+            lab.addEventListener("click", function (e) {
+              if (r.dataset.preChecked === "1") {
+                // It was already selected: cancel default label behaviour and uncheck
+                e.preventDefault();
+                r.checked = false;
               }
-              // clear helper
-              this.dataset.preChecked = "0";
+              r.dataset.preChecked = "0";
             });
           });
         })();
