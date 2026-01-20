@@ -1078,18 +1078,50 @@ LAYOUT = """
    text-align:left;
  }
 
-   .countdown-card{
-     border:1px solid rgba(207,227,234,0.9);
-     background: var(--card-2);
-     display:flex;
-     align-items:center;
-     justify-content:space-between;
-     gap:10px;
-     flex-wrap:wrap;
+ .countdown-card{
+   border:1px solid rgba(207,227,234,0.9);
+   background: var(--card-2);
+   display:flex;
+   align-items:center;
+   justify-content:space-between;
+   gap:10px;
+   flex-wrap:wrap;
 
-     border-radius:999px;
-     padding:12px 16px;
+   border-radius:999px;
+   padding:12px 16px;
+ }
+
+ /* Countdown banner — full-width square strip at all sizes (like Tickets Claimed) */
+ .countdown-card{
+   margin-left:-18px;
+   margin-right:-18px;
+
+   border-left:0;
+   border-right:0;
+
+   border-radius:0;              /* square edges */
+   padding:14px 18px;            /* align with card padding */
+ }
+
+
+  /* Make raffle countdown banner full-width inside the card (like Tickets Claimed) */
+   .layout-narrow .countdown-card{
+     margin-left:-18px;
+     margin-right:-18px;
+
+     border-left:0;
+     border-right:0;
+
+     border-radius:0;                 /* straight edges like Tickets Claimed */
+     padding:14px 18px;               /* match the card side padding */
    }
+
+  .layout-narrow .countdown-card{
+    margin-top:10px;
+    margin-bottom:10px;
+    border-top:1px solid rgba(207,227,234,0.9);
+    border-bottom:1px solid rgba(207,227,234,0.9);
+  }
 
   .countdown-label{
     font-size:13px;
