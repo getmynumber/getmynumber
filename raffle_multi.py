@@ -2350,7 +2350,11 @@ def charity_page(slug):
                 {% for opt in earmark_opts %}
                   <label class="pill outline"
                          style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:360px; width:100%; padding:8px 12px;">
-                    <input type="radio" name="earmark_arm" value="{{ opt }}" style="transform:scale(1.05);">
+                    <input type="radio"
+                           name="earmark_arm"
+                           value="{{ opt }}"
+                           data-earmark-radio="1"
+                           style="transform:scale(1.05);">
                     <span style="font-weight:700;">{{ opt }}</span>
                   </label>
                 {% endfor %}
@@ -2426,6 +2430,24 @@ def charity_page(slug):
         update();
         const timer = setInterval(update, 1000);
       })();
+    </script>
+    <script>
+    (function () {
+      // Allow radio buttons to be unselected by clicking again
+      const radios = document.querySelectorAll('input[data-earmark-radio]');
+
+      radios.forEach(radio => {
+        radio.addEventListener('click', function () {
+          if (this.wasChecked) {
+            this.checked = false;
+            this.wasChecked = false;
+          } else {
+            radios.forEach(r => r.wasChecked = false);
+            this.wasChecked = true;
+          }
+        });
+      });
+    })();
     </script>
     {% endif %}
     </div>
@@ -4671,7 +4693,7 @@ def admin_charity_entries(slug):
         <thead>
           <tr>
             <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
-            <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
+            <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Earmark</th>
 	    <th>Number</th><th>PI</th><th>Created</th><th>Paid</th><th>Actions</th>
           </tr>
         </thead>
@@ -4683,6 +4705,7 @@ def admin_charity_entries(slug):
               <td>{{ e.name }}</td>
               <td>{{ e.email }}</td>
               <td>{{ e.phone }}</td>
+              <td class="muted">{{ e.earmark_arm or "" }}</td>
               <td><strong>#{{ e.number }}</strong></td>
               <td class="muted">
                 {% if e.payment_intent_id %}
@@ -5195,6 +5218,8 @@ with app.app_context():
                 conn.execute(text("ALTER TABLE entry ADD COLUMN paid_at DATETIME"))
             if 'stripe_account_id' not in entry_cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN stripe_account_id VARCHAR(64)"))
+            if 'earmark_arm' not in entry_cols:
+                conn.execute(text("ALTER TABLE entry ADD COLUMN earmark_arm VARCHAR(200)"))
 
         # ---- charity table ----
         charity_cols = {c['name'] for c in insp.get_columns('charity')}
@@ -5207,6 +5232,10 @@ with app.app_context():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN prizes_json TEXT"))
             if 'poster_data' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN poster_data TEXT"))
+            if 'earmark_enabled' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN earmark_enabled BOOLEAN DEFAULT 0"))
+            if 'earmark_options_json' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN earmark_options_json TEXT"))
 
     except Exception as e:
         print("Auto-migration check failed:", e)
