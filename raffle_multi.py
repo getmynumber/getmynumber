@@ -3872,7 +3872,7 @@ def confirm_payment(entry_id):
 
     <!-- Optional confetti (subtle) -->
     <canvas id="confetti-canvas"
-            style="position:fixed; inset:0; pointer-events:none; z-index:9999;"></canvas>
+            style="position:fixed; top:0; left:0; width:100vw; height:100vh; display:block; pointer-events:none; z-index:9999;"></canvas>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <script>
@@ -3880,32 +3880,30 @@ def confirm_payment(entry_id):
       const canvas = document.getElementById('confetti-canvas');
       if (!canvas || typeof confetti === "undefined") return;
 
+      // Force canvas buffer to full screen (THIS is the key missing bit)
+      function resizeCanvas(){
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(window.innerWidth * dpr);
+        canvas.height = Math.floor(window.innerHeight * dpr);
+        canvas.style.width = "100vw";
+        canvas.style.height = "100vh";
+      }
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+
       const myConfetti = confetti.create(canvas, { resize: true, useWorker: true });
-      const duration = 1500;
-      const end = Date.now() + duration;
 
-      (function frame() {
-        // Left side burst
+      const end = Date.now() + 1500;
+
+      (function frame(){
         myConfetti({
           particleCount: 10,
-          angle: 60,
-          spread: 55,
-          startVelocity: 30,
-          origin: { x: 0, y: 0.9 }
+          spread: 80,
+          startVelocity: 35,
+          origin: { x: Math.random(), y: 0 }
         });
 
-        // Right side burst
-        myConfetti({
-          particleCount: 10,
-          angle: 120,
-          spread: 55,
-          startVelocity: 30,
-          origin: { x: 1, y: 0.9 }
-        });
-
-        if (Date.now() < end) {
-          requestAnimationFrame(frame);
-        }
+        if (Date.now() < end) requestAnimationFrame(frame);
       })();
     })();
     </script>
