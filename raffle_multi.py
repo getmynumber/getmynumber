@@ -3881,16 +3881,31 @@ def confirm_payment(entry_id):
       if (!canvas || typeof confetti === "undefined") return;
 
       const myConfetti = confetti.create(canvas, { resize: true, useWorker: true });
-      const end = Date.now() + 1500; // short + subtle
+      const duration = 1500;
+      const end = Date.now() + duration;
 
       (function frame() {
+        // Left side burst
         myConfetti({
-          particleCount: 7,
-          spread: 65,
-          startVelocity: 28,
-          origin: { x: Math.random(), y: 0 }
+          particleCount: 10,
+          angle: 60,
+          spread: 55,
+          startVelocity: 30,
+          origin: { x: 0, y: 0.9 }
         });
-        if (Date.now() < end) requestAnimationFrame(frame);
+
+        // Right side burst
+        myConfetti({
+          particleCount: 10,
+          angle: 120,
+          spread: 55,
+          startVelocity: 30,
+          origin: { x: 1, y: 0.9 }
+        });
+
+        if (Date.now() < end) {
+          requestAnimationFrame(frame);
+        }
       })();
     })();
     </script>
