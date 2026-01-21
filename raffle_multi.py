@@ -2068,57 +2068,57 @@ def terms():
       <p>1. The T&amp;Cs shall apply to all the campaigns advertised on Our Website. Our campaigns are typically intended to raise funds for charities. GetMyNumber, also known as &ldquo;We&rdquo; or &ldquo;Us&rdquo;, will act as the administrator of all campaigns unless otherwise stated. Each campaign will have its own donation amount to donate to the charity, a closing date and time, and a draw date and time. Each campaign will state the maximum number of entries GetMyNumber will accept.</p>
 
       <p><strong>How To Enter:</strong><br>
-      3. The campaign will be open until the date and time specified on Our Website for each campaign.<br>
-      4. To enter, you must follow the entry instructions on Our Website. You will be required to provide your name, email, and phone number. You will also be required to authorise a temporary card hold via Stripe before being issued a number. Following this, you will be issued with a number. Your number will be the amount you can donate to the charity to confirm the entry.<br>
-      5. By entering any campaign on Our Website, you accept these T&amp;Cs and any campaign specific rules set out on Our Website. We recommend that you print and keep safe, or save to your device, a copy of the T&amp;Cs for future reference.</p>
+      2. The campaign will be open until the date and time specified on Our Website for each campaign.<br>
+      3. To enter, you must follow the entry instructions on Our Website. You will be required to provide your name, email, and phone number. You will also be required to authorise a temporary card hold via Stripe before being issued a number. Following this, you will be issued with a number. Your number will be the amount you can donate to the charity to confirm the entry.<br>
+      4. By entering any campaign on Our Website, you accept these T&amp;Cs and any campaign specific rules set out on Our Website. We recommend that you print and keep safe, or save to your device, a copy of the T&amp;Cs for future reference.</p>
 
-      <p>7. The winner (&ldquo;the Winner&rdquo;) of the campaign will be selected at random from all eligible entries received by the closing date and time. Random selection may be performed by a random number generator.</p>
+      <p>5. The winner (&ldquo;the Winner&rdquo;) of the campaign will be selected at random from all eligible entries received by the closing date and time. Random selection may be performed by a random number generator.</p>
 
-      <p>8. Campaign entries made via the paid online route are non-refundable. Entries made via the free postal entry route are free. Paid entries increase the number of entries you have and therefore increase your chances of winning and does not affect the outcome of the random draw.</p>
+      <p>6. Campaign entries made via the paid online route are non-refundable. Entries made via the free postal entry route are free. Paid entries increase the number of entries you have and therefore increase your chances of winning and does not affect the outcome of the random draw.</p>
 
       <p><strong>Cancellations Or Extensions:</strong><br>
-      9. We may by notice on Our Website (and/or by email if you have provided an email address) extend the closing date of any campaign. We may also cancel a campaign at any time. If we cancel a campaign, we will notify entrants via Our Website and by email. If a campaign is cancelled, we may offer entrants a future credit in line with the refund policy in Schedule 2, but then GetMyNumber will refund all entry fees.</p>
+      7. We may by notice on Our Website (and/or by email if you have provided an email address) extend the closing date of any campaign. We may also cancel a campaign at any time. If we cancel a campaign, we will notify entrants via Our Website and by email. If a campaign is cancelled, we may offer entrants a future credit in line with the refund policy in Schedule 2, but then GetMyNumber will refund all entry fees.</p>
 
       <p><strong>Eligibility:</strong><br>
-      10. Our campaigns are open those of or over 18 years old, except any employees of GetMyNumber, their family, or anyone else professionally connected with the campaign.<br>
-      11. You may not enter if you are located outside the United Kingdom or otherwise in breach of these T&amp;Cs. We may refuse entry and/or void an entry at our discretion.<br>
-      12. We may require proof of age and identity. If you do not provide this, your entry may be void and you may forfeit the prize.</p>
+      8. Our campaigns are open those of or over 18 years old, except any employees of GetMyNumber, their family, or anyone else professionally connected with the campaign.<br>
+      9. You may not enter if you are located outside the United Kingdom or otherwise in breach of these T&amp;Cs. We may refuse entry and/or void an entry at our discretion.<br>
+      10. We may require proof of age and identity. If you do not provide this, your entry may be void and you may forfeit the prize.</p>
 
-      <p>13. You may enter via one or both routes:-<br>
+      <p>11. You may enter via one or both routes:-<br>
       <br>
       Paid Online Campaign:<br>
-      6.1 You may enter online via Our Website by completing the required details and completing the donation to the charity. You will be issued with a number after authorising a temporary hold. You must then complete donation to confirm your entry.<br>
+      11.1 You may enter online via Our Website by completing the required details and completing the donation to the charity. You will be issued with a number after authorising a temporary hold. You must then complete donation to confirm your entry.<br>
       <br>
       Free Postal Entry:<br>
-      6.2 You may enter by post by following the requirements set out in Annex 1. Postal entries must be received before the closing date and time. Postal entries have the same chance of winning as paid entries. No additional donation is required for postal entries.</p>
+      11.2 You may enter by post by following the requirements set out in Annex 1. Postal entries must be received before the closing date and time. Postal entries have the same chance of winning as paid entries. No additional donation is required for postal entries.</p>
 
       <p><strong>The Prize:</strong><br>
-      17. GetMyNumber does not take any responsibility for the Prize. This is arranged by the Campaign partner.</p>
+      12. GetMyNumber does not take any responsibility for the Prize. This is arranged by the Campaign partner.</p>
 
       <p><strong>Winners:</strong><br>
-      18. GetMyNumber decision as to all matters where we have discretion is final and no correspondence will be entered into.<br>
-      19. We will contact the Winner using the contact details provided. If we cannot contact the Winner within 14 days, we reserve the right to select an alternative Winner.<br>
-      20. The Winner must provide any additional information requested, including proof of identity and age.<br>
-      21. GetMyNumber does not take any responsibility for the delivery of the prize. This is arranged by the campaign partner.</p>
+      13. GetMyNumber decision as to all matters where we have discretion is final and no correspondence will be entered into.<br>
+      14. We will contact the Winner using the contact details provided. If we cannot contact the Winner within 14 days, we reserve the right to select an alternative Winner.<br>
+      15. The Winner must provide any additional information requested, including proof of identity and age.<br>
+      16. GetMyNumber does not take any responsibility for the delivery of the prize. This is arranged by the campaign partner.</p>
 
       <p><strong>Limitation Of Liability:</strong><br>
-      22. So as is permitted by law, GetMyNumber excludes all liability for any loss or damage arising out of or in connection with the campaign, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, including but not limited to indirect or consequential loss.<br>
-      23. Nothing in these T&amp;Cs shall limit or exclude our liability for death or personal injury caused by our negligence, fraud, or any other liability which cannot be excluded by law.<br>
-      24. We do not accept responsibility for entries not successfully completed due to a technical fault, technical malfunction, computer hardware or software failure, satellite, network or server failure of any kind.<br>
-      25. We shall not be liable for any loss or damage suffered by you as a result of any act or omission of any third party, including but not limited to the campaign partner or prize provider. Subject to that, your statutory rights are not affected.</p>
+      17. So as is permitted by law, GetMyNumber excludes all liability for any loss or damage arising out of or in connection with the campaign, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, including but not limited to indirect or consequential loss.<br>
+      18. Nothing in these T&amp;Cs shall limit or exclude our liability for death or personal injury caused by our negligence, fraud, or any other liability which cannot be excluded by law.<br>
+      19. We do not accept responsibility for entries not successfully completed due to a technical fault, technical malfunction, computer hardware or software failure, satellite, network or server failure of any kind.<br>
+      20. We shall not be liable for any loss or damage suffered by you as a result of any act or omission of any third party, including but not limited to the campaign partner or prize provider. Subject to that, your statutory rights are not affected.</p>
 
       <p><strong>Ownership Of Campaign Entries And Intellectual Property Rights:</strong><br>
       All content on this website, including text, branding, design, graphics, and campaign mechanics, are owned by GetMyNumber or licensed to us. You may not reproduce, scrape, mirror, copy, or otherwise use any part of the website or campaign content without our permission. This includes use of automated tools, AI, or scraping systems to recreate our content or processes. All rights are reserved under applicable intellectual property legislation from time to time in force, anywhere in the world.</p>
 
       <p><strong>Data Protection And Publicity:</strong><br>
-      26. We will process your personal data in accordance with our Privacy Policy. By entering, you agree that we may use your details to administer the campaign, contact you, and (if you win) publish your name and general location (e.g. town/city) on Our Website and/or social media, unless you object on reasonable grounds.<br>
+      21. We will process your personal data in accordance with our Privacy Policy. By entering, you agree that we may use your details to administer the campaign, contact you, and (if you win) publish your name and general location (e.g. town/city) on Our Website and/or social media, unless you object on reasonable grounds.<br>
 We may share your information with the campaign partner and third parties involved in administering the campaign, including payment providers (e.g. Stripe). We have no liability for the acts or omissions of any third-party.</p>
 
       <p><strong>General:</strong><br>
-      27. If there is any reason to believe that you are in breach of these T&amp;Cs, We may, at our sole discretion, exclude you from participating in the campaign and/or void any entries.<br>
-      28. We reserve the right to hold void, suspend, cancel, or amend the campaign where it becomes necessary to do so.<br>
-      29. If any part of these T&amp;Cs is found to be invalid, illegal or unenforceable, the remainder shall continue in full force and effect.<br>
-      30. These T&amp;Cs, and any disputes arising out of them, shall be governed by English law and subject to the exclusive jurisdiction in relation to any dispute over them.</p>
+      22. If there is any reason to believe that you are in breach of these T&amp;Cs, We may, at our sole discretion, exclude you from participating in the campaign and/or void any entries.<br>
+      23. We reserve the right to hold void, suspend, cancel, or amend the campaign where it becomes necessary to do so.<br>
+      24. If any part of these T&amp;Cs is found to be invalid, illegal or unenforceable, the remainder shall continue in full force and effect.<br>
+      25. These T&amp;Cs, and any disputes arising out of them, shall be governed by English law and subject to the exclusive jurisdiction in relation to any dispute over them.</p>
 
       <p><strong>Annex 1</strong><br>
       <strong>Postal Entry Requirements</strong><br>
@@ -4153,17 +4153,9 @@ def admin_charities():
         <label>Tile image / logo (optional)
           <input type="file" name="logo_file" accept="image/*">
         </label>
-        <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
-          <input type="checkbox" name="remove_logo" value="1">
-          Delete current logo
-        </label>
 
        <label>Campaign poster (optional)
          <input type="file" name="poster_file" accept="image/*">
-       </label>
-       <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
-         <input type="checkbox" name="remove_poster" value="1">
-         Delete current poster
        </label>
 
         <label>Short “About” (homepage tile)
@@ -4536,15 +4528,6 @@ def edit_charity(slug):
         <input type="text" name="stripe_account_id" value="{{ charity.stripe_account_id or '' }}" placeholder="acct_123...">
         <small class="muted">This must match the connected charity account in Stripe Connect.</small>
       </label>
-      <label>Homepage Order (lower = shown first)
-        <input type="number"
-               name="home_rank"
-               value="{{ charity.home_rank or 0 }}"
-               style="max-width:140px;">
-        <small class="muted">
-          Example: 0 = top of homepage, 10 = later.
-        </small>
-      </label>
       <label>Max number <input type="number" name="max_number" value="{{ charity.max_number }}" min="1"></label>
       <label>Draw date &amp; time (optional)
         <input type="datetime-local" name="draw_at" value="{{ draw_value }}">
@@ -4553,9 +4536,24 @@ def edit_charity(slug):
         <input type="file" name="logo_file" accept="image/*">
       </label>
 
+      {% if charity.logo_data %}
+        <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <input type="checkbox" name="delete_logo" value="1">
+          Delete current logo
+        </label>
+      {% endif %}
+
+
       <label>Campaign poster (optional)
         <input type="file" name="poster_file" accept="image/*">
       </label>
+
+      {% if charity.poster_data %}
+        <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <input type="checkbox" name="delete_poster" value="1">
+          Delete current poster
+        </label>
+      {% endif %}
 
       {% if charity.poster_data %}
         <div class="muted" style="margin-top:6px;font-size:12px;">Current poster preview:</div>
