@@ -105,8 +105,10 @@ def add_security_headers(resp):
 
     csp = [
         "default-src 'self'",
-        # Allow Stripe + DMCA scripts
-        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://images.dmca.com",
+        # Allow Stripe + DMCA + Confetti scripts
+        "script-src 'self' 'unsafe-inline' https://js.stripe.com https://images.dmca.com https://cdn.jsdelivr.net",
+        # Allow web-workers for canvas-confetti (useWorker: true)
+        "worker-src 'self' blob:",
         # Allow inline CSS (your LAYOUT uses inline styles) + optional Google fonts if you ever add later
         "style-src 'self' 'unsafe-inline'",
         # Images: self + data: (for embedded images) + DMCA badge host
@@ -2174,19 +2176,19 @@ def terms():
 
       <p><strong>Limitation Of Liability:</strong><br>
       17. GetMyNumber excludes all liability for any loss or damage arising out of or in connection with the campaign, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, including but not limited to indirect or consequential loss.<br>
-      20. We do not accept responsibility for entries not successfully completed due to a technical fault, technical malfunction, computer hardware or software failure, satellite, network or server failure of any kind.<br>
-      21. We shall not be liable for any loss or damage suffered by you as a result of any act or omission of any third party, including but not limited to the campaign partner. Subject to that, your statutory rights are not affected.</p>
+      18. We do not accept responsibility for entries not successfully completed due to a technical fault, technical malfunction, computer hardware or software failure, satellite, network or server failure of any kind.<br>
+      19. We shall not be liable for any loss or damage suffered by you as a result of any act or omission of any third party, including but not limited to the campaign partner. Subject to that, your statutory rights are not affected.</p>
 
       <p><strong>Ownership Of Campaign Entries And Intellectual Property Rights:</strong><br>
-      22. All content on this website, including text, branding, design, graphics, and campaign mechanics, are owned by GetMyNumber or licensed to us. You may not reproduce, scrape, mirror, copy, or otherwise use any part of the website or campaign content without our permission. This includes use of automated tools, AI, or scraping systems to recreate our content or processes. All rights are reserved under applicable intellectual property legislation from time to time in force, anywhere in the world.</p>
+      20. All content on this website, including text, branding, design, graphics, and campaign mechanics, are owned by GetMyNumber or licensed to us. You may not reproduce, scrape, mirror, copy, or otherwise use any part of the website or campaign content without our permission. This includes use of automated tools, AI, or scraping systems to recreate our content or processes. All rights are reserved under applicable intellectual property legislation from time to time in force, anywhere in the world.</p>
 
       <p><strong>Data Protection And Publicity:</strong><br>
-      23. We will process your personal data in accordance with our Privacy Policy. By entering, you agree that we may use your details to administer the campaign, contact you, and (if you win) publish your name and general location (e.g. town/city) on Our Website and/or social media, unless you object on reasonable grounds. We may share your information with the campaign partner and third parties involved in administering the campaign, including payment providers (e.g. Stripe). We have no liability for the acts or omissions of any third-party.</p>
+      21. We will process your personal data in accordance with our Privacy Policy. By entering, you agree that we may use your details to administer the campaign, contact you, and (if you win) publish your name and general location (e.g. town/city) on Our Website and/or social media, unless you object on reasonable grounds. We may share your information with the campaign partner and third parties involved in administering the campaign, including payment providers (e.g. Stripe). We have no liability for the acts or omissions of any third-party.</p>
 
       <p><strong>General:</strong><br>
-      24. If there is any reason to believe that you are in breach of these T&amp;Cs, We may, at our sole discretion, exclude you from participating in the campaign and/or void any entries.<br>
-      25. We reserve the right to hold void, suspend, cancel, or amend the campaign where it becomes necessary to do so.<br>
-      26. If any part of these T&amp;Cs is found to be invalid, illegal or unenforceable, the remainder shall continue in full force and effect.</p>
+      22. If there is any reason to believe that you are in breach of these T&amp;Cs, We may, at our sole discretion, exclude you from participating in the campaign and/or void any entries.<br>
+      23. We reserve the right to hold void, suspend, cancel, or amend the campaign where it becomes necessary to do so.<br>
+      24. If any part of these T&amp;Cs is found to be invalid, illegal or unenforceable, the remainder shall continue in full force and effect.</p>
 
       <p><strong>Annex 1</strong><br>
       <strong>Postal Entry Requirements</strong><br>
@@ -3085,13 +3087,6 @@ def authorise_hold(slug):
             • Entries must be legible and received before the draw time/closing date.<br>
             • We will confirm receipt by email where possible.<br>
             • No purchase or donation is required for postal entries.<br></p>
-
-            <p class="small muted">
-              Postal entries are governed by our
-              <a href="/terms" target="_blank" rel="noopener noreferrer">
-                Terms &amp; Conditions, including Annex&nbsp;1 (Postal Entry Requirements)
-              </a>.
-            </p>
           </div>
         </div>
       </details>
