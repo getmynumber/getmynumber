@@ -190,6 +190,8 @@ class Charity(db.Model):
     logo_data = db.Column(db.Text, nullable=True)  # data URI for uploaded logo
     poster_data = db.Column(db.Text, nullable=True)  # data URI for optional campaign poster
     tile_about = db.Column(db.Text, nullable=True)   # short 1–2 sentence “about” for homepage tile
+    home_rank = db.Column(db.Integer, nullable=False, default=0)
+    page_about = db.Column(db.Text, nullable=True)
     prizes_json = db.Column(db.Text, nullable=True)  # JSON array of prizes (strings)
     campaign_status = db.Column(db.String(20), nullable=False, default="live")    
     hold_amount_pence = db.Column(db.Integer, nullable=False, default=20000)
@@ -1790,7 +1792,7 @@ def compute_hold_amount_pence(charity) -> int:
 
 @app.route("/")
 def home():
-    charities = Charity.query.order_by(Charity.name.asc()).all()
+    charities = Charity.query.order_by(Charity.home_rank.asc(), Charity.name.asc()).all()
 
     tiles = []
     for c in charities:
@@ -2321,10 +2323,11 @@ def charity_page(slug):
              ">
       {% endif %}
 
-            <p>
-        We place a temporary hold on your card before giving you a number.
-        Once your donation is confirmed, the hold will be released.
-      </p>
+      {% if charity.page_about %}
+        <div class="muted" style="max-width:720px;margin:12px auto 0;line-height:1.55">
+          {{ charity.page_about }}
+        </div>
+      {% endif %}
 
       {% if draw_iso %}
       <div class="countdown-card">
@@ -3772,22 +3775,29 @@ def confirm_payment(entry_id):
       <a class="btn pill outline" href="{{ url_for('home') }}">Back to Home</a>
     </div>
 
-    <!-- Optional confetti (keep it, but make it subtle) -->
+    <!-- Optional confetti (subtle) -->
     <canvas id="confetti-canvas"
             style="position:fixed; inset:0; pointer-events:none; z-index:9999;"></canvas>
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <script>
-      (function(){
-        const canvas = document.getElementById('confetti-canvas');
-        const myConfetti = confetti.create(canvas, { resize: true, useWorker: true });
-        const end = Date.now() + 1200; // short + subtle
+    (function(){
+      const canvas = document.getElementById('confetti-canvas');
+      if (!canvas || typeof confetti === "undefined") return;
 
-        (function frame() {
-          myConfetti({ particleCount: 4, spread: 65, startVelocity: 28, origin: { x: Math.random(), y: 0 } });
-          if (Date.now() < end) requestAnimationFrame(frame);
-        })();
+      const myConfetti = confetti.create(canvas, { resize: true, useWorker: true });
+      const end = Date.now() + 1500; // short + subtle
+
+      (function frame() {
+        myConfetti({
+          particleCount: 7,
+          spread: 65,
+          startVelocity: 28,
+          origin: { x: Math.random(), y: 0 }
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
       })();
+    })();
     </script>
     """
     return render(
@@ -4043,6 +4053,12 @@ def admin_charities():
                     draw_at = datetime.fromisoformat(draw_raw)
                 except ValueError:
                     msg = "Invalid draw date/time."
+
+            # Delete assets (if requested)
+            if request.form.get("remove_logo") == "1":
+                charity.logo_data = None
+            if request.form.get("remove_poster") == "1":
+                charity.poster_data = None
             logo_data = None
             f = request.files.get("logo_file")
             if f and f.filename:
@@ -4133,11 +4149,21 @@ def admin_charities():
         <label>Draw date &amp; time (optional)
           <input type="datetime-local" name="draw_at">
         </label>
+
         <label>Tile image / logo (optional)
           <input type="file" name="logo_file" accept="image/*">
         </label>
+        <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <input type="checkbox" name="remove_logo" value="1">
+          Delete current logo
+        </label>
+
        <label>Campaign poster (optional)
          <input type="file" name="poster_file" accept="image/*">
+       </label>
+       <label style="display:flex;align-items:center;gap:10px;margin-top:8px">
+         <input type="checkbox" name="remove_poster" value="1">
+         Delete current poster
        </label>
 
         <label>Short “About” (homepage tile)
@@ -4351,6 +4377,21 @@ def edit_charity(slug):
         stripe_acct = (request.form.get("stripe_account_id") or "").strip()
         charity.stripe_account_id = stripe_acct or None
 
+        # Homepage ordering (lower shows first)
+        try:
+            charity.home_rank = int((request.form.get("home_rank") or "").strip() or 0)
+        except Exception:
+            charity.home_rank = 0
+
+        # Optional charity-page about text (used later)
+        charity.page_about = (request.form.get("page_about") or "").strip() or None
+
+        # --- Delete assets if requested ---
+        if request.form.get("delete_logo"):
+            charity.logo_data = None
+
+        if request.form.get("delete_poster"):
+            charity.poster_data = None
 
         # Optional: replace logo if a new one is uploaded
         f = request.files.get("logo_file")
@@ -4360,6 +4401,7 @@ def edit_charity(slug):
                 mime = f.mimetype or "image/png"
                 b64 = base64.b64encode(raw).decode("ascii")
                 charity.logo_data = f"data:{mime};base64,{b64}"
+
         # Optional: upload campaign poster (stored as data URI)
         pf = request.files.get("poster_file")
         if pf and pf.filename:
@@ -4481,6 +4523,11 @@ def edit_charity(slug):
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" enctype="multipart/form-data" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
+      <label style="margin-top:12px">Homepage Sort Rank (lower shows first)</label>
+      <input type="number" name="home_rank" value="{{ charity.home_rank or 0 }}" style="width:140px">
+      <div class="muted" style="font-size:12px;margin-top:6px">
+        Example: 0 shows first, 10 shows later.
+      </div>
       <label>
         Donation URL <span class="muted">(optional)</span>
         <input name="donation_url" value="{{ charity.donation_url or '' }}">
@@ -4488,6 +4535,15 @@ def edit_charity(slug):
       <label>Stripe Connected Account ID (acct_...)
         <input type="text" name="stripe_account_id" value="{{ charity.stripe_account_id or '' }}" placeholder="acct_123...">
         <small class="muted">This must match the connected charity account in Stripe Connect.</small>
+      </label>
+      <label>Homepage Order (lower = shown first)
+        <input type="number"
+               name="home_rank"
+               value="{{ charity.home_rank or 0 }}"
+               style="max-width:140px;">
+        <small class="muted">
+          Example: 0 = top of homepage, 10 = later.
+        </small>
       </label>
       <label>Max number <input type="number" name="max_number" value="{{ charity.max_number }}" min="1"></label>
       <label>Draw date &amp; time (optional)
@@ -4510,6 +4566,12 @@ def edit_charity(slug):
       <label>Short “About” (homepage tile)
         <textarea name="tile_about" rows="3" placeholder="1–2 sentences about this cause...">{{ charity.tile_about or "" }}</textarea>
       </label>
+
+      <label style="margin-top:14px">Charity Page About (shows under poster)</label>
+      <textarea name="page_about" rows="4" style="width:100%">{{ charity.page_about or "" }}</textarea>
+      <div class="muted" style="font-size:12px;margin-top:6px">
+        Optional. If empty, nothing will show.
+      </div>
 
       <label>Prizes (one per line)
         <textarea name="prizes" rows="5" placeholder="Prize 1&#10;Prize 2&#10;Prize 3">{{ prizes_text or "" }}</textarea>
@@ -5249,6 +5311,11 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_display_count INTEGER DEFAULT 4"))
             if 'hold_amount_pence' not in cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
+            if "home_rank" not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN home_rank INTEGER DEFAULT 0"))
+            if "page_about" not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN page_about TEXT"))
+
     except Exception as e:
         print("Charity auto-migration check failed:", e)
     return "Migration attempted. Go back to Entries and refresh."
