@@ -2094,7 +2094,7 @@ def home():
         </div>
         <div class="step-body">
           Any difference between the original hold and your ticket amount is released
-          by your bank.This may take a few days to release depending your bank. 
+          by your bank. It may take a few days to release depending your bank. 
         </div>
       </div>
     </div>
