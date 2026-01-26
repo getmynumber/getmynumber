@@ -32,7 +32,7 @@ STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
-POSTAL_ENTRY_ADDRESS = "PO Box 12345, London, United Kingdom (replace this later)"
+POSTAL_ENTRY_ADDRESS = "Unit 163240, PO Box 7169, Poole, BH15 9EL, United Kingdom"
 
 # Amount to temporarily hold on the card (in pence) – e.g. 1000 = £10
 HOLD_AMOUNT_PENCE = 20000
@@ -832,6 +832,24 @@ LAYOUT = """
     font-weight:700;
     padding-inline:16px;
     text-decoration:none; /* important for <a class="btn"> */
+  }
+
+  /* Small button variant for admin/partner toolbars */
+  .btn.small{
+    padding:9px 12px;
+    font-size:12px;
+  }
+
+  /* Red danger button (Delete) */
+  .btn.danger{
+    background:var(--danger);
+    border:none;
+    color:#ffffff;
+    font-weight:800;
+    text-decoration:none;
+  }
+  .btn.danger:hover{
+    filter:brightness(0.95);
   }
 
   .btn:hover{
@@ -2076,12 +2094,11 @@ def home():
         </div>
         <div class="step-body">
           Any difference between the original hold and your ticket amount is released
-          by your bank.
+          by your bank.This may take a few days to release depending your bank. 
         </div>
       </div>
     </div>
     """
-
     return render(
         body,
         tiles=tiles,
@@ -2102,34 +2119,34 @@ def terms():
     <hr class="legal-divider">
 
     <div class="stack">
-      <p><strong>1) About the Service</strong><br>
+      <p><strong>1. About the Service</strong><br>
       Get My Number provides a platform for running charity-linked campaigns (“Campaigns”).
       Campaign availability may be paused, changed, or ended at any time.</p>
 
-      <p><strong>2) Donations</strong><br>
+      <p><strong>2. Donations</strong><br>
       Where shown, we may place a temporary card authorisation (“hold”) via Stripe before issuing a number.
       Your bank may show this as a pending amount.</p>
 
-      <p><strong>3) No Guarantees</strong><br>
+      <p><strong>3. No Guarantees</strong><br>
       We do not guarantee uninterrupted availability, or that a Campaign will remain live until a specific time,
       and we may stop a Campaign when tickets are sold out.</p>
 
-      <p><strong>4) Acceptable Use</strong><br>
+      <p><strong>4. Acceptable Use</strong><br>
       You agree not to misuse the site, attempt to access admin/partner areas without authorisation,
       or interfere with security or performance.</p>
 
-      <p><strong>5) Use of Site Content</strong><br>
+      <p><strong>5. Use of Site Content</strong><br>
       All content on this website, including text, branding, layout, design, logos, graphics,
       and underlying code, is owned by or licensed to Get My Number.</p>
 
-      <p><strong>6) No Cloning, Scraping or Mirroring</strong><br>
+      <p><strong>6. No Cloning, Scraping or Mirroring</strong><br>
       You may not copy, reproduce, distribute, mirror, frame, scrape, reverse engineer,
       or create derivative works of any part of this site (including using automated tools,
       AI tools, or “website builders” that attempt to recreate a site from a URL),
       especially for the purpose of creating a competing product or service, without our
       prior written consent.</p>
 
-      <p><strong>7) Prohibited Activities</strong><br>
+      <p><strong>7. Prohibited Activities</strong><br>
       You must not: (i) scrape, crawl, mirror, or download site content using automated tools; (ii) bypass security controls or access restricted areas without authorisation; (iii) interfere with site performance, integrity, or security; or (iv) impersonate Get My Number, a campaign, or a campaign organiser.</p>
 
       <hr class="legal-divider">
@@ -2151,7 +2168,7 @@ def terms():
       <p>7. Campaign entries made via the paid online route are non-refundable. Entries made via the free postal entry route are free. Each entry increases the number of tickets you have and therefore increase your chances of winning and does not affect the outcome of the random draw.</p>
 
       <p><strong>Cancellations Or Extensions:</strong><br>
-      8. We may by notice on Our Website (and/or by email if you have provided an email address) extend the closing date of any campaign. We may also cancel a campaign at any time. If we cancel a campaign, we will notify entrants via Our Website and by email. If a campaign is cancelled, we may offer entrants a future credit in line with the refund policy in Schedule 2, but then GetMyNumber will refund all entry fees.</p>
+      8. We may by notice on Our Website (and/or by email if you have provided an email address) extend the closing date of any campaign. We may also cancel a campaign at any time. If we cancel a campaign, we will notify entrants via Our Website and/or by email.</p>
 
       <p><strong>Eligibility:</strong><br>
       9. Our campaigns are open those of or over 18 years old.<br>
@@ -2160,30 +2177,30 @@ def terms():
 
       <p>12. You may enter via one of these routes:-<br>
       <br>
-      Paid Online Campaign:<br>
-      12.1 You may enter online via Our Website by completing the required details and completing the donation to the charity. You will be issued with a number after authorising a temporary hold. You can then complete donation to confirm entry.<br>
+      12.1 Paid Online Campaign:<br>
+      You may enter online via Our Website by completing the required details and completing the donation to the charity. You will be issued with a number after authorising a temporary hold. You can then complete donation to confirm entry.<br>
       <br>
-      Free Postal Entry:<br>
-      12.2 You may enter by post by following the requirements set out in Annex 1. Postal entries must be received before the closing date and time. Postal entries have the same chance of winning as paid entries.</p>
+      12.2 Free Postal Entry:<br>
+      You may enter by post by following the requirements set out in Annex 1. Postal entries must be received before the closing date and time. Postal entries have the same chance of winning as paid entries.</p>
 
       <p><strong>The Prize:</strong><br>
-      13. GetMyNumber does not take any responsibility for the Prize. This is arranged by the Campaign partner.</p>
+      13. GetMyNumber does not take any responsibility for the Prize. This is arranged by the Campaign Partner.</p>
 
       <p><strong>Winners:</strong><br>
       14. GetMyNumber decision as to all matters where we have discretion is final and no correspondence will be entered into.<br>
       15. The Winner must provide any additional information requested, including proof of identity and age.<br>
-      16. GetMyNumber does not take any responsibility for the delivery of the prize. This is arranged by the campaign partner.</p>
+      16. GetMyNumber does not take any responsibility for the delivery of the prize. This is arranged by the Campaign Partner.</p>
 
       <p><strong>Limitation Of Liability:</strong><br>
       17. GetMyNumber excludes all liability for any loss or damage arising out of or in connection with the campaign, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, including but not limited to indirect or consequential loss.<br>
       18. We do not accept responsibility for entries not successfully completed due to a technical fault, technical malfunction, computer hardware or software failure, satellite, network or server failure of any kind.<br>
-      19. We shall not be liable for any loss or damage suffered by you as a result of any act or omission of any third party, including but not limited to the campaign partner. Subject to that, your statutory rights are not affected.</p>
+      19. We shall not be liable for any loss or damage suffered by you as a result of any act or omission of any third party, including but not limited to the Campaign Partner. Subject to that, your statutory rights are not affected.</p>
 
-      <p><strong>Ownership Of Campaign Entries And Intellectual Property Rights:</strong><br>
+      <p><strong>Ownership Of Campaign Entries and Intellectual Property Rights:</strong><br>
       20. All content on this website, including text, branding, design, graphics, and campaign mechanics, are owned by GetMyNumber or licensed to us. You may not reproduce, scrape, mirror, copy, or otherwise use any part of the website or campaign content without our permission. This includes use of automated tools, AI, or scraping systems to recreate our content or processes. All rights are reserved under applicable intellectual property legislation from time to time in force, anywhere in the world.</p>
 
       <p><strong>Data Protection And Publicity:</strong><br>
-      21. We will process your personal data in accordance with our Privacy Policy. By entering, you agree that we may use your details to administer the campaign, contact you, and (if you win) publish your name and general location (e.g. town/city) on Our Website and/or social media, unless you object on reasonable grounds. We may share your information with the campaign partner and third parties involved in administering the campaign, including payment providers (e.g. Stripe). We have no liability for the acts or omissions of any third-party.</p>
+      21. We will process your personal data in accordance with our Privacy Policy. By entering, you agree that we may use your details to administer the campaign, contact you, and (if you win) publish your name and general location (e.g. town/city) on Our Website and/or social media, unless you object on reasonable grounds. We may share your information with the Campaign Partner and third parties involved in administering the campaign, including payment providers (e.g. Stripe). We have no liability for the acts or omissions of any third-party.</p>
 
       <p><strong>General:</strong><br>
       22. If there is any reason to believe that you are in breach of these T&amp;Cs, We may, at our sole discretion, exclude you from participating in the campaign and/or void any entries.<br>
@@ -2194,7 +2211,7 @@ def terms():
       <strong>Postal Entry Requirements</strong><br>
       If a campaign offers a free postal entry route, you may enter by post without making any donation. To enter by post:<br><br>
 
-      1. Ensure you are eligible to enter (including being aged 18+ and UK resident, unless the campaign page states otherwise).<br>
+      1. Ensure you are eligible to enter (including being aged 18+, unless the campaign page states otherwise).<br>
       2. Send one unenclosed postcard per entry by ordinary first-class or second-class post to the address published on the campaign authorisation page (the “Postal Entry Address”). For convenience, this is typically shown on the authorisation page before you proceed to Stripe.<br>
       3. Your postcard must clearly state:<br>
       • The campaign name<br>
@@ -2237,43 +2254,43 @@ def privacy():
 
     <div class="stack">
 
-      <p><strong>1) What we collect</strong><br>
+      <p><strong>1. What We collect</strong><br>
       When you enter a Campaign, we collect your name, email address, phone number (optional),
       and your assigned ticket number.</p>
 
-      <p><strong>2) Donations</strong><br>
+      <p><strong>2. Donations</strong><br>
       Donations/authorisations are processed by Stripe. We do not store full card details on our servers.</p>
 
-      <p><strong>3) Why we use data</strong><br>
+      <p><strong>3. Why We Use Data</strong><br>
       We use your details to administer Campaign entries, provide support, prevent fraud/abuse,
       and keep an audit trail of entries.</p>
 
-      <p><strong>4) Sharing</strong><br>
+      <p><strong>4. Sharing</strong><br>
       We may share entry information with the relevant Campaign organiser/charity solely for Campaign administration,
       and with service providers (e.g., Stripe) as required to operate the platform.</p>
 
-      <p><strong>5) Skill / multiple-choice questions</strong><br>
+      <p><strong>5. Skill / Multiple-Choice Questions</strong><br>
       Where enabled for a campaign, we may present a multiple-choice question that must be answered correctly before you proceed. Your selected answer may be processed to determine whether you can continue. We do not use this information for profiling or marketing. Where session controls are used (e.g. attempt limits), this information is typically stored temporarily and cleared when you complete or restart the entry process.</p>
 
-      <p><strong>6) Lawful basis</strong><br>
+      <p><strong>6. Lawful Basis</strong><br>
       We process personal data to perform our contract with you when you enter a campaign (for example, to administer your entry and contact you if needed). We may also process data where it is in our legitimate interests to operate and secure the platform, prevent fraud and abuse, maintain audit trails, and improve reliability. Where we send non-essential communications (if any), we will do so only in accordance with applicable law.</p>
 
-      <p><strong>7) International transfers (Stripe)</strong><br>
+      <p><strong>7. International Transfers (Stripe)</strong><br>
       Stripe may process personal data (including payment-related data) in locations outside the UK. Where this occurs, Stripe applies appropriate safeguards for international transfers. Please refer to Stripe’s privacy documentation for more information.</p>
 
-      <p><strong>8) Retention</strong><br>
+      <p><strong>8. Retention</strong><br>
       We retain entry records (such as name, email, phone (if provided), ticket number, timestamps, and payment reference IDs) for as long as necessary to administer campaigns, handle disputes, comply with legal obligations, and maintain an audit trail. Retention periods may vary by campaign and by legal requirement.</p>
 
-      <p><strong>9) Your rights</strong><br>
+      <p><strong>9. Your Rights</strong><br>
       You may have rights to request access to, correction of, or deletion of your personal data, and to object to or restrict certain processing. You may also have the right to data portability in certain circumstances. These rights are not absolute and may depend on the context and applicable law.</p>
 
-      <p><strong>10) Complaints</strong><br>
+      <p><strong>10. Complaints</strong><br>
       If you have concerns, please contact us first so we can try to resolve them.</p>
 
-      <p><strong>11) Contact</strong><br>
+      <p><strong>11. Contact</strong><br>
       For privacy queries, please contact Get My Number using the contact email address: getmynumberfundraise@gmail.com. Campaign organisers/charities may also act as independent controllers of your data for their own purposes where they receive your entry details for campaign administration.</p>
 
-      <p><strong>12) Cookies and basic logs</strong><br>
+      <p><strong>12. Cookies and Basic Logs</strong><br>
       We may use essential cookies or similar technologies required for site operation (such as maintaining sessions). Our servers may also log basic technical information (such as IP address, browser type, and timestamps) for security, diagnostics, and fraud prevention.</p>
     </div>
     """
@@ -2498,6 +2515,13 @@ def charity_page(slug):
               </div>
             </div>
           {% endif %}
+
+          <div class="muted" style="font-size:12px; text-align:center; line-height:1.45; margin:6px 0 10px;">
+            By continuing, you agree to the
+            <a href="{{ url_for('terms') }}" target="_blank">Campaign Terms &amp; Conditions</a>
+            and
+            <a href="{{ url_for('privacy') }}" target="_blank">Privacy Policy</a>.
+          </div> 
 
           <button class="btn" type="submit" style="margin-top:10px" {% if is_blocked %}disabled{% endif %}>
             {% if charity.preauth_page_enabled %}
@@ -2774,7 +2798,7 @@ def skill_gate(slug):
 
           <div id="skillAlert" class="notice error" style="display:none;margin-bottom:12px;"></div>
 
-          <form id="skillForm"
+          <form id="skillForm" method="post">
             <div id="optionsWrap" style="margin-top:6px;">
               {% for opt in options %}
                 <label class="pill skill-option" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -3953,7 +3977,7 @@ def continue_without_donating(entry_id):
     
     if not getattr(charity, "continue_without_donating_enabled", False):
         flash("This option is not available for this campaign.")
-        return redirect(url_for("hold_success", slug=charity.slug))
+        return redirect(url_for("charity_page", slug=charity.slug))
 
     # Connected account (where the PaymentIntent lives)
     acct = (getattr(entry, "stripe_account_id", None) or getattr(charity, "stripe_account_id", None) or "").strip()
@@ -4326,7 +4350,7 @@ def admin_charities():
                 {% endif %}
                 <form method="post" action="{{ url_for('admin_delete_charity', slug=c.slug) }}"
                       style="display:inline" onsubmit="return confirm('Delete this campaign and all its entries/users? This cannot be undone.');">
-                  <button class="pill" type="submit">Delete</button>
+                  <button class="btn danger small" type="submit">Delete</button>
                 </form>
               </td>
             </tr>
@@ -4429,16 +4453,18 @@ def admin_toggle_charity_live(slug):
     if not session.get("admin_ok"):
         return redirect(url_for("admin_charities"))
 
-    c = Charity.query.filter_by(slug=slug).first()
-    if not c:
-        flash("Charity not found.")
-        return redirect(url_for("admin_charities"))
+    charity = get_charity_or_404(slug)
 
-    c.is_live = not getattr(c, "is_live", True)
+    # Toggle between live and inactive using the real source of truth
+    current = (getattr(charity, "campaign_status", "live") or "live").strip()
+    charity.campaign_status = "inactive" if current == "live" else "live"
+
+    # Keep legacy boolean synced (optional, but fine)
+    charity.is_live = (charity.campaign_status == "live")
+
     db.session.commit()
-    flash(f"Campaign '{c.slug}' is now {'LIVE' if c.is_live else 'INACTIVE'}.")
+    flash(f"Campaign '{charity.slug}' status is now {charity.campaign_status.upper()}.")
     return redirect(url_for("admin_charities"))
-
 
 @app.post("/admin/charities/<slug>/delete")
 def admin_delete_charity(slug):
@@ -4849,7 +4875,7 @@ def edit_charity(slug):
       {% endif %}
       <div style="margin-top:8px"><button class="btn">Save Changes</button></div>
     </form>
-    <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
+    <p><a class="btn small" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
     """
     skill_answers_text = ""
     try:
@@ -4883,28 +4909,73 @@ def admin_charity_entries(slug):
     if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     flt = request.args.get("filter")
+    earmark = (request.args.get("earmark") or "").strip()
+
     q = Entry.query.filter_by(charity_id=charity.id)
-    if flt == "paid": q = q.filter(Entry.paid.is_(True))
-    elif flt == "unpaid": q = q.filter(Entry.paid.is_(False))
+
+    if flt == "paid":
+        q = q.filter(Entry.paid.is_(True))
+    elif flt == "unpaid":
+        q = q.filter(Entry.paid.is_(False))
+
+    # Earmark filter
+    # - earmark="__none__" means entries with no earmark
+    # - otherwise filter exact match
+    if earmark == "__none__":
+        q = q.filter((Entry.earmark_arm.is_(None)) | (Entry.earmark_arm == ""))
+    elif earmark:
+        q = q.filter(Entry.earmark_arm == earmark)
+
     entries = q.order_by(Entry.id.desc()).all()
+
+    # Build dropdown options from existing entries (only non-empty earmarks)
+    earmark_values = [
+        v for (v,) in db.session.query(Entry.earmark_arm)
+            .filter(Entry.charity_id == charity.id)
+            .filter(Entry.earmark_arm.isnot(None))
+            .filter(Entry.earmark_arm != "")
+            .distinct()
+            .order_by(Entry.earmark_arm.asc())
+            .all()
+    ]
+
     body = """
     <h2>Entries — {{ charity.name }}</h2>
     <p class="muted">Total: {{ entries|length }}</p>
 
     <p>
-      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug) }}">All</a>
-      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid') }}">Unpaid</a>
-      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid') }}">Paid</a>
-      <a class="pill" href="{{ url_for('admin_new_entry', slug=charity.slug) }}">Add Entry</a>
-      <a class="pill" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
+      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, earmark=request.args.get('earmark','')) }}">All</a>
+      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid', earmark=request.args.get('earmark','')) }}">Unpaid</a>
+      <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid', earmark=request.args.get('earmark','')) }}">Paid</a>
+      <a class="btn" href="{{ url_for('admin_new_entry', slug=charity.slug) }}">Add Entry</a>
+      <a class="btn" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
       <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
     </p>
+
+    <form method="get" action="{{ url_for('admin_charity_entries', slug=charity.slug) }}" style="margin:10px 0;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <input type="hidden" name="filter" value="{{ request.args.get('filter','') }}">
+      <label style="max-width:260px;">
+        Earmark filter
+        <select name="earmark">
+          <option value="" {% if not request.args.get('earmark') %}selected{% endif %}>All earmarks</option>
+          <option value="__none__" {% if request.args.get('earmark')=='__none__' %}selected{% endif %}>No earmark</option>
+          {% for opt in earmark_values %}
+            <option value="{{ opt }}" {% if request.args.get('earmark')==opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="pill" type="submit">Apply</button>
+      {% if request.args.get('earmark') %}
+        <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter=request.args.get('filter','')) }}">Clear</a>
+      {% endif %}
+    </form>
 
     <form method="post" action="{{ url_for('admin_bulk_entries', slug=charity.slug) }}">
       <div class="row" style="margin:8px 0">
         <button class="pill" type="submit" name="action" value="mark_paid">Mark paid</button>
         <button class="pill" type="submit" name="action" value="mark_unpaid">Unmark</button>
-        <button class="pill" type="submit" name="action" value="delete" onclick="return confirm('Delete selected entries?')">Delete</button>
+        <button class="btn danger small" type="submit" name="action" value="delete"
+                onclick="return confirm('Delete selected entries?')">Delete</button>
       </div>
 
       <table>
@@ -4948,13 +5019,20 @@ def admin_charity_entries(slug):
       </table>
     </form>
     """
-    return render(body, charity=charity, entries=entries, title=f"Entries – {charity.name}")
+    return render(
+        body,
+        charity=charity,
+        entries=entries,
+        earmark_values=earmark_values,
+        title=f"{charity.name} – Entries"
+    )
 
 @app.route("/admin/charity/<slug>/entries/new", methods=["GET","POST"])
 def admin_new_entry(slug):
     if not session.get("admin_ok"): 
         return redirect(url_for("admin_charities"))
     charity = Charity.query.filter_by(slug=slug).first_or_404()
+    charity_logo = getattr(charity, "logo_data", None)
     msg = None
 
     if request.method == "POST":
@@ -4962,38 +5040,67 @@ def admin_new_entry(slug):
         email = request.form.get("email","").strip()
         phone = request.form.get("phone","").strip()
         number_raw = request.form.get("number","").strip()
+        earmark_arm = (request.form.get("earmark_arm","") or "").strip() or None
 
         if not name or not email:
             msg = "Name and Email required."
         else:
-            # Use specific number if provided
+            # Use specific number if provided; otherwise auto-assign
+            num = None
+
             if number_raw:
                 try:
                     num = int(number_raw)
                     if num < 1 or num > charity.max_number:
                         msg = f"Number must be between 1 and {charity.max_number}."
+                        num = None
                 except ValueError:
                     msg = "Number must be an integer."
                     num = None
-            else:
-                # Auto-assign a free number (retry on collisions)
-                num = None
-                for _ in range(12):
-                    candidate = assign_number(charity)
-                    if not candidate:
-                        msg = "No numbers available."
-                        break
 
+            if not msg:
+                # If admin specified a number, try to save it once
+                if num is not None:
                     try:
-                        e = Entry(charity_id=charity.id, name=name, email=email, phone=phone, number=candidate)
+                        e = Entry(
+                            charity_id=charity.id,
+                            name=name,
+                            email=email,
+                            phone=phone,
+                            number=num,
+                            earmark_arm=earmark_arm
+                        )
                         db.session.add(e)
                         db.session.commit()
                         return redirect(url_for("admin_charity_entries", slug=charity.slug))
                     except IntegrityError:
                         db.session.rollback()
-                        continue
+                        msg = "That number is already taken."
 
-                if not msg and num is None:
+                # Otherwise auto-assign with retries
+                if num is None and not msg:
+                    for _ in range(12):
+                        candidate = assign_number(charity)
+                        if not candidate:
+                            msg = "No numbers available."
+                            break
+                        try:
+                            e = Entry(
+                                charity_id=charity.id,
+                                name=name,
+                                email=email,
+                                phone=phone,
+                                number=candidate,
+                                earmark_arm=earmark_arm
+                            )
+                            db.session.add(e)
+                            db.session.commit()
+                            return redirect(url_for("admin_charity_entries", slug=charity.slug))
+                        except IntegrityError:
+                            db.session.rollback()
+                            continue
+
+                if not msg:
                     msg = "Tickets are selling fast — please try again."
 
     body = """
@@ -5003,6 +5110,7 @@ def admin_new_entry(slug):
       <label>Name <input type="text" name="name" required></label>
       <label>Email <input type="email" name="email" required></label>
       <label>Phone <input type="tel" name="phone"></label>
+      <label>Earmark (optional) <input type="text" name="earmark_arm" placeholder="e.g. Youth programme"></label>
       <label>Number (leave blank to auto-assign) 
         <input type="number" name="number" min="1" max="{{ charity.max_number }}">
       </label>
@@ -5021,18 +5129,61 @@ def admin_charity_entries_csv(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     entries = Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.asc()).all()
     output = io.StringIO(); w = csv.writer(output)
-    w.writerow(["id","name","email","phone","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
+
+    # Include earmark in export (same as partner export)
+    w.writerow(["id","name","email","phone","earmark","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
+
     for e in entries:
         w.writerow([
-            e.id, e.name, e.email, e.phone, e.number,
+            e.id, e.name, e.email, e.phone,
+            e.earmark_arm or "",
+            e.number,
             e.payment_intent_id or "",
             e.created_at.isoformat() if e.created_at else "",
             1 if e.paid else 0,
             e.paid_at.isoformat() if e.paid_at else "",
             charity.slug, charity.name
         ])
+
     data = output.getvalue().encode("utf-8")
     return send_file(io.BytesIO(data), mimetype="text/csv", as_attachment=True, download_name=f"{slug}_entries.csv")
+
+@app.route("/partner/<slug>/entries.csv")
+def partner_entries_csv(slug):
+    charity = partner_guard(slug)
+    if not charity:
+        return redirect(url_for("partner_login"))
+
+    entries = Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.asc()).all()
+    output = io.StringIO()
+    w = csv.writer(output)
+
+    # Include earmark in export
+    w.writerow(["id","name","email","phone","earmark","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
+
+    for e in entries:
+        w.writerow([
+            e.id,
+            e.name,
+            e.email,
+            e.phone,
+            e.earmark_arm or "",
+            e.number,
+            e.payment_intent_id or "",
+            e.created_at.isoformat() if e.created_at else "",
+            1 if e.paid else 0,
+            e.paid_at.isoformat() if e.paid_at else "",
+            charity.slug,
+            charity.name
+        ])
+
+    data = output.getvalue().encode("utf-8")
+    return send_file(
+        io.BytesIO(data),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=f"{slug}_entries.csv"
+    )
 
 @app.route("/admin/entry/<int:entry_id>/toggle-paid", methods=["POST"])
 def toggle_paid(entry_id):
@@ -5098,7 +5249,7 @@ def admin_charity_users(slug):
             <td>{{ u.username }}</td>
             <td>
               <form method="post" action="{{ url_for('admin_delete_user', slug=charity.slug, uid=u.id) }}" style="display:inline" onsubmit="return confirm('Delete user {{ u.username }}?')">
-                <button class="pill" type="submit">Delete</button>
+                <button class="btn danger small" type="submit">Delete</button>
               </form>
             </td>
           </tr>
@@ -5145,7 +5296,7 @@ def partner_login():
     <h2>Partner Login</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" data-safe-submit>
-      <label>Charity slug <input type="text" name="slug" placeholder="thekehilla" required></label>
+      <label>Charity <input type="text" name="slug" placeholder="thekehilla" required></label>
       <label>Username <input type="text" name="username" required></label>
       <label>Password <input type="password" name="password" required></label>
       <div style="margin-top:8px"><button class="btn">Login</button></div>
@@ -5171,31 +5322,78 @@ def partner_entries(slug):
     charity_logo = getattr(charity, "logo_data", None) 
 
     flt = request.args.get("filter")
+    earmark = (request.args.get("earmark") or "").strip()
+
     q = Entry.query.filter_by(charity_id=charity.id)
-    if flt == "paid": q = q.filter(Entry.paid.is_(True))
-    elif flt == "unpaid": q = q.filter(Entry.paid.is_(False))
+
+    if flt == "paid":
+        q = q.filter(Entry.paid.is_(True))
+    elif flt == "unpaid":
+        q = q.filter(Entry.paid.is_(False))
+
+    # Earmark filter
+    # - earmark="__none__" means entries with no earmark
+    # - otherwise filter exact match
+    if earmark == "__none__":
+        q = q.filter((Entry.earmark_arm.is_(None)) | (Entry.earmark_arm == ""))
+    elif earmark:
+        q = q.filter(Entry.earmark_arm == earmark)
+
     entries = q.order_by(Entry.id.desc()).all()
+
+    # Build dropdown options from existing entries (only non-empty earmarks)
+    earmark_values = [
+        v for (v,) in db.session.query(Entry.earmark_arm)
+            .filter(Entry.charity_id == charity.id)
+            .filter(Entry.earmark_arm.isnot(None))
+            .filter(Entry.earmark_arm != "")
+            .distinct()
+            .order_by(Entry.earmark_arm.asc())
+            .all()
+    ]
     body = """
     <h2>Entries — {{ charity.name }}</h2>
     <p>
       <a class="pill" href="{{ url_for('partner_new_entry', slug=charity.slug) }}">Add Entry</a>
+      <a class="pill" href="{{ url_for('partner_entries_csv', slug=charity.slug) }}">Download CSV</a>
+
       <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">All</a>
-      <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='unpaid') }}">Unpaid</a>
-      <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='paid') }}">Paid</a>
+      <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='unpaid', earmark=request.args.get('earmark','')) }}">Unpaid</a>
+      <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='paid', earmark=request.args.get('earmark','')) }}">Paid</a>
+
       <a class="pill" href="{{ url_for('partner_logout') }}">Log out</a>
     </p>
+
+    <form method="get" class="row" style="gap:10px;align-items:flex-end;margin:10px 0 14px 0;">
+      <input type="hidden" name="filter" value="{{ request.args.get('filter','') }}">
+      <label style="max-width:260px;">
+        Earmark filter
+        <select name="earmark">
+          <option value="" {% if not request.args.get('earmark') %}selected{% endif %}>All earmarks</option>
+          <option value="__none__" {% if request.args.get('earmark')=='__none__' %}selected{% endif %}>No earmark</option>
+          {% for opt in earmark_values %}
+            <option value="{{ opt }}" {% if request.args.get('earmark')==opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="pill" type="submit">Apply</button>
+      {% if request.args.get('earmark') %}
+        <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter=request.args.get('filter','')) }}">Clear</a>
+      {% endif %}
+    </form>
 
     <form method="post" action="{{ url_for('partner_bulk_entries', slug=charity.slug) }}">
       <div class="row" style="margin:8px 0">
         <button class="pill" type="submit" name="action" value="mark_paid">Mark paid</button>
         <button class="pill" type="submit" name="action" value="mark_unpaid">Unmark</button>
-        <button class="pill" type="submit" name="action" value="delete" onclick="return confirm('Delete selected entries?')">Delete</button>
+        <button class="btn danger small" type="submit" name="action" value="delete"
+                onclick="return confirm('Delete selected entries?')">Delete</button>
       </div>
 
       <table>
         <thead><tr>
           <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
-          <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
+          <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Earmark</th>
           <th>No.</th><th>PI</th><th>Created</th><th>Paid</th><th>Actions</th>
         </tr></thead>
         <tbody>
@@ -5206,6 +5404,7 @@ def partner_entries(slug):
             <td>{{ e.name }}</td>
             <td>{{ e.email }}</td>
             <td>{{ e.phone }}</td>
+            <td class="muted">{{ e.earmark_arm or "" }}</td>
             <td><strong>#{{ e.number }}</strong></td>
             <td class="muted">
               {% if e.payment_intent_id %}
@@ -5222,7 +5421,7 @@ def partner_entries(slug):
               </form>
               <a class="pill" href="{{ url_for('partner_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
               <form method="post" action="{{ url_for('partner_delete_entry', slug=charity.slug, entry_id=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this entry?')">
-                <button class="pill" type="submit">Delete</button>
+                <button class="btn danger small" type="submit">Delete</button>
               </form>
             </td>
           </tr>
@@ -5231,18 +5430,37 @@ def partner_entries(slug):
       </table>
     </form>
     """
-    return render(body, charity=charity, entries=entries, title=f"{charity.name} – Entries")
+    return render(
+        body,
+        charity=charity,
+        entries=entries,
+        earmark_values=earmark_values,
+        title=f"{charity.name} – Entries"
+    )
+
 
 @app.route("/partner/<slug>/entries/new", methods=["GET","POST"])
 def partner_new_entry(slug):
     charity = partner_guard(slug)
     if not charity: return redirect(url_for("partner_login"))
     msg = None
+    # Earmark options for this charity (if enabled)
+    earmark_opts = []
+    try:
+        if getattr(charity, "earmark_enabled", False) and getattr(charity, "earmark_options_json", None):
+            earmark_opts = json.loads(charity.earmark_options_json or "[]") or []
+    except Exception:
+        earmark_opts = []
+
     if request.method == "POST":
         name = request.form.get("name","").strip()
         email = request.form.get("email","").strip()
         phone = request.form.get("phone","").strip()
         number_raw = request.form.get("number","").strip()
+        earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
+        if (not earmark_arm) or (earmark_arm not in earmark_opts):
+            earmark_arm = None
+
         if not name or not email:
             msg = "Name and Email required."
         else:
@@ -5259,7 +5477,7 @@ def partner_new_entry(slug):
                 if not num: msg = "No numbers available."
             if not msg and num is not None:
                 try:
-                    e = Entry(charity_id=charity.id, name=name, email=email, phone=phone, number=num)
+                    e = Entry(charity_id=charity.id, name=name, email=email, phone=phone, number=num, earmark_arm=earmark_arm)
                     db.session.add(e); db.session.commit()
                     return redirect(url_for("partner_entries", slug=charity.slug))
                 except IntegrityError:
@@ -5271,11 +5489,23 @@ def partner_new_entry(slug):
       <label>Name <input type="text" name="name" required></label>
       <label>Email <input type="email" name="email" required></label>
       <label>Phone <input type="tel" name="phone"></label>
+      <label>Earmark (optional) <input type="text" name="earmark_arm" placeholder="e.g. Youth programme"></label>
       <label>Number (leave blank to auto-assign) <input type="number" name="number" min="1" max="{{ charity.max_number }}"></label>
+      {% if earmark_opts and (earmark_opts|length) > 0 %}
+        <label>
+          Earmark (optional)
+          <select name="earmark_arm">
+            <option value="">No earmark</option>
+            {% for opt in earmark_opts %}
+              <option value="{{ opt }}">{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      {% endif %}
       <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
-    return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}")
+    return render(body, charity=charity, msg=msg, earmark_opts=earmark_opts, title=f"Add Entry – {charity.name}")
 
 @app.route("/partner/<slug>/entry/<int:entry_id>/edit", methods=["GET","POST"])
 def partner_edit_entry(slug, entry_id):
@@ -5284,10 +5514,21 @@ def partner_edit_entry(slug, entry_id):
     e = Entry.query.get_or_404(entry_id)
     if e.charity_id != charity.id: abort(403)
     msg = None
+    # Earmark options for this charity (if enabled)
+    earmark_opts = []
+    try:
+        if getattr(charity, "earmark_enabled", False) and getattr(charity, "earmark_options_json", None):
+            earmark_opts = json.loads(charity.earmark_options_json or "[]") or []
+    except Exception:
+        earmark_opts = []
     if request.method == "POST":
         e.name = request.form.get("name", e.name).strip()
         e.email = request.form.get("email", e.email).strip()
         e.phone = request.form.get("phone", e.phone).strip()
+        earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
+        if (not earmark_arm) or (earmark_arm not in earmark_opts):
+            earmark_arm = None
+        e.earmark_arm = earmark_arm
         number_raw = request.form.get("number","").strip()
         if number_raw:
             try:
@@ -5312,10 +5553,21 @@ def partner_edit_entry(slug, entry_id):
       <label>Email <input type="email" name="email" value="{{ e.email }}" required></label>
       <label>Phone <input type="tel" name="phone" value="{{ e.phone or '' }}"></label>
       <label>Number <input type="number" name="number" value="{{ e.number }}" min="1" max="{{ charity.max_number }}"></label>
+      {% if earmark_opts and (earmark_opts|length) > 0 %}
+        <label>
+          Earmark (optional)
+          <select name="earmark_arm">
+            <option value="" {% if not e.earmark_arm %}selected{% endif %}>No earmark</option>
+            {% for opt in earmark_opts %}
+              <option value="{{ opt }}" {% if e.earmark_arm == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      {% endif %}
       <div style="margin-top:8px"><button class="btn">Save</button> <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">Cancel</a></div>
     </form>
     """
-    return render(body, charity=charity, e=e, msg=msg, title=f"Edit Entry – {charity.name}")
+    return render(body, charity=charity, e=e, msg=msg, earmark_opts=earmark_opts, title=f"Edit Entry – {charity.name}")
 
 @app.route("/partner/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
 def partner_delete_entry(slug, entry_id):
