@@ -5704,21 +5704,6 @@ def partner_edit_entry(slug, entry_id):
     """
     return render(body, charity=charity, e=e, msg=msg, earmark_opts=earmark_opts, title=f"Edit Entry – {charity.name}")
 
-
-@app.route("/admin/charity/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
-def admin_delete_entry(slug, entry_id):
-    if not session.get("admin_ok"):
-        return redirect(url_for("admin_charities"))
-
-    charity = Charity.query.filter_by(slug=slug).first_or_404()
-    e = Entry.query.get_or_404(entry_id)
-    if e.charity_id != charity.id:
-        abort(403)
-
-    db.session.delete(e)
-    db.session.commit()
-    return redirect(url_for("admin_charity_entries", slug=charity.slug))
-
 @app.route("/partner/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
 def partner_delete_entry(slug, entry_id):
     charity = partner_guard(slug)
