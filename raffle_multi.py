@@ -4947,7 +4947,6 @@ def admin_charity_entries(slug):
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, earmark=request.args.get('earmark','')) }}">All</a>
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid', earmark=request.args.get('earmark','')) }}">Unpaid</a>
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid', earmark=request.args.get('earmark','')) }}">Paid</a>
-      <a class="pill" href="{{ url_for('admin_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
       <a class="btn" href="{{ url_for('admin_new_entry', slug=charity.slug) }}">Add Entry</a>
 
       <a class="btn small"
@@ -4977,13 +4976,6 @@ def admin_charity_entries(slug):
       {% if request.args.get('earmark') %}
         <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter=request.args.get('filter','')) }}">Clear</a>
       {% endif %}
-    </form>
- 
-    <form method="post"
-          action="{{ url_for('admin_delete_entry', slug=charity.slug, entry_id=e.id) }}"
-          style="display:inline"
-          onsubmit="return confirm('Delete this entry?')">
-      <button class="btn danger small" type="submit">Delete</button>
     </form>
 
     <form method="post" action="{{ url_for('admin_bulk_entries', slug=charity.slug) }}">
@@ -5037,7 +5029,7 @@ def admin_charity_entries(slug):
                       onsubmit="return confirm('Delete this entry?')">
                   <button class="btn danger small" type="submit">Delete</button>
                 </form>
-              <td>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
