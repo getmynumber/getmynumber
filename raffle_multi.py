@@ -2527,7 +2527,7 @@ def charity_page(slug):
             {% if charity.preauth_page_enabled %}
               Continue
             {% else %}
-              Place Hold &amp; Get My Number
+              Get My Number
             {% endif %}
           </button>
         </form>
@@ -2586,7 +2586,7 @@ def charity_page(slug):
 
         <p class="muted" style="margin-top:10px;margin-bottom:0;">
           You will be assigned a random number from the remaining pool.<br>
-          Your donation amount corresponds to your ticket number.
+          There is a free postal entry route at step 3.
         </p>
       </div>
 
@@ -4947,8 +4947,12 @@ def admin_charity_entries(slug):
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, earmark=request.args.get('earmark','')) }}">All</a>
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='unpaid', earmark=request.args.get('earmark','')) }}">Unpaid</a>
       <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter='paid', earmark=request.args.get('earmark','')) }}">Paid</a>
+      <a class="pill" href="{{ url_for('admin_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
       <a class="btn" href="{{ url_for('admin_new_entry', slug=charity.slug) }}">Add Entry</a>
-      <a class="btn" href="{{ url_for('admin_charity_entries_csv', slug=charity.slug) }}">Download CSV</a>
+      <a class="btn small"
+         href="{{ url_for('admin_charity_entries_csv', slug=charity.slug, filter=request.args.get('filter',''), earmark=request.args.get('earmark','')) }}">
+        Download CSV
+      </a>
       <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
     </p>
 
@@ -4968,6 +4972,13 @@ def admin_charity_entries(slug):
       {% if request.args.get('earmark') %}
         <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug, filter=request.args.get('filter','')) }}">Clear</a>
       {% endif %}
+    </form>
+ 
+    <form method="post"
+          action="{{ url_for('admin_delete_entry', slug=charity.slug, entry_id=e.id) }}"
+          style="display:inline"
+          onsubmit="return confirm('Delete this entry?')">
+      <button class="btn danger small" type="submit">Delete</button>
     </form>
 
     <form method="post" action="{{ url_for('admin_bulk_entries', slug=charity.slug) }}">
@@ -5008,11 +5019,20 @@ def admin_charity_entries(slug):
                 {{ "Yes" if e.paid else "No" }}
                 {% if e.paid_at %}<span class="muted">({{ e.paid_at.strftime("%Y-%m-%d %H:%M") }})</span>{% endif %}
               </td>
-              <td>
+              <td style="white-space:nowrap">
                 <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
                   <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
                 </form>
-              </td>
+
+                <a class="pill" href="{{ url_for('admin_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
+
+                <form method="post"
+                      action="{{ url_for('admin_delete_entry', slug=charity.slug, entry_id=e.id) }}"
+                      style="display:inline"
+                      onsubmit="return confirm('Delete this entry?')">
+                  <button class="btn danger small" type="submit">Delete</button>
+                </form>
+              <td>
             </tr>
           {% endfor %}
         </tbody>
@@ -5122,15 +5142,126 @@ def admin_new_entry(slug):
     """
     return render(body, charity=charity, msg=msg, title=f"Add Entry – {charity.name}", charity_logo=charity_logo)
 
+@app.route("/admin/charity/<slug>/entry/<int:entry_id>/edit", methods=["GET","POST"])
+def admin_edit_entry(slug, entry_id):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = get_charity_or_404(slug)
+    e = Entry.query.get_or_404(entry_id)
+    if e.charity_id != charity.id:
+        abort(403)
+
+    msg = None
+
+    # Earmark options for this charity (if enabled)
+    earmark_opts = []
+    try:
+        if getattr(charity, "earmark_enabled", False) and getattr(charity, "earmark_options_json", None):
+            earmark_opts = json.loads(charity.earmark_options_json or "[]") or []
+    except Exception:
+        earmark_opts = []
+
+    if request.method == "POST":
+        e.name = request.form.get("name", e.name).strip()
+        e.email = request.form.get("email", e.email).strip()
+        e.phone = request.form.get("phone", e.phone).strip()
+
+        earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
+        if (not earmark_arm) or (earmark_arm not in earmark_opts):
+            earmark_arm = None
+        e.earmark_arm = earmark_arm
+
+        number_raw = request.form.get("number","").strip()
+        if number_raw:
+            try:
+                newnum = int(number_raw)
+                if newnum < 1 or newnum > charity.max_number:
+                    msg = f"Number must be between 1 and {charity.max_number}."
+                else:
+                    e.number = newnum
+            except ValueError:
+                msg = "Number must be an integer."
+
+        try:
+            if not msg:
+                db.session.commit()
+                return redirect(url_for("admin_charity_entries", slug=charity.slug))
+        except IntegrityError:
+            db.session.rollback()
+            msg = "That number is already taken."
+
+    body = """
+    <h2>Edit Entry — {{ charity.name }}</h2>
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
+    <form method="post" data-safe-submit>
+      <label>Name <input type="text" name="name" value="{{ e.name }}" required></label>
+      <label>Email <input type="email" name="email" value="{{ e.email }}" required></label>
+      <label>Phone <input type="tel" name="phone" value="{{ e.phone or '' }}"></label>
+      <label>Number <input type="number" name="number" value="{{ e.number }}" min="1" max="{{ charity.max_number }}"></label>
+
+      {% if earmark_opts and (earmark_opts|length) > 0 %}
+        <label>
+          Earmark (optional)
+          <select name="earmark_arm">
+            <option value="" {% if not e.earmark_arm %}selected{% endif %}>No earmark</option>
+            {% for opt in earmark_opts %}
+              <option value="{{ opt }}" {% if e.earmark_arm == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      {% endif %}
+
+      <div style="margin-top:8px">
+        <button class="btn">Save</button>
+        <a class="pill" href="{{ url_for('admin_charity_entries', slug=charity.slug) }}">Cancel</a>
+      </div>
+    </form>
+    """
+    return render(body, charity=charity, e=e, msg=msg, earmark_opts=earmark_opts, title=f"Edit Entry – {charity.name}")
+
+@app.post("/admin/charity/<slug>/entry/<int:entry_id>/delete")
+def admin_delete_entry(slug, entry_id):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = get_charity_or_404(slug)
+    e = Entry.query.get_or_404(entry_id)
+    if e.charity_id != charity.id:
+        abort(403)
+
+    db.session.delete(e)
+    db.session.commit()
+    return redirect(url_for("admin_charity_entries", slug=charity.slug))
+
 
 @app.route("/admin/charity/<slug>/entries.csv")
 def admin_charity_entries_csv(slug):
-    if not session.get("admin_ok"): return redirect(url_for("admin_charities"))
-    charity = Charity.query.filter_by(slug=slug).first_or_404()
-    entries = Entry.query.filter_by(charity_id=charity.id).order_by(Entry.id.asc()).all()
-    output = io.StringIO(); w = csv.writer(output)
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
 
-    # Include earmark in export (same as partner export)
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+
+    flt = request.args.get("filter")
+    earmark = (request.args.get("earmark") or "").strip()
+
+    q = Entry.query.filter_by(charity_id=charity.id)
+
+    if flt == "paid":
+        q = q.filter(Entry.paid.is_(True))
+    elif flt == "unpaid":
+        q = q.filter(Entry.paid.is_(False))
+
+    if earmark == "__none__":
+        q = q.filter((Entry.earmark_arm.is_(None)) | (Entry.earmark_arm == ""))
+    elif earmark:
+        q = q.filter(Entry.earmark_arm == earmark)
+
+    entries = q.order_by(Entry.id.asc()).all()
+
+    output = io.StringIO()
+    w = csv.writer(output)
+
     w.writerow(["id","name","email","phone","earmark","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
 
     for e in entries:
@@ -5146,7 +5277,12 @@ def admin_charity_entries_csv(slug):
         ])
 
     data = output.getvalue().encode("utf-8")
-    return send_file(io.BytesIO(data), mimetype="text/csv", as_attachment=True, download_name=f"{slug}_entries.csv")
+    return send_file(
+        io.BytesIO(data),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=f"{slug}_entries.csv"
+    )
 
 @app.route("/partner/<slug>/entries.csv")
 def partner_entries_csv(slug):
@@ -5361,7 +5497,7 @@ def partner_entries(slug):
       <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='unpaid', earmark=request.args.get('earmark','')) }}">Unpaid</a>
       <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='paid', earmark=request.args.get('earmark','')) }}">Paid</a>
 
-      <a class="pill" href="{{ url_for('partner_logout') }}">Log out</a>
+      <a class="btn small" href="{{ url_for('partner_logout') }}">Log out</a>
     </p>
 
     <form method="get" class="row" style="gap:10px;align-items:flex-end;margin:10px 0 14px 0;">
@@ -5489,7 +5625,6 @@ def partner_new_entry(slug):
       <label>Name <input type="text" name="name" required></label>
       <label>Email <input type="email" name="email" required></label>
       <label>Phone <input type="tel" name="phone"></label>
-      <label>Earmark (optional) <input type="text" name="earmark_arm" placeholder="e.g. Youth programme"></label>
       <label>Number (leave blank to auto-assign) <input type="number" name="number" min="1" max="{{ charity.max_number }}"></label>
       {% if earmark_opts and (earmark_opts|length) > 0 %}
         <label>
@@ -5568,6 +5703,21 @@ def partner_edit_entry(slug, entry_id):
     </form>
     """
     return render(body, charity=charity, e=e, msg=msg, earmark_opts=earmark_opts, title=f"Edit Entry – {charity.name}")
+
+
+@app.route("/admin/charity/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
+def admin_delete_entry(slug, entry_id):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+    e = Entry.query.get_or_404(entry_id)
+    if e.charity_id != charity.id:
+        abort(403)
+
+    db.session.delete(e)
+    db.session.commit()
+    return redirect(url_for("admin_charity_entries", slug=charity.slug))
 
 @app.route("/partner/<slug>/entry/<int:entry_id>/delete", methods=["POST"])
 def partner_delete_entry(slug, entry_id):
