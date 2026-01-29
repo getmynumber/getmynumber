@@ -594,6 +594,14 @@ LAYOUT = """
     background:linear-gradient(90deg, var(--brand), var(--brand-2));
   }
 
+/* Keep answer pills horizontally aligned (works for both initial render + JS re-render) */
+#optionsWrap .skill-option{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+}
+
 /* --- Tick rows: perfect circle + aligned text --- */
 
 /* Try to catch your tick wrapper regardless of exact class name */
@@ -2796,7 +2804,7 @@ def skill_gate(slug):
           <form id="skillForm" method="post">
             <div id="optionsWrap" style="margin-top:6px;">
               {% for opt in options %}
-                <label class="pill skill-option" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <label class="pill skill-option">
                   <input type="radio" name="answer" value="{{ opt }}" required>
                   <span>{{ opt }}</span>
                 </label>
@@ -2842,7 +2850,10 @@ def skill_gate(slug):
             (options || []).forEach(opt => {
               const label = document.createElement("label");
               label.className = "pill skill-option";
-              label.style.cssText = "cursor:pointer;";
+
+              // IMPORTANT: keep the same horizontal pill layout after reshuffle
+              label.style.cssText = "display:flex;align-items:center;gap:10px;cursor:pointer;";
+
               label.innerHTML = `
                 <input type="radio" name="answer" value="${String(opt).replace(/"/g,'&quot;')}" required>
                 <span>${String(opt)}</span>
@@ -3104,7 +3115,6 @@ def authorise_hold(slug):
             • Include your full name, email, phone (optional), and the campaign “{{ charity.slug }}”.<br>
             • One postal entry per envelope. Multiple entries in one envelope may be rejected.<br>
             • Entries must be legible and received before the draw time/closing date.<br>
-            • We will confirm receipt by email where possible.<br>
             • No purchase or donation is required for postal entries.<br></p>
           </div>
         </div>
