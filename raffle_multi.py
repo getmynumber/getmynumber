@@ -2583,11 +2583,6 @@ def charity_page(slug):
         <div class="progress" style="margin-top:10px">
           <i style="width:{{ pct }}%"></i>
         </div>
-
-        <p class="muted" style="margin-top:10px;margin-bottom:0;">
-          You will be assigned a random number from the remaining pool.<br>
-          There is a free postal entry route at step 3.
-        </p>
       </div>
 
     {% if draw_iso %}
