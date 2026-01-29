@@ -848,6 +848,12 @@ LAYOUT = """
     font-size:12px;
   }
 
+  /* Large primary button (used on charity page CTA) */
+  .btn.big{
+    padding:14px 16px;
+    font-size:15px;
+  }
+
   /* Red danger button (Delete) */
   .btn.danger{
     background:var(--danger);
@@ -2511,13 +2517,13 @@ def charity_page(slug):
               <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
                 {% for opt in earmark_opts %}
                   <label class="pill outline"
-                         style="display:flex;align-items:center;gap:10px;justify-content:center; cursor:pointer; max-width:360px; width:100%; padding:8px 12px;">
+                         style="display:flex;align-items:center;gap:8px;justify-content:center; cursor:pointer; max-width:340px; width:100%; padding:6px 10px; font-size:13px;">
                    <input type="radio"
                           name="earmark_arm"
                           value="{{ opt }}"
                           data-earmark-radio="1"
-                          style="transform:scale(1.05);">
-                   <span style="font-weight:700;">{{ opt }}</span>
+                          style="transform:scale(1.0);">
+                   <span style="font-weight:650;">{{ opt }}</span>
                  </label>
                {% endfor %}
               </div>
@@ -2531,7 +2537,7 @@ def charity_page(slug):
             <a href="{{ url_for('privacy') }}" target="_blank">Privacy Policy</a>.
           </div> 
 
-          <button class="btn" type="submit" style="margin-top:10px" {% if is_blocked %}disabled{% endif %}>
+          <button class="btn big" type="submit" style="margin-top:14px" {% if is_blocked %}disabled{% endif %}>
             {% if charity.preauth_page_enabled %}
               Continue
             {% else %}
