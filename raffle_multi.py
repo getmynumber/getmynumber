@@ -2497,7 +2497,7 @@ def charity_page(slug):
           {% if earmark_opts and (earmark_opts|length) > 0 %}
             <div style="margin-top:10px; text-align:center;">
               <div class="muted" style="font-size:12px; line-height:1.35; margin-bottom:8px;">
-                Optional: Direct your donation, otherwise it goes to <strong>{{ charity.name }}</strong>.
+                <strong>Optional:<strong> Select this box to direct your donation to
               </div>
 
               <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
