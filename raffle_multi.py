@@ -3172,6 +3172,7 @@ def start_hold(slug):
             }],
             payment_intent_data={
                 "capture_method": "manual",
+                "receipt_email": pending.get("email") or None,  
                 "metadata": {
                     "charity_slug": charity.slug,
                     "flow": "hold_then_capture",
@@ -3277,6 +3278,7 @@ def hold_success(slug):
             try:
                 stripe.PaymentIntent.modify(
                     entry.payment_intent_id,
+                    receipt_email=email or None,  # ✅ ADD THIS LINE
                     metadata={
                         "entry_id": str(entry.id),
                         "charity_slug": charity.slug,
@@ -3834,11 +3836,19 @@ def confirm_payment(entry_id):
 
     # 1) Capture from the original hold
     try:
+        # ✅ Ensure email is present on the PaymentIntent for receipts
+        stripe.PaymentIntent.modify(
+            entry.payment_intent_id,
+            receipt_email=(entry.email or None),
+            stripe_account=acct,
+        )
+
         captured_pi = stripe.PaymentIntent.capture(
             entry.payment_intent_id,
             amount_to_capture=amount_pence,
             stripe_account=acct,
         )
+
     except Exception as e:
         app.logger.error(
             f"Error capturing PaymentIntent {entry.payment_intent_id}: {e}"
