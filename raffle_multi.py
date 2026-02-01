@@ -2037,7 +2037,7 @@ def home():
           </div>
         </div>
         <div class="step-body">
-          Choose your charity and enter your name, email and (optionally) phone number.
+          Choose your charity and enter your name, email and phone number.
         </div>
       </div>
 
@@ -2046,11 +2046,11 @@ def home():
           <div class="step-icon">🧠</div>
           <div>
             <div class="step-label">Step 2</div>
-            <div class="step-title">Optional Multiple-Choice Question</div>
+            <div class="step-title">Multiple-Choice Question</div>
           </div>
         </div>
         <div class="step-body">
-          Some campaigns include an optional multiple-choice question before you proceed.
+          Some campaigns include a multiple-choice question before you proceed.
           When enabled, you will be required to answer the question correctly before continuing.
         </div>
       </div>
@@ -2093,7 +2093,7 @@ def home():
           </div>
         </div>
         <div class="step-body">
-          You can confirm your donation for an amount equal to your ticket number to support the charity.
+          You confirm your donation for an amount equal to your ticket number to support the charity.
           We capture only this amount from the original card hold.
         </div>
       </div>
@@ -2108,7 +2108,7 @@ def home():
         </div>
         <div class="step-body">
           Any difference between the original hold and your ticket amount is released
-          by your bank. It may take a few days to release depending your bank. 
+          by your bank. It may take a few days to release depending on your bank. 
         </div>
       </div>
     </div>
@@ -2170,7 +2170,7 @@ def terms():
 
       <p><strong>How To Enter:</strong><br>
       2. The campaign will be open until the date and time specified on Our Website for each campaign.<br>
-      3. To enter, you must follow the entry instructions on Our Website. You will be required to provide your name, email, and (optionally) phone number. You will also be required to authorise a temporary card hold via Stripe before being issued a number. Following this, you will be issued with a number. Your number will be the amount you can donate to the charity to confirm entry.<br>
+      3. To enter, you must follow the entry instructions on Our Website. You will be required to provide your name, email, and phone number. You will also be required to authorise a temporary card hold via Stripe before being issued a number. Following this, you will be issued with a number. Your number will be the amount you can donate to the charity to confirm entry.<br>
 
       <p><strong>Skill / Multiple-Choice Question (where enabled):</strong><br>
       4. Some campaigns include a multiple-choice question (a “skill question”) that must be answered correctly before you can proceed to the temporary card authorisation stage. Where enabled, you will be asked to select one of the available answers and you must answer correctly to continue. To protect fairness and platform integrity, attempts are limited (typically a maximum of three), and the available options may be refreshed between attempts. If you do not answer correctly within the permitted attempts, you may be required to restart your entry journey. Skill questions are used to support campaign compliance and are not intended to provide advice or guidance of any kind.</p>
@@ -2269,7 +2269,7 @@ def privacy():
     <div class="stack">
 
       <p><strong>1. What We collect</strong><br>
-      When you enter a Campaign, we collect your name, email address, phone number (optional),
+      When you enter a Campaign, we collect your name, email address, phone number,
       and your assigned ticket number.</p>
 
       <p><strong>2. Donations</strong><br>
@@ -2365,8 +2365,8 @@ def charity_page(slug):
         email = request.form.get("email", "").strip()
         phone = request.form.get("phone", "").strip()
 
-        if not name or not email:
-            flash("Name and Email are required.")
+        if not name or not email or not phone:
+            flash("Name, Email and Phone are required.")
         else:
             hold_amount_pence = compute_hold_amount_pence(charity)
 
@@ -2499,8 +2499,8 @@ def charity_page(slug):
             <input type="email" name="email" required placeholder="name@example.com" {% if is_blocked %}disabled{% endif %}>
           </label>
 
-          <label>Phone (optional)
-            <input type="tel" name="phone" placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
+          <label>Phone
+            <input type="tel" name="phone" required placeholder="+44 7xxx xxxxxx" {% if is_blocked %}disabled{% endif %}>
           </label>
 
           {% set earmark_opts = [] %}
@@ -3068,7 +3068,7 @@ def authorise_hold(slug):
     ticks_block = build_ticks_block([
         f"&pound;<strong>{hold_gbp}</strong> will be temporarily held on your card",
         f"You will be allocated a random number after authorisation",
-        f"Any remaining hold will be released automatically",
+        f"Any remaining hold will be released and returned to you.",
     ], wrap_card=False)
 
     step_current, step_total = flow_step_meta(charity, "authorise")
@@ -3081,10 +3081,10 @@ def authorise_hold(slug):
       </p>
 
       <p style="margin-top:8px;line-height:1.5;">
-        After your number is revealed, you will be invited to
-        <strong>confirm your donation</strong> in support of the charity.
-        Only your donation amount is taken — any remaining authorisation
-        is released automatically.
+        Once your number is revealed, you are committed to
+        <strong>confirming your donation</strong> in support of the charity.
+        Only your donation amount is taken — any remaining hold is released. 
+        This may take a few days depending on your bank. 
       </p>
 
       <div class="card secondary" style="margin-top:14px">
@@ -3120,7 +3120,7 @@ def authorise_hold(slug):
 
           <div class="muted" style="font-size:12px;line-height:1.5">
             <strong>Postal entry terms (summary):</strong><br>
-            • Include your full name, email, phone (optional), and the campaign “{{ charity.slug }}”.<br>
+            • Include your full name, email, phone and the campaign “{{ charity.slug }}”.<br>
             • One postal entry per envelope. Multiple entries in one envelope may be rejected.<br>
             • Entries must be legible and received before the draw time/closing date.<br>
             • No purchase or donation is required for postal entries.<br></p>
@@ -3303,8 +3303,8 @@ def hold_success(slug):
 
     ticks_block = build_ticks_block([
         "&pound;<strong><span id='hold-amt'></span></strong> temporarily held on your card",
-        "You can donate &pound;<strong><span id='pay-amt'></span></strong>",
-        "&pound;<strong><span id='release-amt'></span></strong> would be released",
+        "You donate &pound;<strong><span id='pay-amt'></span></strong>",
+        "&pound;<strong><span id='release-amt'></span></strong> will be released",
     ], wrap_card=False)
 
     # Clean up the session data used for pending
@@ -3344,7 +3344,6 @@ def hold_success(slug):
 
        <div class="muted" style="margin-top:10px; line-height:1.45; font-size:14px;">
          You have been allocated number <strong><span id="nudge-num"></span></strong>.
-         Completing the <strong>&pound;<span id="nudge-amt"></span></strong> donation confirms this number in support of the charity.
        </div>
 
        <div id="confirm-card" style="display:none; margin-top:14px;">
@@ -4015,7 +4014,7 @@ def continue_without_donating(entry_id):
         <div class="hero">
           <h1>Thank you — you’re all set</h1>
           <p class="muted" style="margin-top:10px;line-height:1.5;">
-            Your card hold will be returned to you automatically.
+            Your card hold will be returned to you.
           </p>
         </div>
         """
@@ -4049,7 +4048,7 @@ def continue_without_donating(entry_id):
     <div class="hero">
       <h1>Thank you — you’re all set</h1>
       <p class="muted" style="margin-top:10px;line-height:1.5;">
-        Your card hold will be returned to you automatically.
+        Your card hold will be returned to you.
       </p>
     </div>
     """
