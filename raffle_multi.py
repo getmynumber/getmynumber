@@ -3326,7 +3326,7 @@ def authorise_hold(slug):
 
           <div class="muted" style="font-size:12px;line-height:1.5">
             <strong>Postal entry terms (summary):</strong><br>
-            • Include your full name, email, phone and the campaign “{{ charity.slug }}”.<br>
+            • Include your full name, date of birth, email address, phone number, full postal address and the campaign “{{ charity.slug }}”.<br>
             • One postal entry per envelope. Multiple entries in one envelope may be rejected.<br>
             • Entries must be legible and received before the draw time/closing date.<br>
             • No purchase or donation is required for postal entries.<br></p>
@@ -5180,6 +5180,14 @@ def edit_charity(slug):
         except ValueError:
             msg = "Invalid hold amount."
 
+        # Fixed price settings
+        charity.fixed_price_enabled = bool(request.form.get("fixed_price_enabled"))
+        try:
+            fixed_price_gbp = int((request.form.get("fixed_ticket_price_gbp") or "0").strip() or 0)
+        except ValueError:
+            fixed_price_gbp = 0
+        charity.fixed_ticket_price_pence = max(0, fixed_price_gbp * 100)
+
         # Commit at the end so toggles persist
         if not msg:
             db.session.commit()
@@ -5251,24 +5259,20 @@ def edit_charity(slug):
              style="width:140px;height:86px;object-fit:cover;border-radius:12px;border:1px solid var(--border);display:block;margin-top:8px;">
       {% endif %}
 
-      <label>Short “About” (homepage tile)
-        <input type="hidden" name="tile_about" id="tile_about_input" value="{{ (charity.tile_about or "")|safe }}">
+      <label>Short "About" (homepage tile)
+        <input type="hidden" name="tile_about" id="tile_about_input">
 
         <div class="muted" style="font-size:12px;margin:6px 0 6px 0">
           You can format this text (bold/italic/underline/lists/paragraphs).
         </div>
 
-        <div id="tile_about_editor" style="background:#fff;border-radius:12px">
-          {{ (charity.tile_about or "")|safe }}
-        </div>
+        <div id="tile_about_editor" style="background:#fff;border-radius:12px"></div>
       </label>
 
       <label style="margin-top:14px">Charity Page About (shows under poster)</label>
-      <input type="hidden" name="page_about" id="page_about_input" value="{{ (charity.page_about or "")|safe }}">
+      <input type="hidden" name="page_about" id="page_about_input">
 
-      <div id="page_about_editor" style="background:#fff;border-radius:12px">
-        {{ (charity.page_about or "")|safe }}
-      </div>
+      <div id="page_about_editor" style="background:#fff;border-radius:12px"></div>
       <div class="muted" style="font-size:12px;margin-top:6px">
         Optional. If empty, nothing will show.
       </div>
@@ -5322,8 +5326,8 @@ def edit_charity(slug):
       </div>
 
       <label style="margin-top:10px;display:block;">
-        Fixed ticket price (£)
-        <input type="number" min="1" step="1" name="fixed_ticket_price_gbp"
+        Fixed ticket price (£) <span class="muted" style="font-size:12px;">(only required if Fixed Price Mode is enabled)</span>
+        <input type="number" min="0" step="1" name="fixed_ticket_price_gbp"
                value="{{ (charity.fixed_ticket_price_pence or 0) // 100 }}">
       </label>
 
@@ -5538,6 +5542,17 @@ def edit_charity(slug):
         theme: 'snow',
         modules: { toolbar: toolbarOptions }
       });
+
+      // Load existing content safely via JS (avoids HTML-in-attribute quote issues)
+      const tileAboutData = {{ (charity.tile_about or "")|tojson }};
+      const pageAboutData = {{ (charity.page_about or "")|tojson }};
+
+      if (tileAboutData) {
+        tileAbout.clipboard.dangerouslyPasteHTML(tileAboutData);
+      }
+      if (pageAboutData) {
+        pageAbout.clipboard.dangerouslyPasteHTML(pageAboutData);
+      }
 
       // On submit: copy Quill HTML into hidden inputs so Flask receives it
       document.getElementById('edit_charity_form').addEventListener('submit', function () {
