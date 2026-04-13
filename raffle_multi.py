@@ -2084,7 +2084,7 @@ def home():
           {% endif %}
           <div class="cause-about">
             {% if t.about %}
-              {{ t.about }}
+              {{ t.about|safe }}
             {% else %}
               Support this campaign by taking part and confirming your donation after your number is revealed.
             {% endif %}
@@ -5259,22 +5259,102 @@ def edit_charity(slug):
              style="width:140px;height:86px;object-fit:cover;border-radius:12px;border:1px solid var(--border);display:block;margin-top:8px;">
       {% endif %}
 
-      <label>Short "About" (homepage tile)
-        <input type="hidden" name="tile_about" id="tile_about_input">
+            <style>
+        .about-editor-wrap{
+          margin-top:6px;
+        }
+        .about-toolbar{
+          display:flex;
+          flex-wrap:wrap;
+          gap:8px;
+          margin:8px 0 8px 0;
+        }
+        .about-toolbar button{
+          type:button;
+          padding:8px 12px;
+          border-radius:10px;
+          border:1px solid var(--border);
+          background:#fff;
+          color:var(--text);
+          font-size:13px;
+          cursor:pointer;
+        }
+        .about-toolbar button:hover{
+          background:#f3fafc;
+        }
+        .about-editor{
+          min-height:140px;
+          padding:12px 14px;
+          border:1px solid var(--border);
+          border-radius:12px;
+          background:#fff;
+          color:var(--text);
+          line-height:1.5;
+          outline:none;
+        }
+        .about-editor:focus{
+          border-color:var(--brand);
+          box-shadow:0 0 0 1px rgba(0,184,169,0.25);
+        }
+        .about-help{
+          font-size:12px;
+          color:var(--muted);
+          margin-top:6px;
+          line-height:1.4;
+        }
+      </style>
 
-        <div class="muted" style="font-size:12px;margin:6px 0 6px 0">
-          You can format this text (bold/italic/underline/lists/paragraphs).
+      <label>Short "About" (homepage tile)</label>
+      <input type="hidden" name="tile_about" id="tile_about_input">
+
+      <div class="about-editor-wrap">
+        <div class="about-toolbar">
+          <button type="button" onclick="formatEditor('tile_about_editor','bold')" aria-label="Bold"><strong>B</strong></button>
+          <button type="button" onclick="formatEditor('tile_about_editor','italic')" aria-label="Italic"><em>I</em></button>
+          <button type="button" onclick="formatEditor('tile_about_editor','underline')" aria-label="Underline"><u>U</u></button>
+          <button type="button" onclick="formatEditor('tile_about_editor','insertUnorderedList')" aria-label="Bullet list">• List</button>
+          <button type="button" onclick="formatEditor('tile_about_editor','insertOrderedList')" aria-label="Numbered list">1. List</button>
+          <button type="button" onclick="formatEditor('tile_about_editor','formatBlock','<p>')" aria-label="Paragraph">Paragraph</button>
+          <button type="button" onclick="formatEditor('tile_about_editor','formatBlock','<h3>')" aria-label="Heading">Heading</button>
+          <button type="button" onclick="clearEditor('tile_about_editor')" aria-label="Clear formatting">Clear</button>
         </div>
 
-        <div id="tile_about_editor" style="background:#fff;border-radius:12px"></div>
-      </label>
+        <div id="tile_about_editor"
+             class="about-editor"
+             contenteditable="true"
+             role="textbox"
+             aria-multiline="true"></div>
+
+        <div class="about-help">
+          Type normally, then highlight text and click <strong>B</strong>, <em>I</em> or <u>U</u>.
+          Keep this one short for the homepage tile.
+        </div>
+      </div>
 
       <label style="margin-top:14px">Charity Page About (shows under poster)</label>
       <input type="hidden" name="page_about" id="page_about_input">
 
-      <div id="page_about_editor" style="background:#fff;border-radius:12px"></div>
-      <div class="muted" style="font-size:12px;margin-top:6px">
-        Optional. If empty, nothing will show.
+      <div class="about-editor-wrap">
+        <div class="about-toolbar">
+          <button type="button" onclick="formatEditor('page_about_editor','bold')" aria-label="Bold"><strong>B</strong></button>
+          <button type="button" onclick="formatEditor('page_about_editor','italic')" aria-label="Italic"><em>I</em></button>
+          <button type="button" onclick="formatEditor('page_about_editor','underline')" aria-label="Underline"><u>U</u></button>
+          <button type="button" onclick="formatEditor('page_about_editor','insertUnorderedList')" aria-label="Bullet list">• List</button>
+          <button type="button" onclick="formatEditor('page_about_editor','insertOrderedList')" aria-label="Numbered list">1. List</button>
+          <button type="button" onclick="formatEditor('page_about_editor','formatBlock','<p>')" aria-label="Paragraph">Paragraph</button>
+          <button type="button" onclick="formatEditor('page_about_editor','formatBlock','<h3>')" aria-label="Heading">Heading</button>
+          <button type="button" onclick="clearEditor('page_about_editor')" aria-label="Clear formatting">Clear</button>
+        </div>
+
+        <div id="page_about_editor"
+             class="about-editor"
+             contenteditable="true"
+             role="textbox"
+             aria-multiline="true"></div>
+
+        <div class="about-help">
+          Optional. If you leave this empty, nothing will show on the charity page.
+        </div>
       </div>
 
       <label>Prizes (one per line)
@@ -5523,41 +5603,37 @@ def edit_charity(slug):
       {% endif %}
       <div style="margin-top:8px"><button class="btn">Save Changes</button></div>
     </form>
-    <script>
-      // Quill toolbar (includes underline, bold, italic, lists, etc.)
-      const toolbarOptions = [
-        ['bold', 'italic', 'underline'],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        [{ 'header': [1, 2, 3, false] }],
-        ['link'],
-        ['clean']
-      ];
+        <script>
+      function focusEditor(editorId) {
+        const editor = document.getElementById(editorId);
+        if (editor) editor.focus();
+      }
 
-      const tileAbout = new Quill('#tile_about_editor', {
-        theme: 'snow',
-        modules: { toolbar: toolbarOptions }
-      });
+      function formatEditor(editorId, command, value = null) {
+        focusEditor(editorId);
+        document.execCommand(command, false, value);
+      }
 
-      const pageAbout = new Quill('#page_about_editor', {
-        theme: 'snow',
-        modules: { toolbar: toolbarOptions }
-      });
+      function clearEditor(editorId) {
+        const editor = document.getElementById(editorId);
+        if (!editor) return;
+        editor.focus();
+        document.execCommand('removeFormat', false, null);
+        document.execCommand('unlink', false, null);
+      }
 
-      // Load existing content safely via JS (avoids HTML-in-attribute quote issues)
       const tileAboutData = {{ (charity.tile_about or "")|tojson }};
       const pageAboutData = {{ (charity.page_about or "")|tojson }};
 
-      if (tileAboutData) {
-        tileAbout.clipboard.dangerouslyPasteHTML(tileAboutData);
-      }
-      if (pageAboutData) {
-        pageAbout.clipboard.dangerouslyPasteHTML(pageAboutData);
-      }
+      document.getElementById('tile_about_editor').innerHTML = tileAboutData || "";
+      document.getElementById('page_about_editor').innerHTML = pageAboutData || "";
 
-      // On submit: copy Quill HTML into hidden inputs so Flask receives it
       document.getElementById('edit_charity_form').addEventListener('submit', function () {
-        document.getElementById('tile_about_input').value = tileAbout.root.innerHTML;
-        document.getElementById('page_about_input').value = pageAbout.root.innerHTML;
+        document.getElementById('tile_about_input').value =
+          document.getElementById('tile_about_editor').innerHTML.trim();
+
+        document.getElementById('page_about_input').value =
+          document.getElementById('page_about_editor').innerHTML.trim();
       });
     </script>
     <p><a class="btn small" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
