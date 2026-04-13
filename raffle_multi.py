@@ -42,7 +42,10 @@ HOLD_AMOUNT_PENCE = 20000
 # ====== CONFIG ================================================================
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "devkey")
+_secret = os.getenv("FLASK_SECRET_KEY", "")
+if not _secret:
+    raise RuntimeError("FLASK_SECRET_KEY environment variable is not set!")
+app.config["SECRET_KEY"] = _secret
 app.permanent_session_lifetime = timedelta(minutes=30)
 
 DB_URL = os.getenv("DATABASE_URL")
@@ -95,6 +98,32 @@ def block_hotlinking():
     if is_asset and not _same_site_referer_ok():
         # Return 403 to stop hotlinking
         return ("Hotlinking not allowed.", 403)
+
+@app.before_request
+def auto_apply_campaign_schedules():
+    # Run schedules on every request (lightweight: only updates when needed)
+    try:
+        now = datetime.utcnow()
+        due = Charity.query.filter(
+            db.or_(
+                db.and_(Charity.auto_live_enabled == True, Charity.auto_live_at != None, Charity.auto_live_at <= now),
+                db.and_(Charity.auto_end_enabled == True, Charity.auto_end_at != None, Charity.auto_end_at <= now),
+            )
+        ).all()
+
+        changed = False
+        for c in due:
+            before = (c.campaign_status, c.is_live)
+            apply_scheduled_status_updates(c)
+            after = (c.campaign_status, c.is_live)
+            if after != before:
+                changed = True
+
+        if changed:
+            db.session.commit()
+    except Exception:
+        # never break the site if schedules fail
+        db.session.rollback()
 
 # --- Security headers (CSP, etc.) ---
 @app.after_request
@@ -188,6 +217,10 @@ class Charity(db.Model):
     donation_url = db.Column(db.String(500), nullable=True)
     max_number = db.Column(db.Integer, nullable=False, default=500)     # 1..max
     draw_at = db.Column(db.DateTime, nullable=True)   # raffle draw date/time (optional)
+    auto_live_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    auto_live_at = db.Column(db.DateTime, nullable=True)
+    auto_end_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    auto_end_at = db.Column(db.DateTime, nullable=True)
     is_live = db.Column(db.Boolean, nullable=False, default=True)  # campaign on/off
     logo_data = db.Column(db.Text, nullable=True)  # data URI for uploaded logo
     poster_data = db.Column(db.Text, nullable=True)  # data URI for optional campaign poster
@@ -197,8 +230,11 @@ class Charity(db.Model):
     prizes_json = db.Column(db.Text, nullable=True)  # JSON array of prizes (strings)
     campaign_status = db.Column(db.String(20), nullable=False, default="live")    
     hold_amount_pence = db.Column(db.Integer, nullable=False, default=20000)
+    fixed_price_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    fixed_ticket_price_pence = db.Column(db.Integer, nullable=False, default=0)
     is_sold_out = db.Column(db.Boolean, nullable=False, default=False)
     is_coming_soon = db.Column(db.Boolean, nullable=False, default=False)
+    show_in_past = db.Column(db.Boolean, nullable=False, default=False)
     free_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
     postal_entry_enabled = db.Column(db.Boolean, nullable=False, default=False)
     optional_donation_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -230,8 +266,13 @@ class Entry(db.Model):
     payment_intent_id = db.Column(db.String(255))   # ← NEW
     stripe_account_id = db.Column(db.String(64), nullable=True)  # snapshot of charity acct at time of hold
     hold_amount_pence = db.Column(db.Integer, nullable=True)  # authorised hold amount for this entry
+    payment_ref = db.Column(db.Integer, nullable=True)
+    receipt_url = db.Column(db.String(500), nullable=True)
 
-    __table_args__ = (UniqueConstraint("charity_id", "number", name="uq_charity_number"),)
+    __table_args__ = (
+        UniqueConstraint("charity_id", "number", name="uq_charity_number"),
+        UniqueConstraint("charity_id", "payment_ref", name="uq_charity_paymentref"),
+    )
     charity = db.relationship("Charity", backref="entries")
 
 class CharityUser(db.Model):
@@ -1526,6 +1567,30 @@ LAYOUT = """
      });
    </script>
 
+   <script>
+     // Prevent double-submit on ALL forms (but do NOT break the first click)
+     document.addEventListener("submit", function(e) {
+       const form = e.target;
+       if (!(form instanceof HTMLFormElement)) return;
+
+       // If already submitting, block
+       if (form.dataset.submitting === "1") {
+         e.preventDefault();
+         return;
+       }
+       form.dataset.submitting = "1";
+
+       // Disable ONLY the button that was actually clicked
+       const submitter = e.submitter;
+       if (submitter) {
+         submitter.dataset.originalText = submitter.textContent || submitter.value || "";
+         if (submitter.tagName.toLowerCase() === "button") submitter.textContent = "Working…";
+         if (submitter.tagName.toLowerCase() === "input") submitter.value = "Working…";
+         submitter.disabled = true;
+       }
+     }, true);
+   </script>
+
    </head>
    <body class="{{ layout_mode }}">
      <div class="wrap">
@@ -1670,6 +1735,13 @@ def render(body, **ctx):
 def get_charity_or_404(slug: str) -> Charity:
     c = Charity.query.filter_by(slug=slug.lower().strip()).first()
     if not c: abort(404)
+
+    try:
+        apply_scheduled_status_updates(c)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     return c
 
 def available_numbers(c: Charity):
@@ -1808,6 +1880,21 @@ def get_connect_status(acct_id):
         app.logger.error(f"Connect status fetch failed for {acct_id}: {e}")
         return {"ok": False}
 
+def apply_scheduled_status_updates(c: Charity):
+    now = datetime.utcnow()
+
+    # Auto go live
+    if getattr(c, "auto_live_enabled", False) and getattr(c, "auto_live_at", None):
+        if now >= c.auto_live_at and (c.campaign_status != "live"):
+            c.campaign_status = "live"
+            c.is_live = True  # optional legacy sync
+
+    # Auto end
+    if getattr(c, "auto_end_enabled", False) and getattr(c, "auto_end_at", None):
+        if now >= c.auto_end_at and (c.campaign_status != "inactive"):
+            c.campaign_status = "inactive"
+            c.is_live = False  # optional legacy sync
+
 def _choose_skill_options(all_answers, correct_answer, display_count=4):
     """
     Returns a list of options containing correct_answer plus random distractors.
@@ -1837,6 +1924,10 @@ def _choose_skill_options(all_answers, correct_answer, display_count=4):
     # shuffle final options
     random.shuffle(opts)
     return opts
+
+def next_payment_ref(charity_id: int) -> int:
+    max_ref = db.session.query(db.func.max(Entry.payment_ref)).filter_by(charity_id=charity_id).scalar()
+    return int(max_ref or 0) + 1
 
 def refresh_campaign_status(c: Charity) -> None:
     """
@@ -1896,7 +1987,8 @@ def compute_hold_amount_pence(charity) -> int:
 def home():
     charities = Charity.query.order_by(Charity.home_rank.asc(), Charity.name.asc()).all()
 
-    tiles = []
+    tiles_current = []
+    tiles_past = []
     for c in charities:
         maxn = int(getattr(c, "max_number", 0) or 0)
         rem = len(available_numbers(c)) if maxn > 0 else 0
@@ -1931,7 +2023,7 @@ def home():
         except Exception:
             prizes = []
 
-        tiles.append({
+        tile_obj = {
             "slug": c.slug,
             "name": c.name,
             "img": getattr(c, "logo_data", None),
@@ -1942,7 +2034,13 @@ def home():
             "banner": banner,
             "blocked": blocked,
             "status": status,
-        })
+        }
+
+        # Past campaigns go into their own section if toggled on
+        if getattr(c, "show_in_past", False):
+            tiles_past.append(tile_obj)
+        else:
+            tiles_current.append(tile_obj)
 
     body = """
     <div class="hero" style="text-align:center;align-items:center;">
@@ -1953,7 +2051,7 @@ def home():
     </div>
 
     <div class="tiles-grid">
-      {% for t in tiles %}
+      {% for t in tiles_current %}
         <div class="cause-tile">
           {% if t.banner %}
             <div class="ribbon">{{ t.banner }}</div>
@@ -2015,6 +2113,46 @@ def home():
         </p>
       {% endfor %}
     </div>
+
+    {% if tiles_past and (tiles_past|length) > 0 %}
+      <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
+
+      <div class="hero" style="text-align:center;align-items:center;">
+        <h1 class="section-title">Past Campaigns</h1>
+        <p class="muted section-subtitle">
+          Some of the campaigns we have worked on in the past
+        </p>
+      </div>
+
+      <div class="tiles-grid">
+        {% for t in tiles_past %}
+          <div class="cause-tile">
+          {% if t.banner %}
+            <div class="ribbon">{{ t.banner }}</div>
+          {% endif %}
+
+          <div class="cause-top">
+            <div class="cause-img">
+              {% if t.img %}
+                <img src="{{ t.img }}" alt="{{ t.name }} logo">
+              {% else %}
+                <span style="font-size:18px">🤍</span>
+              {% endif %}
+            </div>
+            <div>
+              <div class="cause-name">{{ t.name }}</div>
+
+              {% if t.prizes and (t.prizes|length) > 0 %}
+                <div class="cause-prizes">
+                  <strong>{% if (t.prizes|length) == 1 %}Prize{% else %}Prizes{% endif %}:</strong>
+                  {{ t.prizes[:2] | join(" • ") }}{% if (t.prizes|length) > 2 %} • …{% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
 
     <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
@@ -2115,8 +2253,9 @@ def home():
     """
     return render(
         body,
-        tiles=tiles,
         title="Get My Number",
+        tiles_current=tiles_current,
+        tiles_past=tiles_past,
         flow_progress_pct=None,
         step_current=None,
         step_total=None,
@@ -2368,7 +2507,7 @@ def charity_page(slug):
         if not name or not email or not phone:
             flash("Name, Email and Phone are required.")
         else:
-            hold_amount_pence = compute_hold_amount_pence(charity)
+            hold_amount_pence = compute_hold_amount_pence(charity) * ticket_qty
 
             # Optional earmark (arm of the charity)
             earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
@@ -2382,6 +2521,10 @@ def charity_page(slug):
             if (not earmark_arm) or (earmark_arm not in earmark_opts):
                 earmark_arm = None
 
+            ticket_qty = int(request.form.get("ticket_qty", "1") or 1)
+            if ticket_qty < 1:
+                ticket_qty = 1
+
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
@@ -2389,6 +2532,7 @@ def charity_page(slug):
                 "phone": phone,
                 "hold_amount_pence": hold_amount_pence,
                 "earmark_arm": earmark_arm,
+                "ticket_qty": ticket_qty,
             }
 
             if getattr(charity, "skill_enabled", False):
@@ -2421,7 +2565,12 @@ def charity_page(slug):
 
     body = """
 
-    <div class="hero" style="text-align:center;">
+    <div class="hero" style="text-align:center; position:relative;">
+      {% if charity.fixed_price_enabled %}
+        <div class="ribbon">
+          FIXED PRICE · £{{ (charity.fixed_ticket_price_pence or 0) // 100 }}
+        </div>
+      {% endif %}
       {% if status == "sold_out" %}
         <div class="banner banner-soldout">Sold out</div>
       {% elif status == "coming_soon" %}
@@ -2458,7 +2607,7 @@ def charity_page(slug):
 
       {% if charity.page_about %}
         <div class="muted" style="max-width:720px;margin:12px auto 0;line-height:1.55">
-          {{ charity.page_about }}
+          {{ (charity.page_about or "")|safe }}
         </div>
       {% endif %}
 
@@ -2536,6 +2685,25 @@ def charity_page(slug):
             and
             <a href="{{ url_for('privacy') }}" target="_blank">Privacy Policy</a>.
           </div> 
+
+          {% set max_qty = 10 %}
+          {% set qty_cap = remaining if (remaining and remaining < max_qty) else max_qty %}
+
+          <label style="margin-top:10px;">
+            Number of tickets
+            <select name="ticket_qty" required {% if is_blocked %}disabled{% endif %}
+                    style="width:100%; max-width:420px; margin:6px auto 0; display:block;">
+              {% for q in range(1, qty_cap + 1) %}
+                <option value="{{ q }}" {% if q == 1 %}selected{% endif %}>{{ q }}</option>
+              {% endfor %}
+            </select>
+
+            {% if charity.fixed_price_enabled %}
+              <div class="muted" style="font-size:12px; text-align:center; margin-top:6px;">
+                £{{ (charity.fixed_ticket_price_pence or 0) // 100 }} per ticket (fixed price)
+              </div>
+            {% endif %}
+          </label>
 
           <button class="btn big" type="submit"
                   style="margin-top:14px; width:100%; max-width:420px; display:block; margin-left:auto; margin-right:auto;"
@@ -3010,21 +3178,39 @@ def flow_step_meta(charity, page_key: str):
       - confirmed    (final confirmed donation page)
     """
     skill_on = bool(getattr(charity, "skill_enabled", False))
-    total = 5 if skill_on else 4
+    fixed_on = bool(getattr(charity, "fixed_price_enabled", False))
 
-    steps_no_skill = {
-        "details":   1,
-        "authorise": 2,
-        "reveal":    3,
-        "confirmed": 4,
-    }
-    steps_skill = {
-        "details":   1,
-        "skill":     2,
-        "authorise": 3,
-        "reveal":    4,
-        "confirmed": 5,
-    }
+    # Fixed-price flow has fewer pages (no reveal page)
+    if fixed_on:
+        total = 4 if skill_on else 3
+
+        steps_no_skill = {
+            "details":   1,
+            "authorise": 2,
+            "confirmed": 3,
+        }
+        steps_skill = {
+            "details":   1,
+            "skill":     2,
+            "authorise": 3,
+            "confirmed": 4,
+        }
+    else:
+        total = 5 if skill_on else 4
+
+        steps_no_skill = {
+            "details":   1,
+            "authorise": 2,
+            "reveal":    3,
+            "confirmed": 4,
+        }
+        steps_skill = {
+            "details":   1,
+            "skill":     2,
+            "authorise": 3,
+            "reveal":    4,
+            "confirmed": 5,
+        }
 
     current = (steps_skill if skill_on else steps_no_skill).get(page_key)
     return current, total
@@ -3065,26 +3251,46 @@ def authorise_hold(slug):
 
     hold_gbp = int(hold_pence // 100)
 
-    ticks_block = build_ticks_block([
-        f"&pound;<strong>{hold_gbp}</strong> will be temporarily held on your card",
-        f"You will be allocated a random number after authorisation",
-        f"Any remaining hold will be released and returned to you.",
-    ], wrap_card=False)
+    if getattr(charity, "fixed_price_enabled", False):
+        price_gbp = int((getattr(charity, "fixed_ticket_price_pence", 0) or 0) // 100)
+        ticks_block = build_ticks_block([
+            f"You will be charged &pound;<strong>{price_gbp}</strong> for your ticket",
+            "Payment is processed immediately by Stripe",
+            "After payment, you will be redirected to your confirmation page",
+        ], wrap_card=False)
+
+        title_text = "Confirm your purchase"
+        intro_1 = "You are about to purchase a ticket at a fixed price."
+        intro_2 = "We will redirect you to Stripe to complete payment securely."
+        button_text = "Continue to Stripe Checkout"
+
+    else:
+        hold_pence = int(pending.get("hold_amount_pence") or 0)
+        hold_gbp = int(hold_pence // 100)
+
+        ticks_block = build_ticks_block([
+            f"&pound;<strong>{hold_gbp}</strong> will be temporarily held on your card",
+            f"You will be allocated a random number after authorisation",
+            f"Any remaining hold will be released and returned to you.",
+        ], wrap_card=False)
+
+        title_text = "Confirm Your Entry"
+        intro_1 = "We will place a temporary card authorisation to reserve your entry."
+        intro_2 = ("Once your number is revealed, you are committed to "
+                   "<strong>confirming your donation</strong> in support of the charity.")
+        button_text = "Continue to Card Authorisation"
 
     step_current, step_total = flow_step_meta(charity, "authorise")
 
     body = """
     <div class="hero">
-      <h1>Confirm Your Entry</h1>
+      <h1>{{ title_text }}</h1>
       <p style="margin-top:10px;line-height:1.5;">
-        We will place a temporary card authorisation to reserve your entry.
+        {{ intro_1|safe }}
       </p>
 
       <p style="margin-top:8px;line-height:1.5;">
-        Once your number is revealed, you are committed to
-        <strong>confirming your donation</strong> in support of the charity.
-        Only your donation amount is taken — any remaining hold is released. 
-        This may take a few days depending on your bank. 
+        {{ intro_2|safe }}
       </p>
 
       <div class="card secondary" style="margin-top:14px">
@@ -3095,7 +3301,7 @@ def authorise_hold(slug):
 
       <form method="post" action="{{ url_for('start_hold', slug=charity.slug) }}" style="margin-top:14px">
         <button class="btn" type="submit">
-          Continue to Card Authorisation
+          {{ button_text }}
         </button>
       </form>
 
@@ -3130,7 +3336,21 @@ def authorise_hold(slug):
       {% endif %}
     </div>
     """
-    return render(body, charity=charity, ticks_block=ticks_block, hold_gbp=hold_gbp, postal_address=POSTAL_ENTRY_ADDRESS, step_current=step_current, step_total=step_total, flow_progress_pct=flow_progress_pct(charity, "authorise"), title="Authorise hold")
+    return render(
+        body,
+        charity=charity,
+        ticks_block=ticks_block,
+        title_text=title_text,
+        intro_1=intro_1,
+        intro_2=intro_2,
+        button_text=button_text,
+        hold_gbp=hold_gbp,
+        postal_address=POSTAL_ENTRY_ADDRESS,
+        step_current=step_current,
+        step_total=step_total,
+        flow_progress_pct=flow_progress_pct(charity, "authorise"),
+        title=(f"{charity.name} – Checkout" if getattr(charity, "fixed_price_enabled", False) else "Authorise hold")
+    )
 
 @app.route("/<slug>/start-hold", methods=["POST"])
 def start_hold(slug):
@@ -3146,6 +3366,10 @@ def start_hold(slug):
 
     hold_amount_pence = int(pending.get("hold_amount_pence") or 0)
 
+    ticket_qty = int(pending.get("ticket_qty") or 1)
+    if ticket_qty < 1:
+        ticket_qty = 1
+
     # Enforce minimum hold = max_number * 100 (always)
     min_hold = int(charity.max_number or 0) * 100
     if hold_amount_pence < min_hold:
@@ -3156,38 +3380,83 @@ def start_hold(slug):
         flash("This charity is not connected for payouts yet. Please contact support.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Create Stripe Checkout Session for the hold (manual capture)
-    try:
-        checkout = stripe.checkout.Session.create(
-            mode="payment",
-            payment_method_types=["card"],
-            customer_email=pending.get("email") or None,
-            line_items=[{
-                "price_data": {
-                    "currency": "gbp",
-                    "product_data": {"name": f"{charity.name} – Temporary card authorisation"},
-                    "unit_amount": hold_amount_pence,
-                },
-                "quantity": 1,
-            }],
-            payment_intent_data={
-                "capture_method": "manual",
-                "receipt_email": pending.get("email") or None,  
-                "metadata": {
-                    "charity_slug": charity.slug,
-                    "flow": "hold_then_capture",
-                }
-            },
-            success_url=url_for("hold_success", slug=charity.slug, _external=True) + "?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
-            stripe_account=acct,
-        )
-    except Exception as e:
-        app.logger.error(f"Stripe session create error (start_hold): {e}")
-        flash("We could not start the card authorisation. Please try again.")
-        return redirect(url_for("charity_page", slug=charity.slug))
+    # ===== NEW: Fixed-price flow (charge immediately) =====
+    if getattr(charity, "fixed_price_enabled", False):
+        price_pence = int(getattr(charity, "fixed_ticket_price_pence", 0) or 0)
+        if price_pence < 100:  # require at least £1
+            flash("This campaign is temporarily unavailable. Please try again later.")
+            return redirect(url_for("charity_page", slug=charity.slug))
 
-    return redirect(checkout.url)
+        try:
+            checkout = stripe.checkout.Session.create(
+                mode="payment",
+                payment_method_types=["card"],
+                customer_email=pending.get("email") or None,
+                line_items=[{
+                    "price_data": {
+                        "currency": "gbp",
+                        "product_data": {"name": f"{charity.name} – Ticket"},
+                        "unit_amount": price_pence,
+                    },
+                    "quantity": int(pending.get("ticket_qty") or 1),
+                }],
+                payment_intent_data={
+                    "receipt_email": pending.get("email") or None,
+                    "metadata": {
+                        "charity_slug": charity.slug,
+                        "flow": "fixed_price",
+                    }
+                },
+                success_url=url_for("success", slug=charity.slug, _external=True) + "?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
+                stripe_account=acct,
+            )
+            return redirect(checkout.url)
+        except Exception as e:
+            app.logger.error(f"Stripe session create error (fixed price): {e}")
+            flash("We could not start the payment. Please try again.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+
+    else:
+        # Check ticket availability before creating the hold
+        qty = int(pending.get("ticket_qty") or 1)
+        remaining = len(available_numbers(charity))
+        if qty > remaining:
+            flash(f"Only {remaining} tickets remain. Please reduce the quantity.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+
+        # Create Stripe Checkout Session for the hold (manual capture)
+        try:
+            checkout = stripe.checkout.Session.create(
+                mode="payment",
+                payment_method_types=["card"],
+                customer_email=pending.get("email") or None,
+                line_items=[{
+                    "price_data": {
+                        "currency": "gbp",
+                        "product_data": {"name": f"{charity.name} – Temporary card authorisation"},
+                        "unit_amount": hold_amount_pence,
+                    },
+                    "quantity": ticket_qty,
+                }],
+                payment_intent_data={
+                    "capture_method": "manual",
+                    "receipt_email": pending.get("email") or None,  
+                    "metadata": {
+                        "charity_slug": charity.slug,
+                        "flow": "hold_then_capture",
+                    }
+                },
+                success_url=url_for("hold_success", slug=charity.slug, _external=True) + "?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
+                stripe_account=acct,
+            )
+        except Exception as e:
+            app.logger.error(f"Stripe session create error (start_hold): {e}")
+            flash("We could not start the card authorisation. Please try again.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+
+        return redirect(checkout.url)
 
 @app.route("/<slug>/hold-success")
 def hold_success(slug):
@@ -3201,6 +3470,11 @@ def hold_success(slug):
         that will capture from the existing hold.
     """
     charity = get_charity_or_404(slug)
+
+    # Fixed-price campaigns do NOT use the hold-success page
+    if getattr(charity, "fixed_price_enabled", False):
+        flash("This campaign uses fixed-price tickets. Please continue from the campaign page.")
+        return redirect(url_for("charity_page", slug=charity.slug))
 
     session_id = request.args.get("session_id")
     if not session_id:
@@ -3224,6 +3498,18 @@ def hold_success(slug):
 
     payment_intent = checkout_session.get("payment_intent")
 
+    # ✅ Refresh-safe: if an Entry already exists for this PaymentIntent, reuse it
+    existing = None
+    try:
+        pi_id = payment_intent.get("id") if payment_intent else None
+        if pi_id:
+            existing = Entry.query.filter_by(
+                charity_id=charity.id,
+                payment_intent_id=pi_id
+            ).first()
+    except Exception:
+        existing = None
+
     # For a hold, the PaymentIntent should be authorised
     valid_statuses = ("requires_capture", "succeeded")
     if not payment_intent or payment_intent.get("status") not in valid_statuses:
@@ -3244,62 +3530,74 @@ def hold_success(slug):
     email = pending["email"]
     phone = pending["phone"]
 
-    # Assign a raffle number and create the entry
-    num = assign_number(charity)
-    if not num:
-        flash("Sorry, all numbers are taken for this charity.")
-        return redirect(url_for("charity_page", slug=charity.slug))
+    existing = Entry.query.filter_by(
+        charity_id=charity.id,
+        payment_intent_id=payment_intent.get("id"),
+    ).first()
 
-    # Create the Entry with a UNIQUE number even under concurrency
-    entry = None
-    max_retries = 12  # small burst retry for “two people clicked at once” scenarios
+    # ✅ If we already created the entry earlier (refresh/back), reuse it.
+    if existing:
+        entry = existing
+        session["reveal_entry_id"] = entry.id  # keep your reveal API working
+    else:
+        # ---- your existing "create Entry" logic stays the same ----
+        name = pending["name"]
+        email = pending["email"]
+        phone = pending["phone"]
 
-    for _ in range(max_retries):
-        num = assign_number(charity)
-        if not num:
-            break  # sold out
-        entry = Entry(
-            charity_id=charity.id,
-            name=name,
-            email=email,
-            phone=phone,
-            number=num,
-            earmark_arm=(pending.get("earmark_arm") or None),
-            payment_intent_id=payment_intent.get("id"),
-            hold_amount_pence=int(payment_intent.get("amount") or 0),
-            stripe_account_id=acct,
-        )
-        db.session.add(entry)
+        entry = None
+        max_retries = 12
 
-        try:
-            db.session.commit()
-            session["reveal_entry_id"] = entry.id
-            # Attach entry_id to the PaymentIntent metadata (for webhooks + reconciliation)
+        for _ in range(max_retries):
+            num = assign_number(charity)
+            if not num:
+                break
+
+            entry = Entry(
+                charity_id=charity.id,
+                payment_ref=next_payment_ref(charity.id),
+                name=name,
+                email=email,
+                phone=phone,
+                number=num,
+                earmark_arm=(pending.get("earmark_arm") or None),
+                payment_intent_id=payment_intent.get("id"),
+                hold_amount_pence=int(payment_intent.get("amount") or 0),
+                stripe_account_id=acct,
+            )
+            db.session.add(entry)
+
             try:
-                stripe.PaymentIntent.modify(
-                    entry.payment_intent_id,
-                    receipt_email=email or None,  # ✅ ADD THIS LINE
-                    metadata={
-                        "entry_id": str(entry.id),
-                        "charity_slug": charity.slug,
-                        "flow": "hold_then_capture",
-                    },
-                    stripe_account=acct,
-                )
-            except Exception as e:
-                app.logger.error(f"Failed to set PI metadata for entry {entry.id}: {e}")
-            break
-        except IntegrityError:
-            # Another request grabbed the same number first — retry with a fresh number
-            db.session.rollback()
-            entry = None
-            continue
+                db.session.commit()
+                session["reveal_entry_id"] = entry.id
 
-    if not entry:
-        # If we failed to allocate after retries, treat as sold out / very high contention
-        refresh_campaign_status(charity)
-        flash("Tickets are selling fast — please try again.")
-        return redirect(url_for("charity_page", slug=charity.slug))
+                # Attach entry_id to the PaymentIntent metadata (for reconciliation)
+                try:
+                    stripe.PaymentIntent.modify(
+                        entry.payment_intent_id,
+                        receipt_email=email or None,
+                        metadata={
+                            "entry_id": str(entry.id),
+                            "charity_slug": charity.slug,
+                            "flow": "hold_then_capture",
+                        },
+                        stripe_account=acct,
+                    )
+                except Exception as e:
+                    app.logger.error(f"Failed to set PI metadata for entry {entry.id}: {e}")
+
+                refresh_campaign_status(charity)
+                break
+
+            except IntegrityError:
+                db.session.rollback()
+                entry = None
+                continue
+
+        if not entry:
+            refresh_campaign_status(charity)
+            flash("Tickets are selling fast — please try again.")
+            return redirect(url_for("charity_page", slug=charity.slug))
 
     ticks_block = build_ticks_block([
         "&pound;<strong><span id='hold-amt'></span></strong> temporarily held on your card",
@@ -3473,7 +3771,7 @@ def hold_success(slug):
          const freeEntryEnabled = {{ 'true' if charity.free_entry_enabled else 'false' }};
 
          function intOr0(x){
-           const n = parseInt(String(x || '0').replace(/[^\d]/g,''), 10);
+           const n = parseInt(String(x || '0').replace(/[^\\d]/g,''), 10);
            return Number.isFinite(n) ? n : 0;
          }
 
@@ -3546,6 +3844,33 @@ def hold_success(slug):
        </script>
      </div>
    </div>
+
+   <script>
+     (function(){
+       // Only activate the "are you sure" warning AFTER the number is revealed
+       let warnOnLeave = false;
+
+       // If your reveal button has an id, use it here.
+       // If not, we’ll safely detect the first button that reveals the number.
+       const revealBtn =
+         document.getElementById("revealBtn")
+         || document.querySelector("button");
+
+       if (revealBtn) {
+         revealBtn.addEventListener("click", function(){
+           // After they reveal their number, warn them before leaving
+           warnOnLeave = true;
+         });
+       }
+
+       window.addEventListener("beforeunload", function (e) {
+         if (!warnOnLeave) return;
+         e.preventDefault();
+         e.returnValue = "";
+         return "";
+       });
+     })();
+   </script>
 
    <script>
    (function() {
@@ -3712,6 +4037,189 @@ def hold_success(slug):
         title="Hold Confirmed",
     )
 
+@app.route("/<slug>/success")
+def success(slug):
+    """
+    Fixed-price success:
+      - Called as success_url of Stripe Checkout Session (immediate charge)
+      - Verifies payment succeeded
+      - Creates an Entry (assigns unique raffle number but does NOT reveal it)
+      - Marks entry paid immediately
+      - Shows a final thank-you page
+    """ 
+    charity = get_charity_or_404(slug)
+
+    session_id = request.args.get("session_id")
+    if not session_id:
+        flash("Missing payment information. Please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    pending = session.get("pending_entry")
+    if not pending or pending.get("slug") != charity.slug:
+        flash("We could not find your details. Please start again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    acct = (getattr(charity, "stripe_account_id", None) or "").strip()
+
+    # Retrieve Checkout Session AND expand the PaymentIntent
+    try:
+        checkout_session = stripe.checkout.Session.retrieve(
+            session_id,
+            expand=["payment_intent"],
+            stripe_account=acct,
+        )
+    except Exception as e:
+        app.logger.error(f"Stripe retrieve error (success fixed): {e}")
+        flash("We could not verify your payment. Please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    payment_intent = checkout_session.get("payment_intent")
+    if not payment_intent or payment_intent.get("status") != "succeeded":
+        flash("Payment not completed. Please try again.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
+    # ✅ Refresh-safe: reuse entry if it already exists for this PaymentIntent
+    existing = None
+    try:
+        pi_id = payment_intent.get("id") if payment_intent else None
+        if pi_id:
+            existing = Entry.query.filter_by(
+                charity_id=charity.id,
+                payment_intent_id=pi_id
+            ).first()
+    except Exception:
+        existing = None
+
+    name = pending["name"]
+    email = pending["email"]
+    phone = pending["phone"]
+
+    # Create entry with unique number (not shown) — only if not already created
+    if not existing:
+        entry = None
+        max_retries = 12
+
+        for _ in range(max_retries):
+            num = assign_number(charity)
+            if not num:
+                flash("Sorry, all tickets are sold out for this campaign.")
+                return redirect(url_for("charity_page", slug=charity.slug))
+
+            entry = Entry(
+                charity_id=charity.id,
+                payment_ref=next_payment_ref(charity.id),
+                name=name,
+                email=email,
+                phone=phone,
+                number=num,
+                earmark_arm=(pending.get("earmark_arm") or None),
+                payment_intent_id=payment_intent.get("id"),
+                hold_amount_pence=int(payment_intent.get("amount") or 0),
+                stripe_account_id=acct,
+                paid=True,
+                paid_at=datetime.utcnow(),
+            )
+            db.session.add(entry)
+            try:
+                db.session.commit()
+
+                # Attach entry_id to the PaymentIntent metadata (reconciliation)
+                try:
+                    stripe.PaymentIntent.modify(
+                        entry.payment_intent_id,
+                        receipt_email=email or None,
+                        metadata={
+                            "entry_id": str(entry.id),
+                            "charity_slug": charity.slug,
+                            "flow": "fixed_price",
+                        },
+                        stripe_account=acct,
+                    )
+                except Exception as e:
+                    app.logger.warning(f"Could not update PaymentIntent metadata (fixed success): {e}")
+
+                break
+
+            except IntegrityError:
+                db.session.rollback()
+                entry = None
+                continue
+        if not entry:
+            flash("We could not create your entry (please contact support).")
+            return redirect(url_for("charity_page", slug=charity.slug))
+    entry = existing or entry
+
+    # Receipt link (optional)
+    receipt_url = None
+    try:
+        charges = stripe.Charge.list(
+            payment_intent=payment_intent.get("id"),
+            limit=1,
+            stripe_account=acct,
+        )
+        if charges.data:
+            receipt_url = charges.data[0].get("receipt_url")
+    except Exception as e:
+        app.logger.warning(f"Could not fetch receipt_url for fixed success: {e}")
+
+    paid_gbp = int((payment_intent.get("amount_received") or payment_intent.get("amount") or 0) // 100)
+
+    ticks_block_final = build_ticks_block([
+        f"Paid &pound;<strong>{paid_gbp}</strong> to <strong>{charity.name}</strong>",
+        "Your entry has been confirmed",
+    ], wrap_card=False)
+
+    step_current, step_total = flow_step_meta(charity, "confirmed")
+
+    # ✅ Clear flow session so it cannot be reused
+    session.pop("pending_entry", None)
+    session.pop("skill_passed", None)
+    session.pop("skill_options", None)
+    session.pop("skill_slug", None)
+    session.pop("skill_attempts", None)
+    session.pop("reveal_entry_id", None)
+
+    body = """
+    <div class="hero">
+      <h1>Thank you — you're all set</h1>
+      <p class="muted" style="margin-top:10px;line-height:1.5;">
+        Your payment has been received and your entry is confirmed.
+      </p>
+
+      <div class="card secondary" style="margin-top:14px;">
+        <div style="font-size:14px;">
+          {{ ticks_block_final|safe }}
+        </div>
+      </div>
+
+      {% if receipt_url %}
+        <div class="row" style="margin-top:14px; gap:10px; justify-content:flex-start;">
+          <form action="{{ receipt_url }}" method="GET" target="_blank" style="margin:0;">
+            <button class="btn" type="submit">View Receipt</button>
+          </form>
+        </div>
+      {% endif %}
+
+      <div class="row" style="margin-top:14px; gap:10px; justify-content:center;">
+        <a class="btn pill outline" href="{{ url_for('charity_page', slug=charity.slug) }}">Back to Campaign</a>
+        <a class="btn pill outline" href="{{ url_for('home') }}">Back to Home</a>
+      </div>
+    </div>
+    """
+
+    return render(
+        body,
+        charity=charity,
+        entry=entry,
+        receipt_url=receipt_url,
+        paid_gbp=paid_gbp,
+        ticks_block_final=ticks_block_final,
+        step_current=step_current,
+        step_total=step_total,
+        flow_progress_pct=flow_progress_pct(charity, "confirmed"),
+        title=f"{charity.name} – Thank you",
+    )
+
 @app.get("/api/reveal-number/<int:entry_id>")
 def api_reveal_number(entry_id):
     # Only allow reveal for the entry created in THIS browser session
@@ -3829,11 +4337,7 @@ def confirm_payment(entry_id):
             flash("We couldn't release the hold automatically. Please contact support.")
             return redirect(url_for("charity_page", slug=charity.slug))
 
-        app.logger.error(f"Invalid amount_to_capture for entry {entry.id}: {amount_pence} (held={held})")
-        flash("Something went wrong with your raffle amount. Please contact us.")
-        return redirect(url_for("charity_page", slug=charity.slug))
-
-    # 1) Capture from the original hold
+    # 1) Capture from the original hold       
     try:
         # ✅ Ensure email is present on the PaymentIntent for receipts
         stripe.PaymentIntent.modify(
@@ -4126,8 +4630,8 @@ def stripe_webhook():
 
     return ("OK", 200)
 
-@app.route("/<slug>/success")
-def success(slug):
+@app.route("/<slug>/donation-success")
+def donation_success(slug):
     charity = get_charity_or_404(slug)
 
     charity_logo = getattr(charity, "logo_data", None) 
@@ -4154,7 +4658,7 @@ def success(slug):
 
 @app.route("/admin/charities", methods=["GET","POST"])
 def admin_charities():
-    admin_user = os.getenv("ADMIN_USERNAME", "admin")
+    admin_user = os.getenv("ADMIN_USERNAME", "")
     admin_pw   = os.getenv("ADMIN_PASSWORD", "")
     ok = session.get("admin_ok", False)
     last_login = session.get("admin_login_time")
@@ -4178,17 +4682,21 @@ def admin_charities():
             submitted_pw   = request.form.get("password", "")
 
             # If you have env vars set, use those; otherwise fall back to "admin"/"admin"
-            effective_user = admin_user or "admin"
-            effective_pw   = admin_pw or "admin"
-
-            if submitted_user == effective_user and submitted_pw == effective_pw:
-                session.permanent = True
-                session["admin_ok"] = True
-                session["admin_login_time"] = datetime.utcnow().isoformat()
-                ok = True
-                flash("Logged in successfully.")
+            if not admin_user or not admin_pw:
+                msg = "Admin login is not configured. Please set ADMIN_USERNAME and ADMIN_PASSWORD."
             else:
-                msg = "Invalid username or password."
+                effective_user = admin_user
+                effective_pw   = admin_pw
+
+                if submitted_user == effective_user and submitted_pw == effective_pw:
+                    session.permanent = True
+                    session["admin_ok"] = True
+                    session["admin_login_time"] = datetime.utcnow().isoformat()
+                    ok = True
+                    flash("Logged in successfully.")
+                else:
+                    msg = "Invalid username or password."
+
         else:
             # Already logged in – handle creating/saving a charity
             slug = request.form.get("slug", "").strip().lower()
@@ -4208,11 +4716,9 @@ def admin_charities():
                 except ValueError:
                     msg = "Invalid draw date/time."
 
-            # Delete assets (if requested)
-            if request.form.get("remove_logo") == "1":
-                charity.logo_data = None
-            if request.form.get("remove_poster") == "1":
-                charity.poster_data = None
+            # Delete assets (if requested) — use 'existing' once fetched below
+            remove_logo_requested = (request.form.get("remove_logo") == "1")
+            remove_poster_requested = (request.form.get("remove_poster") == "1")
             logo_data = None
             f = request.files.get("logo_file")
             if f and f.filename:
@@ -4239,38 +4745,49 @@ def admin_charities():
 
             if not slug or not name or not url:
                 msg = "All fields are required."
-            existing = Charity.query.filter_by(slug=slug).first()
-            if existing:
-                existing.name = name
-                existing.donation_url = url
-                existing.max_number = maxn
-                existing.draw_at = draw_at
-                if logo_data:
-                    existing.logo_data = logo_data
-                if poster_data:
-                    existing.poster_data = poster_data
-                existing.tile_about = tile_about
-                existing.prizes_json = prizes_json
-                db.session.commit()
-                msg = f"Updated. Public page: /{slug}"
-
-            elif msg:
-                pass
             else:
-                c = Charity(
-                    slug=slug,
-                    name=name,
-                    donation_url=url,
-                    max_number=maxn,
-                    draw_at=draw_at,
-                    logo_data=logo_data,
-                    poster_data=poster_data,
-                    tile_about=tile_about,
-                    prizes_json=prizes_json,
-                )
-                db.session.add(c)
-                db.session.commit()
-                msg = f"Saved. Public page: /{slug}"
+                existing = Charity.query.filter_by(slug=slug).first()
+                if existing:
+                    if remove_logo_requested:
+                        existing.logo_data = None
+                    if remove_poster_requested:
+                        existing.poster_data = None
+                    existing.name = name
+                    existing.donation_url = url
+                    existing.max_number = maxn
+                    existing.draw_at = draw_at
+                    fixed_on = (request.form.get("fixed_price_enabled") == "1")
+
+                    try:
+                        fixed_price_gbp = int((request.form.get("fixed_ticket_price_gbp") or "0").strip() or 0)
+                    except ValueError:
+                        fixed_price_gbp = 0
+
+                    existing.fixed_price_enabled = fixed_on
+                    existing.fixed_ticket_price_pence = max(0, fixed_price_gbp * 100)
+                    if logo_data:
+                        existing.logo_data = logo_data
+                    if poster_data:
+                        existing.poster_data = poster_data
+                    existing.tile_about = tile_about
+                    existing.prizes_json = prizes_json
+                    db.session.commit()
+                    msg = f"Updated. Public page: /{slug}"
+                else:
+                    c = Charity(
+                        slug=slug,
+                        name=name,
+                        donation_url=url,
+                        max_number=maxn,
+                        draw_at=draw_at,
+                        logo_data=logo_data,
+                        poster_data=poster_data,
+                        tile_about=tile_about,
+                        prizes_json=prizes_json,
+                    )
+                    db.session.add(c)
+                    db.session.commit()
+                    msg = f"Saved. Public page: /{slug}"
 
     charities = Charity.query.order_by(Charity.name.asc()).all()
     remaining = {c.id: len(available_numbers(c)) for c in charities}
@@ -4364,11 +4881,17 @@ def admin_charities():
                        <span class="badge warn" style="margin-left:6px">NEEDS INFO</span>
                   {% endif %}
                 {% endif %}
+                {% if c.fixed_price_enabled %}
+                  <span class="badge ok" style="margin-left:6px">FIXED PRICE</span>
+                {% endif %}
                 {% else %}
                   <form method="post" action="{{ url_for('admin_connect_stripe', slug=c.slug) }}"
                         style="display:inline">
                     <button class="pill" type="submit">Connect Stripe</button>
                   </form>
+                {% endif %}
+                {% if c.fixed_price_enabled %}
+                  <span class="badge ok" style="margin-left:6px">FIXED PRICE</span>
                 {% endif %}
                 <form method="post" action="{{ url_for('admin_delete_charity', slug=c.slug) }}"
                       style="display:inline" onsubmit="return confirm('Delete this campaign and all its entries/users? This cannot be undone.');">
@@ -4622,6 +5145,16 @@ def edit_charity(slug):
         charity.optional_donation_enabled = bool(request.form.get("optional_donation_enabled"))
         charity.continue_without_donating_enabled = bool(request.form.get("continue_without_donating_enabled"))
         charity.earmark_enabled = bool(request.form.get("earmark_enabled"))
+        charity.show_in_past = bool(request.form.get("show_in_past"))
+
+        charity.auto_live_enabled = bool(request.form.get("auto_live_enabled"))
+        charity.auto_end_enabled = bool(request.form.get("auto_end_enabled"))
+
+        auto_live_at_raw = (request.form.get("auto_live_at") or "").strip()
+        charity.auto_live_at = datetime.fromisoformat(auto_live_at_raw) if auto_live_at_raw else None
+
+        auto_end_at_raw = (request.form.get("auto_end_at") or "").strip()
+        charity.auto_end_at = datetime.fromisoformat(auto_end_at_raw) if auto_end_at_raw else None
 
         # Earmark options: one per line in admin textarea
         earmark_raw = (request.form.get("earmark_options") or "").strip()
@@ -4669,7 +5202,9 @@ def edit_charity(slug):
     body = """
     <h2>Edit Charity</h2>
     {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
-    <form method="post" enctype="multipart/form-data" data-safe-submit>
+    <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+    <form id="edit_charity_form" method="post" enctype="multipart/form-data" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ charity.name }}" required></label>
       <label style="margin-top:12px">Homepage Sort Rank (lower shows first)</label>
       <input type="number" name="home_rank" value="{{ charity.home_rank or 0 }}" style="width:140px">
@@ -4717,11 +5252,23 @@ def edit_charity(slug):
       {% endif %}
 
       <label>Short “About” (homepage tile)
-        <textarea name="tile_about" rows="3" placeholder="1–2 sentences about this cause...">{{ charity.tile_about or "" }}</textarea>
+        <input type="hidden" name="tile_about" id="tile_about_input" value="{{ (charity.tile_about or "")|safe }}">
+
+        <div class="muted" style="font-size:12px;margin:6px 0 6px 0">
+          You can format this text (bold/italic/underline/lists/paragraphs).
+        </div>
+
+        <div id="tile_about_editor" style="background:#fff;border-radius:12px">
+          {{ (charity.tile_about or "")|safe }}
+        </div>
       </label>
 
       <label style="margin-top:14px">Charity Page About (shows under poster)</label>
-      <textarea name="page_about" rows="4" style="width:100%">{{ charity.page_about or "" }}</textarea>
+      <input type="hidden" name="page_about" id="page_about_input" value="{{ (charity.page_about or "")|safe }}">
+
+      <div id="page_about_editor" style="background:#fff;border-radius:12px">
+        {{ (charity.page_about or "")|safe }}
+      </div>
       <div class="muted" style="font-size:12px;margin-top:6px">
         Optional. If empty, nothing will show.
       </div>
@@ -4743,6 +5290,43 @@ def edit_charity(slug):
         </div>
       </label>
 
+      <hr style="margin:18px 0; border:none; border-top:1px solid rgba(207,227,234,0.9);">
+
+      <h2 style="margin-top:0;">Fixed Price Tickets</h2>
+
+      {% if charity.fixed_price_enabled %}
+        <div style="margin:12px 0; padding:12px 14px; border-radius:14px; border:1px solid rgba(255,190,120,0.7);
+                    background:rgba(255,190,120,0.18); color:#12313d;">
+          <strong style="display:block; font-size:15px; margin-bottom:6px;">⚠ Fixed Price Mode is ON</strong>
+          <div style="font-size:13px; line-height:1.45;">
+            • Users are charged immediately in Stripe (no temporary hold).<br>
+            • Users will NOT see a number reveal.<br>
+            • After Stripe Checkout they go straight to the final success page.<br>
+            {% set p = (charity.fixed_ticket_price_pence or 0) // 100 %}
+            • Current fixed price: <strong>£{{ p }}</strong>
+            {% if p < 1 %}<br><span style="color:#b14a00;"><strong>Price is invalid</strong> — set it to at least £1 or users will be blocked.</span>{% endif %}
+          </div>
+        </div>
+      {% endif %}
+
+      <label style="display:flex;align-items:center;gap:10px;margin-top:10px;">
+        <input type="checkbox" name="fixed_price_enabled" value="1"
+               {% if charity.fixed_price_enabled %}checked{% endif %}
+               style="transform:scale(1.4);">
+        <strong style="font-size:16px;">Enable Fixed Price Mode (charges immediately)</strong>
+      </label>
+
+      <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.4;">
+        When enabled, every entry pays the same amount. There is no card hold, no number reveal page,
+        and users go straight to the final success page after Stripe checkout.
+      </div>
+
+      <label style="margin-top:10px;display:block;">
+        Fixed ticket price (£)
+        <input type="number" min="1" step="1" name="fixed_ticket_price_gbp"
+               value="{{ (charity.fixed_ticket_price_pence or 0) // 100 }}">
+      </label>
+
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
         <input type="checkbox" name="is_sold_out" {% if charity.is_sold_out %}checked{% endif %}>
         Sold out (shows banner, disables form)
@@ -4751,6 +5335,11 @@ def edit_charity(slug):
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
         <input type="checkbox" name="is_coming_soon" {% if charity.is_coming_soon %}checked{% endif %}>
         Coming soon (shows banner, disables form)
+      </label>
+
+      <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
+        <input type="checkbox" name="show_in_past" {% if charity.show_in_past %}checked{% endif %}>
+        Show in “Past Campaigns” section on homepage
       </label>
 
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
@@ -4782,6 +5371,11 @@ def edit_charity(slug):
             Allows supporters to optionally direct their donation to a specific arm of {{ charity.name }}.
           </div>
         </div>
+      </label>
+
+      <label style="display:flex;gap:10px;align-items:center;">
+        <input type="checkbox" name="show_in_past" value="1" {% if charity.show_in_past %}checked{% endif %}>
+        Show in “Past campaigns” on homepage
       </label>
 
       <div style="margin-top:10px;">
@@ -4888,6 +5482,34 @@ def edit_charity(slug):
         Current: <strong>{{ charity.campaign_status or 'live' }}</strong>
       </p>
 
+      <h3 style="margin-top:18px;">Automatic status scheduling</h3>
+
+      <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <input type="checkbox" name="auto_live_enabled" {% if charity.auto_live_enabled %}checked{% endif %}>
+        Automatically switch this campaign to LIVE at a specific date/time
+      </label>
+
+      <label style="margin-top:10px;display:block">
+        Auto LIVE date/time (24h)
+        <input type="datetime-local" name="auto_live_at"
+               value="{{ charity.auto_live_at.strftime('%Y-%m-%dT%H:%M') if charity.auto_live_at else '' }}">
+      </label>
+
+      <label style="display:flex;gap:8px;align-items:center;margin-top:14px">
+        <input type="checkbox" name="auto_end_enabled" {% if charity.auto_end_enabled %}checked{% endif %}>
+        Automatically END this campaign at a specific date/time (stops entries)
+      </label>
+
+      <label style="margin-top:10px;display:block">
+        Auto END date/time (24h)
+        <input type="datetime-local" name="auto_end_at"
+               value="{{ charity.auto_end_at.strftime('%Y-%m-%dT%H:%M') if charity.auto_end_at else '' }}">
+      </label>
+
+      <div class="muted" style="font-size:12px;margin-top:8px;line-height:1.4">
+        When Auto END triggers, the campaign will switch to <strong>inactive</strong> (no new entries).
+      </div>
+
       {% if charity.logo_data %}
         <div style="margin-top:10px">
           <div class="muted" style="font-size:12px;margin-bottom:6px">Current logo preview:</div>
@@ -4897,6 +5519,32 @@ def edit_charity(slug):
       {% endif %}
       <div style="margin-top:8px"><button class="btn">Save Changes</button></div>
     </form>
+    <script>
+      // Quill toolbar (includes underline, bold, italic, lists, etc.)
+      const toolbarOptions = [
+        ['bold', 'italic', 'underline'],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ 'header': [1, 2, 3, false] }],
+        ['link'],
+        ['clean']
+      ];
+
+      const tileAbout = new Quill('#tile_about_editor', {
+        theme: 'snow',
+        modules: { toolbar: toolbarOptions }
+      });
+
+      const pageAbout = new Quill('#page_about_editor', {
+        theme: 'snow',
+        modules: { toolbar: toolbarOptions }
+      });
+
+      // On submit: copy Quill HTML into hidden inputs so Flask receives it
+      document.getElementById('edit_charity_form').addEventListener('submit', function () {
+        document.getElementById('tile_about_input').value = tileAbout.root.innerHTML;
+        document.getElementById('page_about_input').value = pageAbout.root.innerHTML;
+      });
+    </script>
     <p><a class="btn small" href="{{ url_for('admin_charities') }}">← Back to Manage Charities</a></p>
     """
     skill_answers_text = ""
@@ -4982,6 +5630,25 @@ def admin_charity_entries(slug):
       <a class="pill" href="{{ url_for('admin_charities') }}">← Back</a>
     </p>
 
+    <form method="post"
+          action="{{ url_for('admin_charity_entries_import_csv', slug=charity.slug) }}"
+          enctype="multipart/form-data"
+          style="margin:10px 0; padding:10px; border:1px solid rgba(255,255,255,.12); border-radius:12px;">
+      <div class="row" style="gap:10px; align-items:flex-end;">
+        <label style="max-width:380px;">
+          Restore entries from CSV
+          <input type="file" name="csv_file" accept=".csv" required>
+        </label>
+        <button class="pill" type="submit"
+                onclick="return confirm('Import this CSV into this campaign? Existing numbers will be updated, missing ones will be created.');">
+          Upload & Import
+        </button>
+      </div>
+      <p class="muted" style="margin:6px 0 0 0;">
+        Tip: upload a CSV previously downloaded from this campaign.
+      </p>
+    </form>
+
     <form method="get" action="{{ url_for('admin_charity_entries', slug=charity.slug) }}" style="margin:10px 0;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
       <input type="hidden" name="filter" value="{{ request.args.get('filter','') }}">
       <label style="max-width:260px;">
@@ -5027,8 +5694,8 @@ def admin_charity_entries(slug):
               <td class="muted">{{ e.earmark_arm or "" }}</td>
               <td><strong>#{{ e.number }}</strong></td>
               <td class="muted">
-                {% if e.payment_intent_id %}
-                  {{ e.payment_intent_id[:10] }}…
+                {% if e.payment_ref %}
+                  {{ e.payment_ref }}
                 {% else %}
                   -
                 {% endif %}
@@ -5039,8 +5706,14 @@ def admin_charity_entries(slug):
                 {% if e.paid_at %}<span class="muted">({{ e.paid_at.strftime("%Y-%m-%d %H:%M") }})</span>{% endif %}
               </td>
               <td style="white-space:nowrap">
-                <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
-                  <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
+                  <button
+                    class="pill"
+                    type="submit"
+                    formmethod="post"
+                    formaction="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}"
+                  >
+                    {{ "Unmark" if e.paid else "Mark paid" }}
+                  </button>
                 </form>
 
                 <a class="pill" href="{{ url_for('admin_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
@@ -5103,10 +5776,11 @@ def admin_new_entry(slug):
                     try:
                         e = Entry(
                             charity_id=charity.id,
+                            payment_ref=next_payment_ref(charity.id),
                             name=name,
                             email=email,
                             phone=phone,
-                            number=num,
+                            number=candidate,
                             earmark_arm=earmark_arm
                         )
                         db.session.add(e)
@@ -5126,6 +5800,7 @@ def admin_new_entry(slug):
                         try:
                             e = Entry(
                                 charity_id=charity.id,
+                                payment_ref=next_payment_ref(charity.id),
                                 name=name,
                                 email=email,
                                 phone=phone,
@@ -5281,11 +5956,15 @@ def admin_charity_entries_csv(slug):
     output = io.StringIO()
     w = csv.writer(output)
 
-    w.writerow(["id","name","email","phone","earmark","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
+    w.writerow(["id","payment_ref","name","email","phone","earmark","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
 
     for e in entries:
         w.writerow([
-            e.id, e.name, e.email, e.phone,
+            e.id,
+            e.payment_ref or "",
+            e.name,
+            e.email,
+            e.phone,
             e.earmark_arm or "",
             e.number,
             e.payment_intent_id or "",
@@ -5303,6 +5982,113 @@ def admin_charity_entries_csv(slug):
         download_name=f"{slug}_entries.csv"
     )
 
+@app.route("/admin/charity/<slug>/entries/import-csv", methods=["POST"])
+def admin_charity_entries_import_csv(slug):
+    if not session.get("admin_ok"):
+        return redirect(url_for("admin_charities"))
+
+    charity = Charity.query.filter_by(slug=slug).first_or_404()
+
+    f = request.files.get("csv_file")
+    if not f or not f.filename:
+        flash("Please choose a CSV file to upload.")
+        return redirect(url_for("admin_charity_entries", slug=slug))
+
+    try:
+        raw = f.read().decode("utf-8", errors="replace")
+    except Exception:
+        flash("Could not read that file as UTF-8.")
+        return redirect(url_for("admin_charity_entries", slug=slug))
+
+    reader = csv.DictReader(io.StringIO(raw))
+
+    # Expecting headers like your export:
+    # id,name,email,phone,earmark,number,payment_intent_id,created_at,paid,paid_at,charity_slug,charity_name
+    imported = 0
+    updated = 0
+    skipped = 0
+
+    for row in reader:
+        try:
+            number = int((row.get("number") or "").strip())
+        except Exception:
+            skipped += 1
+            continue
+
+        # Only import rows for THIS charity
+        row_slug = (row.get("charity_slug") or "").strip()
+        if row_slug and row_slug != charity.slug:
+            skipped += 1
+            continue
+
+        name = (row.get("name") or "").strip()
+        email = (row.get("email") or "").strip()
+        phone = (row.get("phone") or "").strip() or None
+        earmark = (row.get("earmark") or "").strip() or None
+        payment_intent_id = (row.get("payment_intent_id") or "").strip() or None
+
+        paid_raw = (row.get("paid") or "").strip()
+        paid = True if paid_raw in ("1", "true", "True", "yes", "Yes") else False
+
+        created_at = None
+        created_raw = (row.get("created_at") or "").strip()
+        if created_raw:
+            try:
+                created_at = datetime.fromisoformat(created_raw.replace("Z", ""))
+            except Exception:
+                created_at = None
+
+        paid_at = None
+        paid_at_raw = (row.get("paid_at") or "").strip()
+        if paid_at_raw:
+            try:
+                paid_at = datetime.fromisoformat(paid_at_raw.replace("Z", ""))
+            except Exception:
+                paid_at = None
+        
+        payment_ref_raw = (row.get("payment_ref") or "").strip()
+        payment_ref = None
+        if payment_ref_raw:
+            try:
+                payment_ref = int(payment_ref_raw)
+            except ValueError:
+                payment_ref = None
+
+        # Upsert based on unique constraint (charity_id, number)
+        existing = Entry.query.filter_by(charity_id=charity.id, number=number).first()
+        if existing:
+            existing.name = name or existing.name
+            existing.email = email or existing.email
+            existing.phone = phone
+            existing.earmark_arm = earmark
+            existing.payment_intent_id = payment_intent_id
+            existing.created_at = created_at or existing.created_at
+            existing.paid = paid
+            existing.paid_at = paid_at if paid else None
+            updated += 1
+            if existing.payment_ref is None:
+                existing.payment_ref = payment_ref or next_payment_ref(charity.id)
+        else:
+            e = Entry(
+                charity_id=charity.id,
+                payment_ref=(payment_ref or next_payment_ref(charity.id)),
+                name=name or "Unknown",
+                email=email or "unknown@example.com",
+                phone=phone,
+                number=number,
+                earmark_arm=earmark,
+                created_at=created_at or datetime.utcnow(),
+                paid=paid,
+                paid_at=(paid_at if paid else None),
+                payment_intent_id=payment_intent_id,
+            )
+            db.session.add(e)
+            imported += 1
+
+    db.session.commit()
+    flash(f"CSV import complete. Imported {imported}, updated {updated}, skipped {skipped}.")
+    return redirect(url_for("admin_charity_entries", slug=slug))
+
 @app.route("/partner/<slug>/entries.csv")
 def partner_entries_csv(slug):
     charity = partner_guard(slug)
@@ -5314,11 +6100,12 @@ def partner_entries_csv(slug):
     w = csv.writer(output)
 
     # Include earmark in export
-    w.writerow(["id","name","email","phone","earmark","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
+    w.writerow(["id","payment_ref","name","email","phone","earmark","number","payment_intent_id","created_at","paid","paid_at","charity_slug","charity_name"])
 
     for e in entries:
         w.writerow([
             e.id,
+            e.payment_ref or "",
             e.name,
             e.email,
             e.phone,
@@ -5476,6 +6263,9 @@ def partner_entries(slug):
 
     charity_logo = getattr(charity, "logo_data", None) 
 
+    connect = get_connect_status(getattr(charity, "stripe_account_id", None))
+    status = (getattr(charity, "campaign_status", "live") or "live").strip()
+
     flt = request.args.get("filter")
     earmark = (request.args.get("earmark") or "").strip()
 
@@ -5495,6 +6285,7 @@ def partner_entries(slug):
         q = q.filter(Entry.earmark_arm == earmark)
 
     entries = q.order_by(Entry.id.desc()).all()
+    total_entries = Entry.query.filter_by(charity_id=charity.id).count()
 
     # Build dropdown options from existing entries (only non-empty earmarks)
     earmark_values = [
@@ -5508,10 +6299,23 @@ def partner_entries(slug):
     ]
     body = """
     <h2>Entries — {{ charity.name }}</h2>
+    <div class="row" style="margin:10px 0 12px 0; gap:8px;">
+      <span class="badge">Campaign: <strong style="margin-left:6px">{{ status }}</strong></span>
+
+      {% if connect and connect.ok %}
+        {% if connect.charges_enabled and connect.payouts_enabled %}
+          <span class="badge ok">Stripe: Enabled</span>
+        {% else %}
+          <span class="badge warn">Stripe: Not fully enabled</span>
+        {% endif %}
+      {% else %}
+        <span class="badge danger">Stripe: Not connected</span>
+      {% endif %}
+    </div>
+    <p class="muted">Total: {{ entries|length }}</p>
     <p>
       <a class="pill" href="{{ url_for('partner_new_entry', slug=charity.slug) }}">Add Entry</a>
       <a class="pill" href="{{ url_for('partner_entries_csv', slug=charity.slug) }}">Download CSV</a>
-
       <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug) }}">All</a>
       <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='unpaid', earmark=request.args.get('earmark','')) }}">Unpaid</a>
       <a class="pill" href="{{ url_for('partner_entries', slug=charity.slug, filter='paid', earmark=request.args.get('earmark','')) }}">Paid</a>
@@ -5562,8 +6366,8 @@ def partner_entries(slug):
             <td class="muted">{{ e.earmark_arm or "" }}</td>
             <td><strong>#{{ e.number }}</strong></td>
             <td class="muted">
-              {% if e.payment_intent_id %}
-                {{ e.payment_intent_id[:10] }}…
+              {% if e.payment_ref %}
+                {{ e.payment_ref }}
               {% else %}
                 -
               {% endif %}
@@ -5571,13 +6375,27 @@ def partner_entries(slug):
             <td>{{ e.created_at.strftime("%Y-%m-%d %H:%M") if e.created_at else "" }}</td>
             <td>{{ "Yes" if e.paid else "No" }}</td>
             <td>
-              <form method="post" action="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}" style="display:inline">
-                <button class="pill" type="submit">{{ "Unmark" if e.paid else "Mark paid" }}</button>
-              </form>
+              <!-- IMPORTANT: no nested forms inside the big bulk form -->
+              <button
+                class="pill"
+                type="submit"
+                formmethod="post"
+                formaction="{{ url_for('toggle_paid', entry_id=e.id, next=request.full_path) }}"
+              >
+                {{ "Unmark" if e.paid else "Mark paid" }}
+              </button>
+
               <a class="pill" href="{{ url_for('partner_edit_entry', slug=charity.slug, entry_id=e.id) }}">Edit</a>
-              <form method="post" action="{{ url_for('partner_delete_entry', slug=charity.slug, entry_id=e.id) }}" style="display:inline" onsubmit="return confirm('Delete this entry?')">
-                <button class="btn danger small" type="submit">Delete</button>
-              </form>
+
+              <button
+                class="btn danger small"
+                type="submit"
+                formmethod="post"
+                formaction="{{ url_for('partner_delete_entry', slug=charity.slug, entry_id=e.id) }}"
+                onclick="return confirm('Delete this entry?')"
+              >
+                Delete
+              </button>
             </td>
           </tr>
         {% endfor %}
@@ -5589,6 +6407,9 @@ def partner_entries(slug):
         body,
         charity=charity,
         entries=entries,
+        connect=connect,
+        status=status,
+        total_entries=total_entries,
         earmark_values=earmark_values,
         title=f"{charity.name} – Entries"
     )
@@ -5632,7 +6453,15 @@ def partner_new_entry(slug):
                 if not num: msg = "No numbers available."
             if not msg and num is not None:
                 try:
-                    e = Entry(charity_id=charity.id, name=name, email=email, phone=phone, number=num, earmark_arm=earmark_arm)
+                    e = Entry(
+                        charity_id=charity.id,
+                        payment_ref=next_payment_ref(charity.id),
+                        name=name,
+                        email=email,
+                        phone=phone,
+                        number=num,
+                        earmark_arm=earmark_arm
+                    )
                     db.session.add(e); db.session.commit()
                     return redirect(url_for("partner_entries", slug=charity.slug))
                 except IntegrityError:
@@ -5820,12 +6649,17 @@ def admin_migrate():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_correct_answer TEXT"))
             if 'skill_display_count' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN skill_display_count INTEGER DEFAULT 4"))
-            if 'hold_amount_pence' not in cols:
-                conn.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
+            insp2 = inspect(db.engine)
+            entry_cols2 = {c['name'] for c in insp2.get_columns('entry')}
+            with db.engine.begin() as conn2:
+                if 'hold_amount_pence' not in entry_cols2:
+                    conn2.execute(text("ALTER TABLE entry ADD COLUMN hold_amount_pence INTEGER"))
             if "home_rank" not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN home_rank INTEGER DEFAULT 0"))
             if "page_about" not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN page_about TEXT"))
+            if 'show_in_past' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN show_in_past BOOLEAN DEFAULT 0"))
 
     except Exception as e:
         print("Charity auto-migration check failed:", e)
@@ -5849,6 +6683,8 @@ with app.app_context():
                 conn.execute(text("ALTER TABLE entry ADD COLUMN stripe_account_id VARCHAR(64)"))
             if 'earmark_arm' not in entry_cols:
                 conn.execute(text("ALTER TABLE entry ADD COLUMN earmark_arm VARCHAR(200)"))
+            if 'receipt_url' not in entry_cols:
+                conn.execute(text("ALTER TABLE entry ADD COLUMN receipt_url VARCHAR(500)"))
 
         # ---- charity table ----
         charity_cols = {c['name'] for c in insp.get_columns('charity')}
@@ -5865,6 +6701,10 @@ with app.app_context():
                 conn.execute(text("ALTER TABLE charity ADD COLUMN earmark_enabled BOOLEAN DEFAULT 0"))
             if 'earmark_options_json' not in charity_cols:
                 conn.execute(text("ALTER TABLE charity ADD COLUMN earmark_options_json TEXT"))
+            if 'fixed_price_enabled' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN fixed_price_enabled BOOLEAN DEFAULT 0"))
+            if 'fixed_ticket_price_pence' not in charity_cols:
+                conn.execute(text("ALTER TABLE charity ADD COLUMN fixed_ticket_price_pence INTEGER DEFAULT 0"))
 
     except Exception as e:
         print("Auto-migration check failed:", e)
@@ -5941,4 +6781,4 @@ def admin_root():
 # ====== LOCAL RUNNER ==========================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)
