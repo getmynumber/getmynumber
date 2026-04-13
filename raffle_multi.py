@@ -2042,7 +2042,72 @@ def home():
         else:
             tiles_current.append(tile_obj)
 
-    body = """
+        body = """
+    {% macro render_campaign_tile(t) %}
+      <div class="cause-tile">
+        {% if t.banner %}
+          <div class="ribbon">{{ t.banner }}</div>
+        {% endif %}
+
+        <div class="cause-top">
+          <div class="cause-img">
+            {% if t.img %}
+              <img src="{{ t.img }}" alt="{{ t.name }} logo">
+            {% else %}
+              <span style="font-size:18px">🤍</span>
+            {% endif %}
+          </div>
+          <div>
+            <div class="cause-name">{{ t.name }}</div>
+
+            {% if t.prizes and (t.prizes|length) > 0 %}
+              <div class="cause-prizes">
+                <strong>{% if (t.prizes|length) == 1 %}Prize{% else %}Prizes{% endif %}:</strong>
+                {{ t.prizes[:2] | join(" • ") }}{% if (t.prizes|length) > 2 %} • …{% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if t.poster %}
+          <div class="cause-poster">
+            <img src="{{ t.poster }}" alt="{{ t.name }} poster">
+          </div>
+        {% endif %}
+
+        <div class="cause-about">
+          {% if t.about %}
+            {{ t.about|safe }}
+          {% else %}
+            Support this campaign by taking part and confirming your donation after your number is revealed.
+          {% endif %}
+        </div>
+
+        <div class="tile-progress">
+          <div class="muted" style="font-size:12px;margin-bottom:6px;">Tickets Sold</div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width: {{ t.pct }}%;"></div>
+          </div>
+        </div>
+
+        <div class="tile-cta">
+          {% if not t.blocked %}
+            <a class="btn" href="{{ url_for('charity_page', slug=t.slug) }}">Select this Campaign</a>
+          {% else %}
+            <button class="btn" type="button" disabled>
+              {% if t.status == "sold_out" %}
+                Sold out
+              {% elif t.status == "coming_soon" %}
+                Coming Soon
+              {% else %}
+                Unavailable
+              {% endif %}
+            </button>
+          {% endif %}
+        </div>
+      </div>
+    {% endmacro %}
+
     <div class="hero" style="text-align:center;align-items:center;">
       <h1 class="section-title">Choose a Charity to Support</h1>
       <p class="muted section-subtitle">
@@ -2051,63 +2116,9 @@ def home():
     </div>
 
     <div class="tiles-grid">
-      {% for t in tiles_current %}
-        <div class="cause-tile">
-          {% if t.banner %}
-            <div class="ribbon">{{ t.banner }}</div>
-          {% endif %}
-
-          <div class="cause-top">
-            <div class="cause-img">
-              {% if t.img %}
-                <img src="{{ t.img }}" alt="{{ t.name }} logo">
-              {% else %}
-                <span style="font-size:18px">🤍</span>
-              {% endif %}
-            </div>
-            <div>
-              <div class="cause-name">{{ t.name }}</div>
-
-              {% if t.prizes and (t.prizes|length) > 0 %}
-                <div class="cause-prizes">
-                  <strong>{% if (t.prizes|length) == 1 %}Prize{% else %}Prizes{% endif %}:</strong>
-                  {{ t.prizes[:2] | join(" • ") }}{% if (t.prizes|length) > 2 %} • …{% endif %}
-                </div>
-              {% endif %}
-            </div>
-          </div>
-
-          {% if t.poster %}
-            <div class="cause-poster">
-              <img src="{{ t.poster }}" alt="{{ t.name }} poster">
-            </div>
-          {% endif %}
-          <div class="cause-about">
-            {% if t.about %}
-              {{ t.about|safe }}
-            {% else %}
-              Support this campaign by taking part and confirming your donation after your number is revealed.
-            {% endif %}
-          </div>
-
-          <div class="tile-progress">
-            <div class="muted" style="font-size:12px;margin-bottom:6px;">Tickets Sold</div>
-            <div class="progress-track">
-              <div class="progress-fill" style="width: {{ t.pct }}%;"></div>
-            </div>
-          </div>
-
-          <div class="tile-cta">
-            {% if not t.blocked %}
-              <a class="btn" href="{{ url_for('charity_page', slug=t.slug) }}">Select this Campaign</a>
-            {% else %}
-              <button class="btn" type="button" disabled>
-                {% if t.status == "sold_out" %}Sold out{% elif t.status == "coming_soon" %}Coming Soon{% else %}Unavailable{% endif %}
-              </button>
-            {% endif %}
-          </div>
-        </div>
-      {% else %}
+            {% for t in tiles_current %}
+        {{ render_campaign_tile(t) }}
+      {% else %}      
         <p class="muted" style="text-align:center;">
           No charities yet. Use <a href="{{ url_for('admin_charities') }}">Admin</a> to add one.
         </p>
@@ -2126,30 +2137,7 @@ def home():
 
       <div class="tiles-grid">
         {% for t in tiles_past %}
-          <div class="cause-tile">
-          {% if t.banner %}
-            <div class="ribbon">{{ t.banner }}</div>
-          {% endif %}
-
-          <div class="cause-top">
-            <div class="cause-img">
-              {% if t.img %}
-                <img src="{{ t.img }}" alt="{{ t.name }} logo">
-              {% else %}
-                <span style="font-size:18px">🤍</span>
-              {% endif %}
-            </div>
-            <div>
-              <div class="cause-name">{{ t.name }}</div>
-
-              {% if t.prizes and (t.prizes|length) > 0 %}
-                <div class="cause-prizes">
-                  <strong>{% if (t.prizes|length) == 1 %}Prize{% else %}Prizes{% endif %}:</strong>
-                  {{ t.prizes[:2] | join(" • ") }}{% if (t.prizes|length) > 2 %} • …{% endif %}
-                </div>
-              {% endif %}
-            </div>
-          </div>
+          {{ render_campaign_tile(t) }}
         {% endfor %}
       </div>
     {% endif %}
@@ -5455,11 +5443,6 @@ def edit_charity(slug):
             Allows supporters to optionally direct their donation to a specific arm of {{ charity.name }}.
           </div>
         </div>
-      </label>
-
-      <label style="display:flex;gap:10px;align-items:center;">
-        <input type="checkbox" name="show_in_past" value="1" {% if charity.show_in_past %}checked{% endif %}>
-        Show in “Past campaigns” on homepage
       </label>
 
       <div style="margin-top:10px;">
