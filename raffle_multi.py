@@ -4060,15 +4060,13 @@ def success(slug):
 
             entry = Entry(
                 charity_id=charity.id,
-                payment_ref=next_payment_ref(charity.id),
-                name=name,
-                email=email,
-                phone=phone,
-                number=num,
+                name=pending.get("name"),
+                email=pending.get("email"),
+                phone=pending.get("phone"),
+                number=number,
                 earmark_arm=(pending.get("earmark_arm") or None),
-                payment_intent_id=payment_intent["id"]),
+                payment_intent_id=payment_intent["id"],
                 hold_amount_pence=int(payment_intent["amount"] or 0),
-                stripe_account_id=acct,
                 paid=True,
                 paid_at=datetime.utcnow(),
             )
