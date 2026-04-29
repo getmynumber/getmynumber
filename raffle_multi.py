@@ -3468,14 +3468,14 @@ def hold_success(slug):
     if not payment_intent or payment_intent["status"] not in valid_statuses:
         app.logger.warning(
             f"Unexpected PaymentIntent status in hold_success: "
-            f"{payment_intent('status') if payment_intent else 'none'}"
+            f"{payment_intent['status'] if payment_intent else 'none'}"
         )
         flash("Donation not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
     # Get the details we stored before redirecting to Stripe
-    pending = session("pending_entry")
-    if not pending or pending("slug") != charity.slug:
+    pending = session.get("pending_entry")
+    if not pending or pending.get("slug") != charity.slug:
         flash("We could not find your details. Please start again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
@@ -3513,7 +3513,7 @@ def hold_success(slug):
                 email=email,
                 phone=phone,
                 number=num,
-                earmark_arm=(pending("earmark_arm") or None),
+                earmark_arm=(pending.get("earmark_arm") or None),
                 payment_intent_id=payment_intent["id"],
                 hold_amount_pence=int(payment_intent["amount"] or 0),
                 stripe_account_id=acct,
@@ -4026,7 +4026,7 @@ def success(slug):
         flash("We could not verify your payment. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    payment_intent = checkout_session.get("payment_intent")
+    payment_intent = checkout_session("payment_intent")
     if not payment_intent or payment_intent["status"] != "succeeded":
         flash("Payment not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
@@ -4034,7 +4034,7 @@ def success(slug):
     # ✅ Refresh-safe: reuse entry if it already exists for this PaymentIntent
     existing = None
     try:
-        pi_id = payment_intent.get("id") if payment_intent else None
+        pi_id = payment_intent("id") if payment_intent else None
         if pi_id:
             existing = Entry.query.filter_by(
                 charity_id=charity.id,
@@ -4066,8 +4066,8 @@ def success(slug):
                 phone=phone,
                 number=num,
                 earmark_arm=(pending.get("earmark_arm") or None),
-                payment_intent_id=payment_intent.get("id"),
-                hold_amount_pence=int(payment_intent.get("amount") or 0),
+                payment_intent_id=payment_intent("id"),
+                hold_amount_pence=int(payment_intent("amount") or 0),
                 stripe_account_id=acct,
                 paid=True,
                 paid_at=datetime.utcnow(),
@@ -4106,7 +4106,7 @@ def success(slug):
     receipt_url = None
     try:
         charges = stripe.Charge.list(
-            payment_intent=payment_intent.get("id"),
+            payment_intent=payment_intent("id"),
             limit=1,
             stripe_account=acct,
         )
@@ -4115,7 +4115,7 @@ def success(slug):
     except Exception as e:
         app.logger.warning(f"Could not fetch receipt_url for fixed success: {e}")
 
-    paid_gbp = int((payment_intent.get("amount_received") or payment_intent.get("amount") or 0) // 100)
+    paid_gbp = int(((payment_intent["amount_received"] if "amount_received" in payment_intent else payment_intent["amount"]) or 0) // 100)
 
     ticks_block_final = build_ticks_block([
         f"Paid &pound;<strong>{paid_gbp}</strong> to <strong>{charity.name}</strong>",
