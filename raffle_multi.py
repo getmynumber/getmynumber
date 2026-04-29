@@ -113,9 +113,9 @@ def auto_apply_campaign_schedules():
 
         changed = False
         for c in due:
-            before = (c.campaign_status, c.is_live)
+            before = (c.campaign_status, c.is_live, c.auto_live_enabled, c.auto_end_enabled)
             apply_scheduled_status_updates(c)
-            after = (c.campaign_status, c.is_live)
+            after = (c.campaign_status, c.is_live, c.auto_live_enabled, c.auto_end_enabled)
             if after != before:
                 changed = True
 
@@ -1888,6 +1888,8 @@ def apply_scheduled_status_updates(c: Charity):
         if now >= c.auto_live_at:
             c.campaign_status = "live"
             c.is_live = True
+            c.is_sold_out = False
+            c.is_coming_soon = False
             c.auto_live_enabled = False
 
     # Auto end
@@ -1895,6 +1897,8 @@ def apply_scheduled_status_updates(c: Charity):
         if now >= c.auto_end_at:
             c.campaign_status = "inactive"
             c.is_live = False
+            c.is_sold_out = False
+            c.is_coming_soon = False
             c.auto_end_enabled = False
 
 def _choose_skill_options(all_answers, correct_answer, display_count=4):
@@ -4912,7 +4916,8 @@ def admin_set_campaign_status(slug):
     charity.campaign_status = new_status
 
     # Keep legacy boolean in sync (prevents homepage confusion if any code still checks is_live)
-    charity.is_live = (new_status == "live")
+    charity.is_sold_out = (new_status == "sold_out")
+    charity.is_coming_soon = (new_status == "coming_soon")
 
     db.session.commit()
 
@@ -5063,9 +5068,11 @@ def edit_charity(slug):
                 if charity.skill_correct_answer.lower() not in bank_lower:
                     msg = "Skill question: the correct answer must exactly match one of the answers you entered."
 
-        charity.is_live = bool(request.form.get("is_live"))
-        charity.is_sold_out = bool(request.form.get("is_sold_out"))
-        charity.is_coming_soon = bool(request.form.get("is_coming_soon"))
+        # Keep legacy flags in sync with campaign_status.
+        # Do not read old checkbox fields here because the edit page now uses campaign_status buttons.
+        charity.is_live = (charity.campaign_status == "live")
+        charity.is_sold_out = (charity.campaign_status == "sold_out")
+        charity.is_coming_soon = (charity.campaign_status == "coming_soon")
         charity.free_entry_enabled = bool(request.form.get("free_entry_enabled"))
         charity.postal_entry_enabled = bool(request.form.get("postal_entry_enabled"))
         charity.optional_donation_enabled = bool(request.form.get("optional_donation_enabled"))
