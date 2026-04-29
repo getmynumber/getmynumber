@@ -1906,6 +1906,13 @@ def apply_scheduled_status_updates(c: Charity):
     # Auto go live
     if getattr(c, "auto_live_enabled", False) and getattr(c, "auto_live_at", None):
         if now >= c.auto_live_at:
+            acct = (getattr(c, "stripe_account_id", None) or "").strip()
+
+            if not acct.startswith("acct_"):
+                app.logger.error(f"Auto-live blocked for {c.slug}: no Stripe connected account.")
+                c.auto_live_enabled = False
+                return
+
             c.campaign_status = "live"
             c.is_live = True
             c.is_sold_out = False
