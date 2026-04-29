@@ -4915,7 +4915,8 @@ def admin_set_campaign_status(slug):
 
     charity.campaign_status = new_status
 
-    # Keep legacy boolean in sync (prevents homepage confusion if any code still checks is_live)
+    # Keep legacy flags in sync
+    charity.is_live = (new_status == "live")
     charity.is_sold_out = (new_status == "sold_out")
     charity.is_coming_soon = (new_status == "coming_soon")
 
