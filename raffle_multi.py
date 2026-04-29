@@ -4027,7 +4027,7 @@ def success(slug):
         return redirect(url_for("charity_page", slug=charity.slug))
 
     payment_intent = checkout_session.get("payment_intent")
-    if not payment_intent or payment_intent.get("status") != "succeeded":
+    if not payment_intent or payment_intent("status") != "succeeded":
         flash("Payment not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
