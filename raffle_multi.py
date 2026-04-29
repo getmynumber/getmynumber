@@ -103,7 +103,7 @@ def block_hotlinking():
 def auto_apply_campaign_schedules():
     # Run schedules on every request (lightweight: only updates when needed)
     try:
-        now = datetime.utcnow()
+        now = datetime.now()
         due = Charity.query.filter(
             db.or_(
                 db.and_(Charity.auto_live_enabled == True, Charity.auto_live_at != None, Charity.auto_live_at <= now),
@@ -1881,19 +1881,21 @@ def get_connect_status(acct_id):
         return {"ok": False}
 
 def apply_scheduled_status_updates(c: Charity):
-    now = datetime.utcnow()
+    now = datetime.now()
 
     # Auto go live
     if getattr(c, "auto_live_enabled", False) and getattr(c, "auto_live_at", None):
-        if now >= c.auto_live_at and (c.campaign_status != "live"):
+        if now >= c.auto_live_at:
             c.campaign_status = "live"
-            c.is_live = True  # optional legacy sync
+            c.is_live = True
+            c.auto_live_enabled = False
 
     # Auto end
     if getattr(c, "auto_end_enabled", False) and getattr(c, "auto_end_at", None):
-        if now >= c.auto_end_at and (c.campaign_status != "inactive"):
+        if now >= c.auto_end_at:
             c.campaign_status = "inactive"
-            c.is_live = False  # optional legacy sync
+            c.is_live = False
+            c.auto_end_enabled = False
 
 def _choose_skill_options(all_answers, correct_answer, display_count=4):
     """
@@ -6155,7 +6157,7 @@ def admin_bulk_entries(slug):
     ids = request.form.getlist("ids"); action = request.form.get("action")
     if not ids or not action: return redirect(url_for("admin_charity_entries", slug=slug))
     q = Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids))
-    now = datetime.utcnow()
+    now = datetime.now()
     if action == "mark_paid":
         for e in q.all(): e.paid = True; e.paid_at = now
         db.session.commit()
@@ -6578,7 +6580,7 @@ def partner_bulk_entries(slug):
     ids = request.form.getlist("ids"); action = request.form.get("action")
     if not ids or not action: return redirect(url_for("partner_entries", slug=slug))
     q = Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids))
-    now = datetime.utcnow()
+    now = datetime.now()
     if action == "mark_paid":
         for e in q.all(): e.paid = True; e.paid_at = now
         db.session.commit()
