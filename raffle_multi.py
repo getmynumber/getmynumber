@@ -2495,7 +2495,7 @@ def charity_page(slug):
         if not name or not email or not phone:
             flash("Name, Email and Phone are required.")
         else:
-            hold_amount_pence = compute_hold_amount_pence(charity) * ticket_qty
+            hold_amount_pence = compute_hold_amount_pence(charity)
 
             # Optional earmark (arm of the charity)
             earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
@@ -2509,10 +2509,6 @@ def charity_page(slug):
             if (not earmark_arm) or (earmark_arm not in earmark_opts):
                 earmark_arm = None
 
-            ticket_qty = int(request.form.get("ticket_qty", "1") or 1)
-            if ticket_qty < 1:
-                ticket_qty = 1
-
             session["pending_entry"] = {
                 "slug": charity.slug,
                 "name": name,
@@ -2520,7 +2516,6 @@ def charity_page(slug):
                 "phone": phone,
                 "hold_amount_pence": hold_amount_pence,
                 "earmark_arm": earmark_arm,
-                "ticket_qty": ticket_qty,
             }
 
             if getattr(charity, "skill_enabled", False):
@@ -2673,25 +2668,6 @@ def charity_page(slug):
             and
             <a href="{{ url_for('privacy') }}" target="_blank">Privacy Policy</a>.
           </div> 
-
-          {% set max_qty = 10 %}
-          {% set qty_cap = remaining if (remaining and remaining < max_qty) else max_qty %}
-
-          <label style="margin-top:10px;">
-            Number of tickets
-            <select name="ticket_qty" required {% if is_blocked %}disabled{% endif %}
-                    style="width:100%; max-width:420px; margin:6px auto 0; display:block;">
-              {% for q in range(1, qty_cap + 1) %}
-                <option value="{{ q }}" {% if q == 1 %}selected{% endif %}>{{ q }}</option>
-              {% endfor %}
-            </select>
-
-            {% if charity.fixed_price_enabled %}
-              <div class="muted" style="font-size:12px; text-align:center; margin-top:6px;">
-                £{{ (charity.fixed_ticket_price_pence or 0) // 100 }} per ticket (fixed price)
-              </div>
-            {% endif %}
-          </label>
 
           <button class="btn big" type="submit"
                   style="margin-top:14px; width:100%; max-width:420px; display:block; margin-left:auto; margin-right:auto;"
@@ -3354,10 +3330,6 @@ def start_hold(slug):
 
     hold_amount_pence = int(pending.get("hold_amount_pence") or 0)
 
-    ticket_qty = int(pending.get("ticket_qty") or 1)
-    if ticket_qty < 1:
-        ticket_qty = 1
-
     # Enforce minimum hold = max_number * 100 (always)
     min_hold = int(charity.max_number or 0) * 100
     if hold_amount_pence < min_hold:
@@ -3386,7 +3358,7 @@ def start_hold(slug):
                         "product_data": {"name": f"{charity.name} – Ticket"},
                         "unit_amount": price_pence,
                     },
-                    "quantity": int(pending.get("ticket_qty") or 1),
+                    "quantity": 1),
                 }],
                 payment_intent_data={
                     "receipt_email": pending.get("email") or None,
@@ -3406,13 +3378,6 @@ def start_hold(slug):
             return redirect(url_for("charity_page", slug=charity.slug))
 
     else:
-        # Check ticket availability before creating the hold
-        qty = int(pending.get("ticket_qty") or 1)
-        remaining = len(available_numbers(charity))
-        if qty > remaining:
-            flash(f"Only {remaining} tickets remain. Please reduce the quantity.")
-            return redirect(url_for("charity_page", slug=charity.slug))
-
         # Create Stripe Checkout Session for the hold (manual capture)
         try:
             checkout = stripe.checkout.Session.create(
@@ -3425,7 +3390,7 @@ def start_hold(slug):
                         "product_data": {"name": f"{charity.name} – Temporary card authorisation"},
                         "unit_amount": hold_amount_pence,
                     },
-                    "quantity": ticket_qty,
+                    "quantity": 1,
                 }],
                 payment_intent_data={
                     "capture_method": "manual",
