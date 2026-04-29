@@ -101,29 +101,49 @@ def block_hotlinking():
 
 @app.before_request
 def auto_apply_campaign_schedules():
-    # Run schedules on every request (lightweight: only updates when needed)
+    # Run schedules on every request.
+    # We intentionally check due dates in Python, not inside the SQL filter,
+    # because SQLite/Postgres can store/compare naive datetimes differently.
     try:
-        now = datetime.now()
         due = Charity.query.filter(
             db.or_(
-                db.and_(Charity.auto_live_enabled == True, Charity.auto_live_at != None, Charity.auto_live_at <= now),
-                db.and_(Charity.auto_end_enabled == True, Charity.auto_end_at != None, Charity.auto_end_at <= now),
+                Charity.auto_live_enabled == True,
+                Charity.auto_end_enabled == True,
             )
         ).all()
 
         changed = False
+
         for c in due:
-            before = (c.campaign_status, c.is_live, c.auto_live_enabled, c.auto_end_enabled)
+            before = (
+                c.campaign_status,
+                c.is_live,
+                c.is_sold_out,
+                c.is_coming_soon,
+                c.auto_live_enabled,
+                c.auto_end_enabled,
+            )
+
             apply_scheduled_status_updates(c)
-            after = (c.campaign_status, c.is_live, c.auto_live_enabled, c.auto_end_enabled)
+
+            after = (
+                c.campaign_status,
+                c.is_live,
+                c.is_sold_out,
+                c.is_coming_soon,
+                c.auto_live_enabled,
+                c.auto_end_enabled,
+            )
+
             if after != before:
                 changed = True
 
         if changed:
             db.session.commit()
-    except Exception:
-        # never break the site if schedules fail
+
+    except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Auto campaign schedule update failed: {e}")
 
 # --- Security headers (CSP, etc.) ---
 @app.after_request
