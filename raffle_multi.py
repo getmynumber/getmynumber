@@ -3358,7 +3358,7 @@ def start_hold(slug):
                         "product_data": {"name": f"{charity.name} – Ticket"},
                         "unit_amount": price_pence,
                     },
-                    "quantity": 1),
+                    "quantity": 1,
                 }],
                 payment_intent_data={
                     "receipt_email": pending.get("email") or None,
