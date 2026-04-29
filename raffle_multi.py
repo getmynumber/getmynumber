@@ -3454,7 +3454,7 @@ def hold_success(slug):
     # ✅ Refresh-safe: if an Entry already exists for this PaymentIntent, reuse it
     existing = None
     try:
-        pi_id = payment_intent("id") if payment_intent else None
+        pi_id = payment_intent["id"] if payment_intent else None
         if pi_id:
             existing = Entry.query.filter_by(
                 charity_id=charity.id,
@@ -3465,7 +3465,7 @@ def hold_success(slug):
 
     # For a hold, the PaymentIntent should be authorised
     valid_statuses = ("requires_capture", "succeeded")
-    if not payment_intent or payment_intent("status") not in valid_statuses:
+    if not payment_intent or payment_intent["status"] not in valid_statuses:
         app.logger.warning(
             f"Unexpected PaymentIntent status in hold_success: "
             f"{payment_intent('status') if payment_intent else 'none'}"
@@ -3485,7 +3485,7 @@ def hold_success(slug):
 
     existing = Entry.query.filter_by(
         charity_id=charity.id,
-        payment_intent_id=payment_intent("id"),
+        payment_intent_id=payment_intent["id"],
     ).first()
 
     # ✅ If we already created the entry earlier (refresh/back), reuse it.
@@ -3514,8 +3514,8 @@ def hold_success(slug):
                 phone=phone,
                 number=num,
                 earmark_arm=(pending("earmark_arm") or None),
-                payment_intent_id=payment_intent("id"),
-                hold_amount_pence=int(payment_intent("amount") or 0),
+                payment_intent_id=payment_intent["id"],
+                hold_amount_pence=int(payment_intent["amount"] or 0),
                 stripe_account_id=acct,
             )
             db.session.add(entry)
@@ -4027,7 +4027,7 @@ def success(slug):
         return redirect(url_for("charity_page", slug=charity.slug))
 
     payment_intent = checkout_session.get("payment_intent")
-    if not payment_intent or payment_intent("status") != "succeeded":
+    if not payment_intent or payment_intent["status"] != "succeeded":
         flash("Payment not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
