@@ -3449,12 +3449,12 @@ def hold_success(slug):
         flash("We could not verify your card hold. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    payment_intent = checkout_session.get("payment_intent")
+    payment_intent = checkout_session["payment_intent"]
 
     # ✅ Refresh-safe: if an Entry already exists for this PaymentIntent, reuse it
     existing = None
     try:
-        pi_id = payment_intent.get("id") if payment_intent else None
+        pi_id = payment_intent("id") if payment_intent else None
         if pi_id:
             existing = Entry.query.filter_by(
                 charity_id=charity.id,
@@ -3465,17 +3465,17 @@ def hold_success(slug):
 
     # For a hold, the PaymentIntent should be authorised
     valid_statuses = ("requires_capture", "succeeded")
-    if not payment_intent or payment_intent.get("status") not in valid_statuses:
+    if not payment_intent or payment_intent("status") not in valid_statuses:
         app.logger.warning(
             f"Unexpected PaymentIntent status in hold_success: "
-            f"{payment_intent.get('status') if payment_intent else 'none'}"
+            f"{payment_intent('status') if payment_intent else 'none'}"
         )
         flash("Donation not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
     # Get the details we stored before redirecting to Stripe
-    pending = session.get("pending_entry")
-    if not pending or pending.get("slug") != charity.slug:
+    pending = session("pending_entry")
+    if not pending or pending("slug") != charity.slug:
         flash("We could not find your details. Please start again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
@@ -3485,7 +3485,7 @@ def hold_success(slug):
 
     existing = Entry.query.filter_by(
         charity_id=charity.id,
-        payment_intent_id=payment_intent.get("id"),
+        payment_intent_id=payment_intent("id"),
     ).first()
 
     # ✅ If we already created the entry earlier (refresh/back), reuse it.
@@ -3513,9 +3513,9 @@ def hold_success(slug):
                 email=email,
                 phone=phone,
                 number=num,
-                earmark_arm=(pending.get("earmark_arm") or None),
-                payment_intent_id=payment_intent.get("id"),
-                hold_amount_pence=int(payment_intent.get("amount") or 0),
+                earmark_arm=(pending("earmark_arm") or None),
+                payment_intent_id=payment_intent("id"),
+                hold_amount_pence=int(payment_intent("amount") or 0),
                 stripe_account_id=acct,
             )
             db.session.add(entry)
