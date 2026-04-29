@@ -3799,33 +3799,6 @@ def hold_success(slug):
    </div>
 
    <script>
-     (function(){
-       // Only activate the "are you sure" warning AFTER the number is revealed
-       let warnOnLeave = false;
-
-       // If your reveal button has an id, use it here.
-       // If not, we’ll safely detect the first button that reveals the number.
-       const revealBtn =
-         document.getElementById("revealBtn")
-         || document.querySelector("button");
-
-       if (revealBtn) {
-         revealBtn.addEventListener("click", function(){
-           // After they reveal their number, warn them before leaving
-           warnOnLeave = true;
-         });
-       }
-
-       window.addEventListener("beforeunload", function (e) {
-         if (!warnOnLeave) return;
-         e.preventDefault();
-         e.returnValue = "";
-         return "";
-       });
-     })();
-   </script>
-
-   <script>
    (function() {
      const entryId = {{ entry.id|int }};
      const btn = document.getElementById("reveal-btn");
