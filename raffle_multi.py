@@ -1655,6 +1655,110 @@ LAYOUT = """
     .wheel.wheel-spinning{animation:none}
   }
 
+
+  /* Teal brand, with more distinct surfaces for browsing and checkout. */
+  :root{
+    --bg:#f2f8f8;
+    --bg-soft:#e0f1ef;
+    --card-2:#f0f8f7;
+    --text:#12343b;
+    --text-soft:#43636b;
+    --muted:#46636a;
+    --brand:#08746d;
+    --brand-2:#128b81;
+    --border:#cfe3e4;
+    --shadow:0 1px 2px #103f4510,0 12px 28px #103f450c;
+  }
+  .nav{
+    min-height:76px;
+    border-top:0;
+    box-shadow:0 1px 0 #0d676b16;
+    background:#fff;
+  }
+  .logo-badge-img{height:67px}
+  .nav-links a:hover{background:var(--bg-soft)}
+  .home-intro{
+    position:relative;
+    isolation:isolate;
+    overflow:hidden;
+    padding:clamp(32px,7vw,76px) 18px;
+    border-radius:var(--radius);
+    color:white;
+    background:linear-gradient(118deg,#075055,#087b74 76%,#188d80);
+  }
+  .home-intro::before,.home-intro::after{
+    content:"";
+    position:absolute;
+    z-index:-1;
+    pointer-events:none;
+    width:clamp(180px,37vw,420px);
+    aspect-ratio:1;
+    border:1px solid #ffffff29;
+    border-radius:50%;
+    right:-7%;
+    top:-104%;
+  }
+  .home-intro::after{transform:translate(-14%,16%) scale(1.24)}
+  .home-intro h1.section-title{
+    font-size:clamp(30px,5.4vw,58px);
+    margin:0;
+    max-width:18ch;
+    line-height:1.02;
+    letter-spacing:-.055em;
+  }
+  .home-intro p.section-subtitle{
+    color:#e4f7f5;
+    max-width:54ch;
+    margin:4px auto 0;
+    font-size:clamp(14px,1.5vw,17px);
+  }
+  .home-section-heading{padding-top:12px}
+  .tiles-grid{gap:20px;margin-top:22px}
+  .cause-tile{
+    border-top:3px solid #4fb7ad;
+    padding:20px;
+    min-height:265px;
+  }
+  .cause-tile:hover{border-color:#78bdb9;box-shadow:0 10px 24px #085e5e16}
+  .cause-name{font-size:19px}
+  .cause-img,.step-icon{background:#e5f5f3;border-color:var(--border)}
+  .progress-fill,.flow-progress-fill,.progress > i{
+    background:linear-gradient(90deg,#08746d,#22aa9a)
+  }
+  .progress-track,.flow-progress-track,.progress{
+    background:#e1efef;border-color:var(--border)
+  }
+  .step-card{padding:18px;border-radius:14px}
+  .step-title{font-size:15px}
+  .card.secondary,.soft-panel,.countdown-card{background:var(--card-2)}
+  .layout-narrow .main-card{
+    border-top:3px solid #49a99f;
+    box-shadow:0 10px 30px #0e484b11;
+  }
+  .layout-narrow .main-card label{margin-top:5px}
+  .btn:not(.danger):not(.secondary):not(.outline):not(.link):not(.btn-discreet):hover{
+    background:#075951
+  }
+  .btn.big{min-height:48px}
+  input,select,textarea{background:#f8fbfb}
+  input:focus-visible,select:focus-visible,textarea:focus-visible,
+  :where(a,button,[tabindex]):focus-visible{outline-color:#0d8c81}
+  thead th{background:#e5f1f2;color:var(--text)}
+  th,td{border-bottom-color:#dcebec}
+  tbody tr:nth-child(even) td{background:#f5faf9}
+  tbody tr:hover td{background:#e9f6f3}
+  .badge:not(.warn):not(.danger):not(.ok){
+    background:#e2f3f0;border-color:#afd7d0;color:#175c56
+  }
+  .page-legal .stack{color:var(--text)}
+  .footer a:hover{text-decoration:underline}
+  @media(max-width:600px){
+    .nav{min-height:60px}
+    .logo-badge-img{height:50px}
+    .home-intro{padding-inline:14px}
+    .tiles-grid{gap:14px;margin-top:16px}
+    .cause-tile{padding:16px;min-height:235px}
+  }
 </style>
    <script>
      document.addEventListener('DOMContentLoaded', () => {
@@ -2240,7 +2344,7 @@ def home():
       </div>
     {% endmacro %}
 
-    <div class="hero" style="text-align:center;align-items:center;">
+    <div class="hero home-intro" style="text-align:center;align-items:center;">
       <h1 class="section-title">Choose a Charity to Support</h1>
       <p class="muted section-subtitle">
         Your contribution matters. Select a charity below to ensure your ticket donation supports a cause you believe in.
@@ -2260,8 +2364,8 @@ def home():
     {% if tiles_past and (tiles_past|length) > 0 %}
       <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
-      <div class="hero" style="text-align:center;align-items:center;">
-        <h1 class="section-title">Past Campaigns</h1>
+      <div class="hero home-section-heading" style="text-align:center;align-items:center;">
+        <h2 class="section-title">Past Campaigns</h2>
         <p class="muted section-subtitle">
           Some of the campaigns we have worked on in the past
         </p>
@@ -2276,8 +2380,8 @@ def home():
 
     <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
-    <div class="hero" style="text-align:center;align-items:center;">
-      <h1 class="section-title">How Get My Number Works</h1>
+    <div class="hero home-section-heading" style="text-align:center;align-items:center;">
+      <h2 class="section-title">How Get My Number Works</h2>
       <p class="muted section-subtitle">
         A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
       </p>
