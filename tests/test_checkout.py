@@ -55,6 +55,8 @@ class FixedPriceCheckoutTest(unittest.TestCase):
                 with client.session_transaction() as session:
                     session["admin_ok"] = True
                 self.assertEqual(client.post(f"/admin/entry/{reserved_id}/toggle-paid").status_code, 409)
+                edit = client.get("/admin/charity/checkout-test")
+                self.assertIn(b\'value="5.50"\', edit.data)
                 result = client.get("/checkout-test/success?session_id=cs_test")
                 self.assertEqual(result.status_code, 200)
                 self.assertIn(b"5.50", result.data)
