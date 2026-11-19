@@ -46,7 +46,11 @@ class StripeConnectTest(unittest.TestCase):
                 self.assertEqual(params["defaults"]["responsibilities"]["losses_collector"], "stripe")
                 link = core.account_links.create.call_args.args[0]
                 self.assertEqual(link["account"], "acct_test")
-                self.assertEqual(link["use_case"]["account_onboarding"]["configurations"], ["merchant"])
+                self.assertEqual(link["use_case"]["type"], "account_onboarding")
+                self.assertEqual(link["use_case"]["account_onboarding"], {
+                    "refresh_url": "http://localhost/admin/charity/connect-test?stripe=refresh",
+                    "return_url": "http://localhost/admin/charity/connect-test?stripe=return",
+                })
 
     def test_installed_sdk_exposes_v2_onboarding(self):
         core = stripe.StripeClient("sk_test_fixture").v2.core
