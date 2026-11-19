@@ -593,7 +593,7 @@ LAYOUT = """
     padding:16px;
     display:flex;
     flex-direction:column;
-    min-height: 360px;
+    min-height: 290px;
   }
 
   .cause-top{
@@ -1568,6 +1568,7 @@ LAYOUT = """
 
  
   /* Shared finish for public pages, checkout, and management views. */
+  html{overflow-x:clip}
   body{line-height:1.5}
   .nav{
     border-top:3px solid var(--brand);
