@@ -299,8 +299,7 @@ class Entry(db.Model):
 
 class FixedCheckout(db.Model):
     token = db.Column(db.String(32), primary_key=True)
-    entry_id = db.Column(db.Integer, db.ForeignKey("entry.id", ondelete="CASCADE"),
-                         nullable=False, unique=True)
+    entry_id = db.Column(db.Integer, db.ForeignKey("entry.id", ondelete="CASCADE"), unique=True)
     amount_pence = db.Column(db.Integer, nullable=False)
     stripe_account_id = db.Column(db.String(64), nullable=False)
 
@@ -4563,11 +4562,14 @@ def stripe_webhook():
                 return ("OK", 200)
             if kind == "checkout.session.expired":
                 if stripe_field(intent, "status") == "expired" and stripe_field(intent, "payment_status") == "unpaid":
-                    removed = Entry.query.filter_by(
+                    entry = Entry.query.filter_by(
                         id=reservation.entry_id, payment_intent_id=f"pending:{token}", paid=False
-                    ).delete(synchronize_session=False)
-                    if removed:
-                        FixedCheckout.query.filter_by(token=token).delete(synchronize_session=False)
+                    ).with_for_update().first()
+                    if entry:
+                        # Keep the token so retrying an expired Checkout cannot reserve again.
+                        reservation.entry = None
+                        db.session.flush()
+                        db.session.delete(entry)
                     db.session.commit()
             elif not reconcile_fixed_checkout(reservation, account, intent):
                 app.logger.error("Could not reconcile fixed checkout for a verified Stripe event")
