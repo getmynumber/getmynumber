@@ -44,6 +44,7 @@ class FixedPriceCheckoutTest(unittest.TestCase):
                 ])
                 start = client.post("/checkout-test/start-hold")
                 self.assertEqual(start.location, "https://example.com/checkout")
+                self.assertNotIn("payment_method_types", create.call_args.kwargs)
                 self.assertEqual(create.call_args.kwargs["stripe_account"], "acct_test")
                 self.assertEqual(create.call_args.kwargs["line_items"][0]["price_data"]["unit_amount"], 550)
                 result = client.get("/checkout-test/success?session_id=cs_test")
