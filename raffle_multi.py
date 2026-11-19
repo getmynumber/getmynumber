@@ -4069,7 +4069,8 @@ def success(slug):
                 name=pending.get("name"),
                 email=pending.get("email"),
                 phone=pending.get("phone"),
-                number=number,
+                number=num,
+                stripe_account_id=acct,
                 earmark_arm=(pending.get("earmark_arm") or None),
                 payment_intent_id=payment_intent["id"],
                 hold_amount_pence=int(payment_intent["amount"] or 0),
@@ -4115,11 +4116,13 @@ def success(slug):
             stripe_account=acct,
         )
         if charges.data:
-            receipt_url = charges.data[0].get("receipt_url")
+            receipt_url = getattr(charges.data[0], "receipt_url", None)
     except Exception as e:
         app.logger.warning(f"Could not fetch receipt_url for fixed success: {e}")
 
-    paid_gbp = int(((payment_intent["amount_received"] if "amount_received" in payment_intent else payment_intent["amount"]) or 0) // 100)
+    paid_pence = int((payment_intent["amount_received"] if "amount_received" in payment_intent else payment_intent["amount"]) or 0)
+    pounds, pence = divmod(paid_pence, 100)
+    paid_gbp = f"{pounds}.{pence:02d}"
 
     ticks_block_final = build_ticks_block([
         f"Paid &pound;<strong>{paid_gbp}</strong> to <strong>{charity.name}</strong>",
@@ -4329,7 +4332,7 @@ def confirm_payment(entry_id):
         )
         if charges.data:
             charge = charges.data[0]
-            receipt_url = charge.get("receipt_url") or getattr(charge, "receipt_url", None)
+            receipt_url = getattr(charge, "receipt_url", None)
             app.logger.info(f"Stripe receipt_url for entry {entry.id}: {receipt_url}")
     except Exception as e:
         app.logger.warning(
@@ -4565,7 +4568,7 @@ def stripe_webhook():
                             stripe_account=acct if acct else None,
                         )
                         if charges.data:
-                            receipt_url = charges.data[0].get("receipt_url")
+                            receipt_url = getattr(charges.data[0], "receipt_url", None)
                     except Exception:
                         receipt_url = None
 
