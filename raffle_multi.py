@@ -4886,7 +4886,6 @@ def admin_connect_stripe(slug):
                 "use_case": {
                     "type": "account_onboarding",
                     "account_onboarding": {
-                        "configurations": ["merchant"],
                         "refresh_url": refresh_url,
                         "return_url": return_url,
                     },
