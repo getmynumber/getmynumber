@@ -49,7 +49,12 @@ class FixedPriceCheckoutTest(unittest.TestCase):
                 self.assertEqual(create.call_args.kwargs["stripe_account"], "acct_test")
                 self.assertEqual(create.call_args.kwargs["line_items"][0]["price_data"]["unit_amount"], 550)
                 with app.app_context():
-                    self.assertFalse(db.session.get(FixedCheckout, "a" * 32).entry.paid)
+                    reserved_entry = db.session.get(FixedCheckout, "a" * 32).entry
+                    self.assertFalse(reserved_entry.paid)
+                    reserved_id = reserved_entry.id
+                with client.session_transaction() as session:
+                    session["admin_ok"] = True
+                self.assertEqual(client.post(f"/admin/entry/{reserved_id}/toggle-paid").status_code, 409)
                 result = client.get("/checkout-test/success?session_id=cs_test")
                 self.assertEqual(result.status_code, 200)
                 self.assertIn(b"5.50", result.data)
@@ -112,6 +117,6 @@ class FixedPriceCheckoutTest(unittest.TestCase):
                                            "metadata": {"reservation_token": "c" * 32}}
                 self.assertEqual(webhook_client.post("/stripe/webhook").status_code, 200)
                 with app.app_context():
-                    self.assertIsNone(db.session.get(FixedCheckout, "c" * 32))
+                    self.assertIsNone(db.session.get(FixedCheckout, "c" * 32).entry_id)
                     charity = Charity.query.filter_by(slug="recover-test").one()
                     self.assertEqual(Entry.query.filter_by(charity_id=charity.id).count(), 1)
