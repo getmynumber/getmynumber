@@ -3488,18 +3488,6 @@ def hold_success(slug):
 
     payment_intent = checkout_session["payment_intent"]
 
-    # ✅ Refresh-safe: if an Entry already exists for this PaymentIntent, reuse it
-    existing = None
-    try:
-        pi_id = payment_intent["id"] if payment_intent else None
-        if pi_id:
-            existing = Entry.query.filter_by(
-                charity_id=charity.id,
-                payment_intent_id=pi_id
-            ).first()
-    except Exception:
-        existing = None
-
     # For a hold, the PaymentIntent should be authorised
     valid_statuses = ("requires_capture", "succeeded")
     if not payment_intent or payment_intent["status"] not in valid_statuses:
@@ -3510,27 +3498,23 @@ def hold_success(slug):
         flash("Donation not completed. Please try again.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    # Get the details we stored before redirecting to Stripe
-    pending = session.get("pending_entry")
-    if not pending or pending.get("slug") != charity.slug:
-        flash("We could not find your details. Please start again.")
-        return redirect(url_for("charity_page", slug=charity.slug))
-
-    name = pending["name"]
-    email = pending["email"]
-    phone = pending["phone"]
-
     existing = Entry.query.filter_by(
         charity_id=charity.id,
         payment_intent_id=payment_intent["id"],
     ).first()
-
-    # ✅ If we already created the entry earlier (refresh/back), reuse it.
     if existing:
+        if session.get("reveal_entry_id") != existing.id:
+            abort(403)
+        if existing.paid:
+            flash("This entry has already been confirmed.")
+            return redirect(url_for("charity_page", slug=charity.slug))
         entry = existing
-        session["reveal_entry_id"] = entry.id  # keep your reveal API working
     else:
-        # ---- your existing "create Entry" logic stays the same ----
+        pending = session.get("pending_entry")
+        if not pending or pending.get("slug") != charity.slug:
+            flash("We could not find your details. Please start again.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+
         name = pending["name"]
         email = pending["email"]
         phone = pending["phone"]
@@ -4190,13 +4174,8 @@ def api_reveal_number(entry_id):
     if session.get("reveal_entry_id") != entry_id:
         return jsonify({"ok": False, "error": "Not authorised"}), 403
 
-    # Block repeat reveals (prevents spamming / changing number attempts)
-    if session.get("revealed_entry_id") == entry_id:
-        return jsonify({"ok": False, "error": "Number already revealed"}), 409
-
+    # The number is already stored, so a retry can return the same number.
     e = Entry.query.get_or_404(entry_id)
-
-    session["revealed_entry_id"] = entry_id
 
     return jsonify({
         "ok": True,
