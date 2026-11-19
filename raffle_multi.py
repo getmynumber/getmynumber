@@ -14,6 +14,7 @@ from flask import (
 )
 import os, random, csv, io, json
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint, inspect, text
 from sqlalchemy.exc import IntegrityError
@@ -1901,7 +1902,7 @@ def get_connect_status(acct_id):
         return {"ok": False}
 
 def apply_scheduled_status_updates(c: Charity):
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Europe/London")).replace(tzinfo=None)
 
     # Auto go live
     if getattr(c, "auto_live_enabled", False) and getattr(c, "auto_live_at", None):
@@ -1911,13 +1912,12 @@ def apply_scheduled_status_updates(c: Charity):
             if not acct.startswith("acct_"):
                 app.logger.error(f"Auto-live blocked for {c.slug}: no Stripe connected account.")
                 c.auto_live_enabled = False
-                return
-
-            c.campaign_status = "live"
-            c.is_live = True
-            c.is_sold_out = False
-            c.is_coming_soon = False
-            c.auto_live_enabled = False
+            else:
+                c.campaign_status = "live"
+                c.is_live = True
+                c.is_sold_out = False
+                c.is_coming_soon = False
+                c.auto_live_enabled = False
 
     # Auto end
     if getattr(c, "auto_end_enabled", False) and getattr(c, "auto_end_at", None):
@@ -3361,6 +3361,10 @@ def start_hold(slug):
     if getattr(charity, "skill_enabled", False) and not session.get("skill_passed"):
         return redirect(url_for("skill_gate", slug=charity.slug))
 
+    if charity.campaign_status != "live" or not available_numbers(charity):
+        flash("This campaign is no longer accepting entries.")
+        return redirect(url_for("charity_page", slug=charity.slug))
+
     hold_amount_pence = int(pending.get("hold_amount_pence") or 0)
 
     # Enforce minimum hold = max_number * 100 (always)
@@ -4211,6 +4215,9 @@ def confirm_payment(entry_id):
     - The rest of the authorised amount is released by the bank.
     - Then fetches the related Charge from Stripe to get a receipt_url.
     """
+    if session.get("reveal_entry_id") != entry_id:
+        abort(403)
+
     entry = Entry.query.get_or_404(entry_id)
     charity = Charity.query.get_or_404(entry.charity_id)
     held = int(entry.hold_amount_pence or 0)
@@ -4333,7 +4340,6 @@ def confirm_payment(entry_id):
         if charges.data:
             charge = charges.data[0]
             receipt_url = getattr(charge, "receipt_url", None)
-            app.logger.info(f"Stripe receipt_url for entry {entry.id}: {receipt_url}")
     except Exception as e:
         app.logger.warning(
             f"Could not fetch charge/receipt_url for entry {entry.id}: {e}"
@@ -4457,6 +4463,9 @@ def no_donation_done(entry_id):
 
 @app.route("/entry/<int:entry_id>/continue-without-donating", methods=["POST"])
 def continue_without_donating(entry_id):
+    if session.get("reveal_entry_id") != entry_id:
+        abort(403)
+
     entry = Entry.query.get_or_404(entry_id)
     charity = Charity.query.get_or_404(entry.charity_id)
 
@@ -4527,68 +4536,46 @@ def continue_without_donating(entry_id):
 
 @app.route("/stripe/webhook", methods=["POST"])
 def stripe_webhook():
-    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
-    payload = request.data
-    sig_header = request.headers.get("Stripe-Signature", "")
-
-    # For Connect webhooks, Stripe will include this header for events from connected accounts
-    connected_acct = request.headers.get("Stripe-Account", None)
-
+    secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+    if not secret:
+        app.logger.error("Stripe webhook signing secret is missing")
+        return ("Webhook unavailable", 503)
     try:
-        if webhook_secret:
-            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-        else:
-            # Not recommended for live: allows unsigned events
-            event = json.loads(payload)
-    except Exception as e:
-        app.logger.exception(e)
+        event = stripe.Webhook.construct_event(
+            request.data, request.headers.get("Stripe-Signature", ""), secret
+        )
+    except (ValueError, stripe.SignatureVerificationError):
         return ("Bad webhook signature", 400)
 
-    event_type = event["type"]
-    obj = event["data"]["object"]
+    if event["type"] != "payment_intent.succeeded":
+        return ("OK", 200)
 
-    # --- Payment succeeded (after capture) ---
-    if event_type == "payment_intent.succeeded":
-        try:
-            md = obj.get("metadata", {}) or {}
-            entry_id = md.get("entry_id")
-            if entry_id:
-                entry = Entry.query.get(int(entry_id))
-                if entry and not entry.paid:
-                    entry.paid = True
-                    entry.paid_at = datetime.utcnow()
+    account = getattr(event, "account", None)
+    intent = event["data"]["object"]
+    intent_id = intent["id"]
+    if not account:
+        return ("OK", 200)
+    try:
+        matches = Entry.query.filter_by(payment_intent_id=intent_id).all()
+        matches = [
+            entry for entry in matches
+            if (entry.stripe_account_id or entry.charity.stripe_account_id) == account
+        ]
+        if len(matches) != 1:
+            return ("OK", 200)
 
-                    # Best effort: fetch receipt_url
-                    receipt_url = None
-                    try:
-                        acct = connected_acct or getattr(entry, "stripe_account_id", None)
-                        charges = stripe.Charge.list(
-                            payment_intent=obj.get("id"),
-                            limit=1,
-                            stripe_account=acct if acct else None,
-                        )
-                        if charges.data:
-                            receipt_url = getattr(charges.data[0], "receipt_url", None)
-                    except Exception:
-                        receipt_url = None
-
-                    if receipt_url:
-                        entry.receipt_url = receipt_url  # only if you have this column
-                    db.session.commit()
-        except Exception as e:
-            app.logger.exception(e)
-
-    # --- Optional: payment failed ---
-    elif event_type == "payment_intent.payment_failed":
-        # You can log / notify if you want
-        pass
-
-    # --- Optional: checkout completed (authorisation done) ---
-    elif event_type == "checkout.session.completed":
-        # Typically not needed for you because you already handle hold_success()
-        pass
+        entry = matches[0]
+        if not entry.paid:
+            entry.paid = True
+            entry.paid_at = datetime.utcnow()
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Could not reconcile Stripe payment")
+        return ("Payment reconciliation failed", 500)
 
     return ("OK", 200)
+
 
 @app.route("/<slug>/donation-success")
 def donation_success(slug):
@@ -6182,11 +6169,18 @@ def toggle_paid(entry_id):
     if not (session.get("admin_ok") or session.get("partner_ok")):
         return redirect(url_for("admin_charities"))
     e = Entry.query.get_or_404(entry_id)
+    is_admin = bool(session.get("admin_ok"))
+    if not is_admin and not partner_guard(e.charity.slug):
+        abort(403)
     e.paid = not e.paid
     e.paid_at = datetime.utcnow() if e.paid else None
     db.session.commit()
-    next_url = request.args.get("next") or url_for("admin_charity_entries", slug=e.charity.slug)
-    return redirect(next_url)
+    endpoint = "admin_charity_entries" if is_admin else "partner_entries"
+    entries_url = url_for(endpoint, slug=e.charity.slug)
+    next_url = request.args.get("next", "")
+    if next_url.split("?", 1)[0] == entries_url:
+        return redirect(next_url)
+    return redirect(entries_url)
 
 @app.route("/admin/charity/<slug>/entries/bulk", methods=["POST"])
 def admin_bulk_entries(slug):
@@ -6770,13 +6764,6 @@ with app.app_context():
         db.session.commit()
         print("Seeded default charity: /thekehilla")
 
-    thek = Charity.query.filter_by(slug="thekehilla").first()
-    if thek and not CharityUser.query.filter_by(charity_id=thek.id, username="kehilla").first():
-        u = CharityUser(charity_id=thek.id, username="kehilla")
-        u.set_password("change_me_now")
-        db.session.add(u); db.session.commit()
-        print("Seeded charity user: username=kehilla / password=change_me_now")
-
 # ====================== PUBLIC PAGES ADDED LATER ======================
 @app.route("/charities", methods=["GET"])
 def charities():
@@ -6802,6 +6789,16 @@ def charities():
     </div>
     """
     return render(body, rows=rows, title="Choose a charity")
+
+
+@app.route("/healthz", methods=["GET"])
+def healthz():
+    try:
+        db.session.execute(text("SELECT 1 FROM charity LIMIT 1"))
+    except Exception:
+        db.session.rollback()
+        return ("Database unavailable", 503)
+    return ("OK", 200)
 
 
 @app.route("/how-it-works", methods=["GET"])
