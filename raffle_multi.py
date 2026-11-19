@@ -1889,12 +1889,12 @@ def get_connect_status(acct_id):
 
     try:
         a = stripe.Account.retrieve(acct_id)
-        req = a.get("requirements", {}) or {}
-        due = req.get("currently_due", []) or []
+        req = getattr(a, "requirements", None)
+        due = getattr(req, "currently_due", None) or []
         return {
             "ok": True,
-            "charges_enabled": bool(a.get("charges_enabled")),
-            "payouts_enabled": bool(a.get("payouts_enabled")),
+            "charges_enabled": bool(getattr(a, "charges_enabled", False)),
+            "payouts_enabled": bool(getattr(a, "payouts_enabled", False)),
             "due": due,
         }
     except Exception as e:
@@ -4850,43 +4850,58 @@ def admin_connect_stripe(slug):
         return redirect(url_for("admin_charities"))
 
     charity = Charity.query.filter_by(slug=slug).first_or_404()
+    edit_url = url_for("edit_charity", slug=slug, _external=True)
+    refresh_url = edit_url + "?stripe=refresh"
+    return_url = edit_url + "?stripe=return"
 
-    # 1) Create connected account if it doesn't exist
-    if not charity.stripe_account_id:
-        acct = stripe.Account.create(
-            type="express",
-            country="GB",
-            capabilities={
-                "card_payments": {"requested": True},
-                "transfers": {"requested": True},
-            },
-            metadata={
-                "charity_slug": charity.slug,
-                "charity_name": charity.name,
-            },
-        )
-        charity.stripe_account_id = acct["id"]
-        db.session.commit()
+    try:
+        client = stripe.StripeClient(STRIPE_SECRET_KEY)
+        account_id = charity.stripe_account_id
+        if not account_id:
+            account = client.v2.core.accounts.create({
+                "display_name": charity.name,
+                "dashboard": "full",
+                "identity": {"country": "GB"},
+                "defaults": {"responsibilities": {
+                    "fees_collector": "stripe",
+                    "losses_collector": "stripe",
+                }},
+                "configuration": {"merchant": {"capabilities": {
+                    "card_payments": {"requested": True},
+                }}},
+                "metadata": {"getmynumber_onboarding": "v2", "charity_slug": slug},
+            }, options={"idempotency_key": f"getmynumber-connect-v2-{charity.id}-{slug}"})
+            account_id = account.id
+            charity.stripe_account_id = account_id
+            db.session.commit()
+            use_v2 = True
+        else:
+            account = stripe.Account.retrieve(account_id)
+            metadata = getattr(account, "metadata", None)
+            use_v2 = getattr(metadata, "getmynumber_onboarding", None) == "v2"
 
-    # 2) Generate Stripe onboarding link
-    refresh_url = url_for(
-        "edit_charity",
-        slug=charity.slug,
-        _external=True
-    ) + "?stripe=refresh"
-
-    return_url = url_for(
-        "edit_charity",
-        slug=charity.slug,
-        _external=True
-    ) + "?stripe=return"
-
-    link = stripe.AccountLink.create(
-        account=charity.stripe_account_id,
-        refresh_url=refresh_url,
-        return_url=return_url,
-        type="account_onboarding",
-    )
+        if use_v2:
+            link = client.v2.core.account_links.create({
+                "account": account_id,
+                "use_case": {
+                    "type": "account_onboarding",
+                    "account_onboarding": {
+                        "configurations": ["merchant"],
+                        "refresh_url": refresh_url,
+                        "return_url": return_url,
+                    },
+                },
+            })
+        else:
+            link = stripe.AccountLink.create(
+                account=account_id, refresh_url=refresh_url,
+                return_url=return_url, type="account_onboarding",
+            )
+    except stripe.StripeError as exc:
+        app.logger.warning("Stripe Connect failed (%s, request %s)",
+                           exc.code or type(exc).__name__, exc.request_id)
+        flash("Stripe could not start onboarding. Check your Stripe Connect setup and try again.", "error")
+        return redirect(url_for("edit_charity", slug=slug))
 
     return redirect(link["url"])
 
