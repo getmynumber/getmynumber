@@ -3389,6 +3389,21 @@ def reserve_fixed_checkout(charity, pending, token, account, amount):
     return None
 
 
+def pending_fixed_entry(entry):
+    return (entry.payment_intent_id or "").startswith("pending:")
+
+
+def mutable_entries(query):
+    return query.filter(Entry.payment_intent_id.is_(None)
+                        | ~Entry.payment_intent_id.startswith("pending:"))
+
+
+def delete_entries(query):
+    entry_ids = query.with_entities(Entry.id)
+    FixedCheckout.query.filter(FixedCheckout.entry_id.in_(entry_ids)).delete(synchronize_session=False)
+    return query.delete(synchronize_session=False)
+
+
 def stripe_field(obj, key):
     return obj[key] if obj is not None and key in obj else None
 
@@ -3525,6 +3540,8 @@ def start_hold(slug):
             flash("We could not start the card authorisation. Please try again.")
             return redirect(url_for("charity_page", slug=charity.slug))
 
+        pending["hold_checkout_id"] = checkout.id
+        session["pending_entry"] = pending
         return redirect(checkout.url)
 
 @app.route("/<slug>/hold-success")
@@ -3594,6 +3611,9 @@ def hold_success(slug):
         if not pending or pending.get("slug") != charity.slug:
             flash("We could not find your details. Please start again.")
             return redirect(url_for("charity_page", slug=charity.slug))
+
+        if pending.get("hold_checkout_id") != session_id:
+            abort(403)
 
         name = pending["name"]
         email = pending["email"]
@@ -4984,7 +5004,11 @@ def admin_delete_charity(slug):
         return redirect(url_for("admin_charities"))
 
     # Delete dependent rows first (no cascade defined)
-    Entry.query.filter_by(charity_id=c.id).delete(synchronize_session=False)
+    entries = Entry.query.filter_by(charity_id=c.id)
+    if entries.filter(Entry.payment_intent_id.startswith("pending:")).first():
+        flash("This campaign still has payment reservations. Wait for them to finish before deleting it.")
+        return redirect(url_for("admin_charities"))
+    delete_entries(entries)
     CharityUser.query.filter_by(charity_id=c.id).delete(synchronize_session=False)
 
     db.session.delete(c)
@@ -5907,9 +5931,11 @@ def admin_edit_entry(slug, entry_id):
         earmark_opts = []
 
     if request.method == "POST":
+        if pending_fixed_entry(e):
+            abort(409, "This entry has a pending Stripe checkout.")
         e.name = request.form.get("name", e.name).strip()
         e.email = request.form.get("email", e.email).strip()
-        e.phone = request.form.get("phone", e.phone).strip()
+        e.phone = (request.form.get("phone", e.phone) or "").strip()
 
         earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
         if (not earmark_arm) or (earmark_arm not in earmark_opts):
@@ -5974,7 +6000,9 @@ def admin_delete_entry(slug, entry_id):
     if e.charity_id != charity.id:
         abort(403)
 
-    db.session.delete(e)
+    if pending_fixed_entry(e):
+        abort(409, "This entry has a pending Stripe checkout.")
+    delete_entries(Entry.query.filter_by(id=e.id))
     db.session.commit()
     return redirect(url_for("admin_charity_entries", slug=charity.slug))
 
@@ -6065,6 +6093,10 @@ def admin_charity_entries_import_csv(slug):
             skipped += 1
             continue
 
+        if not 1 <= number <= charity.max_number:
+            skipped += 1
+            continue
+
         # Only import rows for THIS charity
         row_slug = (row.get("charity_slug") or "").strip()
         if row_slug and row_slug != charity.slug:
@@ -6106,6 +6138,9 @@ def admin_charity_entries_import_csv(slug):
 
         # Upsert based on unique constraint (charity_id, number)
         existing = Entry.query.filter_by(charity_id=charity.id, number=number).first()
+        if (existing and pending_fixed_entry(existing)) or (payment_intent_id or "").startswith("pending:"):
+            skipped += 1
+            continue
         if existing:
             existing.name = name or existing.name
             existing.email = email or existing.email
@@ -6185,6 +6220,8 @@ def toggle_paid(entry_id):
     is_admin = bool(session.get("admin_ok"))
     if not is_admin and not partner_guard(e.charity.slug):
         abort(403)
+    if pending_fixed_entry(e):
+        abort(409, "This entry has a pending Stripe checkout.")
     e.paid = not e.paid
     e.paid_at = datetime.utcnow() if e.paid else None
     db.session.commit()
@@ -6201,7 +6238,7 @@ def admin_bulk_entries(slug):
     charity = Charity.query.filter_by(slug=slug).first_or_404()
     ids = request.form.getlist("ids"); action = request.form.get("action")
     if not ids or not action: return redirect(url_for("admin_charity_entries", slug=slug))
-    q = Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids))
+    q = mutable_entries(Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids)))
     now = datetime.now()
     if action == "mark_paid":
         for e in q.all(): e.paid = True; e.paid_at = now
@@ -6210,7 +6247,7 @@ def admin_bulk_entries(slug):
         for e in q.all(): e.paid = False; e.paid_at = None
         db.session.commit()
     elif action == "delete":
-        q.delete(synchronize_session=False); db.session.commit()
+        delete_entries(q); db.session.commit()
     return redirect(url_for("admin_charity_entries", slug=slug))
 
 # ====== ADMIN: PARTNER USERS ==================================================
@@ -6562,9 +6599,11 @@ def partner_edit_entry(slug, entry_id):
     except Exception:
         earmark_opts = []
     if request.method == "POST":
+        if pending_fixed_entry(e):
+            abort(409, "This entry has a pending Stripe checkout.")
         e.name = request.form.get("name", e.name).strip()
         e.email = request.form.get("email", e.email).strip()
-        e.phone = request.form.get("phone", e.phone).strip()
+        e.phone = (request.form.get("phone", e.phone) or "").strip()
         earmark_arm = (request.form.get("earmark_arm") or "").strip() or None
         if (not earmark_arm) or (earmark_arm not in earmark_opts):
             earmark_arm = None
@@ -6615,7 +6654,9 @@ def partner_delete_entry(slug, entry_id):
     if not charity: return redirect(url_for("partner_login"))
     e = Entry.query.get_or_404(entry_id)
     if e.charity_id != charity.id: abort(403)
-    db.session.delete(e); db.session.commit()
+    if pending_fixed_entry(e):
+        abort(409, "This entry has a pending Stripe checkout.")
+    delete_entries(Entry.query.filter_by(id=e.id)); db.session.commit()
     return redirect(url_for("partner_entries", slug=charity.slug))
 
 @app.route("/partner/<slug>/entries/bulk", methods=["POST"])
@@ -6624,7 +6665,7 @@ def partner_bulk_entries(slug):
     if not charity: return redirect(url_for("partner_login"))
     ids = request.form.getlist("ids"); action = request.form.get("action")
     if not ids or not action: return redirect(url_for("partner_entries", slug=slug))
-    q = Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids))
+    q = mutable_entries(Entry.query.filter(Entry.charity_id == charity.id, Entry.id.in_(ids)))
     now = datetime.now()
     if action == "mark_paid":
         for e in q.all(): e.paid = True; e.paid_at = now
@@ -6633,7 +6674,7 @@ def partner_bulk_entries(slug):
         for e in q.all(): e.paid = False; e.paid_at = None
         db.session.commit()
     elif action == "delete":
-        q.delete(synchronize_session=False); db.session.commit()
+        delete_entries(q); db.session.commit()
     return redirect(url_for("partner_entries", slug=slug))
 
 # ====== (Optional) MANUAL MIGRATION ==========================================
