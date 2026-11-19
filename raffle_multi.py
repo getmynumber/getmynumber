@@ -3509,6 +3509,7 @@ def hold_success(slug):
             flash("This entry has already been confirmed.")
             return redirect(url_for("charity_page", slug=charity.slug))
         entry = existing
+        name = entry.name
     else:
         pending = session.get("pending_entry")
         if not pending or pending.get("slug") != charity.slug:
