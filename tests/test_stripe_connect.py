@@ -23,7 +23,7 @@ class StripeConnectTest(unittest.TestCase):
 
     def test_new_account_and_retry_after_link_failure(self):
         with (
-            patch("raffle_multi.stripe.StripeClient", autospec=True) as factory,
+            patch("raffle_multi.stripe.StripeClient") as factory,
             patch("raffle_multi.stripe.Account.retrieve") as retrieve,
         ):
             with patch("raffle_multi.STRIPE_SECRET_KEY", "sk_test_fixture"):
@@ -48,12 +48,17 @@ class StripeConnectTest(unittest.TestCase):
                 self.assertEqual(link["account"], "acct_test")
                 self.assertEqual(link["use_case"]["account_onboarding"]["configurations"], ["merchant"])
 
+    def test_installed_sdk_exposes_v2_onboarding(self):
+        core = stripe.StripeClient("sk_test_fixture").v2.core
+        self.assertTrue(callable(core.accounts.create))
+        self.assertTrue(callable(core.account_links.create))
+
     def test_existing_legacy_account_keeps_v1_link(self):
         with app.app_context():
             Charity.query.filter_by(slug="connect-test").one().stripe_account_id = "acct_legacy"
             db.session.commit()
         with (
-            patch("raffle_multi.stripe.StripeClient", autospec=True),
+            patch("raffle_multi.stripe.StripeClient"),
             patch("raffle_multi.stripe.Account.retrieve", return_value=NS(metadata=None)),
             patch("raffle_multi.stripe.AccountLink.create", return_value={"url": "https://accounts.stripe.com/legacy"}) as link,
         ):
