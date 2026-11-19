@@ -3390,6 +3390,8 @@ def reserve_fixed_checkout(charity, pending, token, account, amount):
 
 
 def price_to_pence(value, fallback=0):
+    if value is None:
+        return fallback
     try:
         pence = Decimal(value or "0") * 100
         if pence.is_finite() and 0 <= pence <= 99_999_999 and pence == int(pence):
@@ -5409,7 +5411,7 @@ def edit_charity(slug):
       <label style="margin-top:10px;display:block;">
         Fixed ticket price (£) <span class="muted" style="font-size:12px;">(only required if Fixed Price Mode is enabled)</span>
         <input type="number" min="0" step="0.01" name="fixed_ticket_price_gbp"
-               value="{{ (charity.fixed_ticket_price_pence or 0) }}">
+               value="{{ charity.fixed_ticket_price_pence|pounds }}">
       </label>
 
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
