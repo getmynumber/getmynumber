@@ -13,6 +13,7 @@ from flask import (
     url_for, session, flash, abort, Response, send_file, jsonify
 )
 import os, random, csv, io, json
+from uuid import uuid4
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from flask_sqlalchemy import SQLAlchemy
@@ -295,6 +296,16 @@ class Entry(db.Model):
         UniqueConstraint("charity_id", "payment_ref", name="uq_charity_paymentref"),
     )
     charity = db.relationship("Charity", backref="entries")
+
+class FixedCheckout(db.Model):
+    token = db.Column(db.String(32), primary_key=True)
+    entry_id = db.Column(db.Integer, db.ForeignKey("entry.id", ondelete="CASCADE"),
+                         nullable=False, unique=True)
+    amount_pence = db.Column(db.Integer, nullable=False)
+    stripe_account_id = db.Column(db.String(64), nullable=False)
+
+    entry = db.relationship("Entry")
+
 
 class CharityUser(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2543,6 +2554,7 @@ def charity_page(slug):
                 earmark_arm = None
 
             session["pending_entry"] = {
+                "checkout_token": uuid4().hex,
                 "slug": charity.slug,
                 "name": name,
                 "email": email,
@@ -3349,6 +3361,56 @@ def authorise_hold(slug):
         title=(f"{charity.name} – Checkout" if getattr(charity, "fixed_price_enabled", False) else "Authorise hold")
     )
 
+def reserve_fixed_checkout(charity, pending, token, account, amount):
+    for _ in range(12):
+        reservation = db.session.get(FixedCheckout, token)
+        if reservation:
+            entry = reservation.entry
+            if entry and entry.charity_id == charity.id:
+                return reservation
+            return None
+        number = assign_number(charity)
+        if number is None:
+            return None
+        entry = Entry(
+            charity_id=charity.id, number=number,
+            name=pending["name"], email=pending["email"], phone=pending.get("phone"),
+            earmark_arm=pending.get("earmark_arm"), stripe_account_id=account,
+            payment_intent_id=f"pending:{token}",
+        )
+        reservation = FixedCheckout(token=token, entry=entry, amount_pence=amount,
+                                    stripe_account_id=account)
+        db.session.add(reservation)
+        try:
+            db.session.commit()
+            return reservation
+        except IntegrityError:
+            db.session.rollback()
+    return None
+
+
+def stripe_field(obj, key):
+    return obj[key] if obj is not None and key in obj else None
+
+
+def reconcile_fixed_checkout(reservation, account, intent):
+    if reservation.stripe_account_id != account:
+        return None
+    if (stripe_field(intent, "status") != "succeeded" or stripe_field(intent, "currency") != "gbp"
+            or stripe_field(intent, "amount_received") != reservation.amount_pence or not stripe_field(intent, "id")):
+        return None
+    marker = f"pending:{reservation.token}"
+    Entry.query.filter_by(id=reservation.entry_id, payment_intent_id=marker, paid=False).update(
+        {"payment_intent_id": intent["id"], "paid": True, "paid_at": datetime.utcnow()},
+        synchronize_session=False,
+    )
+    db.session.commit()
+    entry = db.session.get(Entry, reservation.entry_id)
+    if entry and entry.paid and entry.payment_intent_id == intent["id"]:
+        return entry
+    return None
+
+
 @app.route("/<slug>/start-hold", methods=["POST"])
 def start_hold(slug):
     charity = get_charity_or_404(slug)
@@ -3361,7 +3423,7 @@ def start_hold(slug):
     if getattr(charity, "skill_enabled", False) and not session.get("skill_passed"):
         return redirect(url_for("skill_gate", slug=charity.slug))
 
-    if charity.campaign_status != "live" or not available_numbers(charity):
+    if charity.campaign_status != "live":
         flash("This campaign is no longer accepting entries.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
@@ -3384,10 +3446,29 @@ def start_hold(slug):
             flash("This campaign is temporarily unavailable. Please try again later.")
             return redirect(url_for("charity_page", slug=charity.slug))
 
+        token = pending.get("checkout_token")
+        if not token:
+            token = uuid4().hex
+            pending["checkout_token"] = token
+            session["pending_entry"] = pending
+        reservation = reserve_fixed_checkout(charity, pending, token, acct, price_pence)
+        if not reservation:
+            flash("No tickets are available. Please start again.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+        if reservation.entry.paid:
+            flash("This entry is already confirmed.")
+            return redirect(url_for("charity_page", slug=charity.slug))
+        acct = reservation.stripe_account_id
+        price_pence = reservation.amount_pence
+        metadata = {"charity_slug": charity.slug, "flow": "fixed_price",
+                    "reservation_token": token}
+
         try:
             checkout = stripe.checkout.Session.create(
                 mode="payment",
-                customer_email=pending.get("email") or None,
+                customer_email=reservation.entry.email,
+                metadata=metadata,
+                idempotency_key=f"fixed-checkout-{token}",
                 line_items=[{
                     "price_data": {
                         "currency": "gbp",
@@ -3397,11 +3478,8 @@ def start_hold(slug):
                     "quantity": 1,
                 }],
                 payment_intent_data={
-                    "receipt_email": pending.get("email") or None,
-                    "metadata": {
-                        "charity_slug": charity.slug,
-                        "flow": "fixed_price",
-                    }
+                    "receipt_email": reservation.entry.email,
+                    "metadata": metadata,
                 },
                 success_url=url_for("success", slug=charity.slug, _external=True) + "?session_id={CHECKOUT_SESSION_ID}",
                 cancel_url=url_for("charity_page", slug=charity.slug, _external=True),
@@ -3414,6 +3492,9 @@ def start_hold(slug):
             return redirect(url_for("charity_page", slug=charity.slug))
 
     else:
+        if not available_numbers(charity):
+            flash("This campaign is no longer accepting entries.")
+            return redirect(url_for("charity_page", slug=charity.slug))
         # Create Stripe Checkout Session for the hold (manual capture)
         try:
             checkout = stripe.checkout.Session.create(
@@ -3985,114 +4066,34 @@ def hold_success(slug):
 
 @app.route("/<slug>/success")
 def success(slug):
-    """
-    Fixed-price success:
-      - Called as success_url of Stripe Checkout Session (immediate charge)
-      - Verifies payment succeeded
-      - Creates an Entry (assigns unique raffle number but does NOT reveal it)
-      - Marks entry paid immediately
-      - Shows a final thank-you page
-    """ 
     charity = get_charity_or_404(slug)
-
     session_id = request.args.get("session_id")
-    if not session_id:
-        flash("Missing payment information. Please try again.")
+    pending = session.get("pending_entry") or {}
+    token = pending.get("checkout_token") or session.get("confirmed_fixed_checkout")
+    reservation = db.session.get(FixedCheckout, token) if token else None
+    if (not session_id or not reservation or not reservation.entry
+            or reservation.entry.charity_id != charity.id):
+        flash("This confirmation is unavailable. If you paid, please contact support.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    pending = session.get("pending_entry")
-    if not pending or pending.get("slug") != charity.slug:
-        flash("We could not find your details. Please start again.")
-        return redirect(url_for("charity_page", slug=charity.slug))
-
-    acct = (getattr(charity, "stripe_account_id", None) or "").strip()
-
-    # Retrieve Checkout Session AND expand the PaymentIntent
+    acct = reservation.stripe_account_id
     try:
         checkout_session = stripe.checkout.Session.retrieve(
-            session_id,
-            expand=["payment_intent"],
-            stripe_account=acct,
+            session_id, expand=["payment_intent"], stripe_account=acct,
         )
-    except Exception as e:
-        app.logger.error(f"Stripe retrieve error (success fixed): {e}")
-        flash("We could not verify your payment. Please try again.")
+    except stripe.StripeError:
+        flash("We could not verify your payment yet. Please refresh to retry.")
         return redirect(url_for("charity_page", slug=charity.slug))
 
-    payment_intent = checkout_session["payment_intent"]
-    if not payment_intent or payment_intent["status"] != "succeeded":
-        flash("Payment not completed. Please try again.")
+    metadata = stripe_field(checkout_session, "metadata")
+    if stripe_field(metadata, "reservation_token") != token:
+        abort(403)
+    payment_intent = stripe_field(checkout_session, "payment_intent")
+    entry = reconcile_fixed_checkout(reservation, acct, payment_intent)
+    if not entry:
+        flash("Payment is not yet confirmed. If you paid, please contact support.")
         return redirect(url_for("charity_page", slug=charity.slug))
-
-    # ✅ Refresh-safe: reuse entry if it already exists for this PaymentIntent
-    existing = None
-    try:
-        pi_id = payment_intent["id"] if payment_intent else None
-        if pi_id:
-            existing = Entry.query.filter_by(
-                charity_id=charity.id,
-                payment_intent_id=pi_id
-            ).first()
-    except Exception:
-        existing = None
-
-    name = pending["name"]
-    email = pending["email"]
-    phone = pending["phone"]
-
-    # Create entry with unique number (not shown) — only if not already created
-    if not existing:
-        entry = None
-        max_retries = 12
-
-        for _ in range(max_retries):
-            num = assign_number(charity)
-            if not num:
-                flash("Sorry, all tickets are sold out for this campaign.")
-                return redirect(url_for("charity_page", slug=charity.slug))
-
-            entry = Entry(
-                charity_id=charity.id,
-                name=pending.get("name"),
-                email=pending.get("email"),
-                phone=pending.get("phone"),
-                number=num,
-                stripe_account_id=acct,
-                earmark_arm=(pending.get("earmark_arm") or None),
-                payment_intent_id=payment_intent["id"],
-                hold_amount_pence=int(payment_intent["amount"] or 0),
-                paid=True,
-                paid_at=datetime.utcnow(),
-            )
-            db.session.add(entry)
-            try:
-                db.session.commit()
-
-                # Attach entry_id to the PaymentIntent metadata (reconciliation)
-                try:
-                    stripe.PaymentIntent.modify(
-                        entry.payment_intent_id,
-                        receipt_email=email or None,
-                        metadata={
-                            "entry_id": str(entry.id),
-                            "charity_slug": charity.slug,
-                            "flow": "fixed_price",
-                        },
-                        stripe_account=acct,
-                    )
-                except Exception as e:
-                    app.logger.warning(f"Could not update PaymentIntent metadata (fixed success): {e}")
-
-                break
-
-            except IntegrityError:
-                db.session.rollback()
-                entry = None
-                continue
-        if not entry:
-            flash("We could not create your entry (please contact support).")
-            return redirect(url_for("charity_page", slug=charity.slug))
-    entry = existing or entry
+    session["confirmed_fixed_checkout"] = token
 
     # Receipt link (optional)
     receipt_url = None
@@ -4525,15 +4526,35 @@ def stripe_webhook():
     except (ValueError, stripe.SignatureVerificationError):
         return ("Bad webhook signature", 400)
 
-    if event["type"] != "payment_intent.succeeded":
+    kind = event["type"]
+    if kind not in ("payment_intent.succeeded", "checkout.session.expired"):
         return ("OK", 200)
 
-    account = getattr(event, "account", None)
+    account = stripe_field(event, "account")
     intent = event["data"]["object"]
     intent_id = intent["id"]
     if not account:
         return ("OK", 200)
+    token = stripe_field(stripe_field(intent, "metadata"), "reservation_token")
     try:
+        if token:
+            reservation = db.session.get(FixedCheckout, token)
+            if not reservation or reservation.stripe_account_id != account:
+                return ("OK", 200)
+            if kind == "checkout.session.expired":
+                if stripe_field(intent, "status") == "expired" and stripe_field(intent, "payment_status") == "unpaid":
+                    removed = Entry.query.filter_by(
+                        id=reservation.entry_id, payment_intent_id=f"pending:{token}", paid=False
+                    ).delete(synchronize_session=False)
+                    if removed:
+                        FixedCheckout.query.filter_by(token=token).delete(synchronize_session=False)
+                    db.session.commit()
+            elif not reconcile_fixed_checkout(reservation, account, intent):
+                app.logger.error("Could not reconcile fixed checkout for a verified Stripe event")
+                return ("Payment reconciliation failed", 500)
+            return ("OK", 200)
+        if kind != "payment_intent.succeeded":
+            return ("OK", 200)
         matches = Entry.query.filter_by(payment_intent_id=intent_id).all()
         matches = [
             entry for entry in matches
