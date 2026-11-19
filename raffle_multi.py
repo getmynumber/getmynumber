@@ -15,6 +15,7 @@ from flask import (
 import os, random, csv, io, json
 from uuid import uuid4
 from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import UniqueConstraint, inspect, text
@@ -2595,7 +2596,7 @@ def charity_page(slug):
     <div class="hero" style="text-align:center; position:relative;">
       {% if charity.fixed_price_enabled %}
         <div class="ribbon">
-          FIXED PRICE · £{{ (charity.fixed_ticket_price_pence or 0) // 100 }}
+          FIXED PRICE · £{{ charity.fixed_ticket_price_pence|pounds }}
         </div>
       {% endif %}
       {% if status == "sold_out" %}
@@ -3260,7 +3261,7 @@ def authorise_hold(slug):
     hold_gbp = int(hold_pence // 100)
 
     if getattr(charity, "fixed_price_enabled", False):
-        price_gbp = int((getattr(charity, "fixed_ticket_price_pence", 0) or 0) // 100)
+        price_gbp = format_pounds(charity.fixed_ticket_price_pence)
         ticks_block = build_ticks_block([
             f"You will be charged &pound;<strong>{price_gbp}</strong> for your ticket",
             "Payment is processed immediately by Stripe",
@@ -3386,6 +3387,22 @@ def reserve_fixed_checkout(charity, pending, token, account, amount):
         except IntegrityError:
             db.session.rollback()
     return None
+
+
+def price_to_pence(value, fallback=0):
+    try:
+        pence = Decimal(value or "0") * 100
+        if pence.is_finite() and 0 <= pence <= 99_999_999 and pence == int(pence):
+            return int(pence)
+    except (InvalidOperation, ValueError, OverflowError):
+        pass
+    return fallback
+
+
+@app.template_filter("pounds")
+def format_pounds(pence):
+    pounds, remainder = divmod(pence or 0, 100)
+    return f"{pounds}.{remainder:02d}"
 
 
 def pending_fixed_entry(entry):
@@ -4726,13 +4743,10 @@ def admin_charities():
                     existing.draw_at = draw_at
                     fixed_on = (request.form.get("fixed_price_enabled") == "1")
 
-                    try:
-                        fixed_price_gbp = int((request.form.get("fixed_ticket_price_gbp") or "0").strip() or 0)
-                    except ValueError:
-                        fixed_price_gbp = 0
+                    fixed_price_raw = request.form.get("fixed_ticket_price_gbp")
 
                     existing.fixed_price_enabled = fixed_on
-                    existing.fixed_ticket_price_pence = max(0, fixed_price_gbp * 100)
+                    existing.fixed_ticket_price_pence = price_to_pence(fixed_price_raw, existing.fixed_ticket_price_pence or 0)
                     if logo_data:
                         existing.logo_data = logo_data
                     if poster_data:
@@ -5172,11 +5186,8 @@ def edit_charity(slug):
 
         # Fixed price settings
         charity.fixed_price_enabled = bool(request.form.get("fixed_price_enabled"))
-        try:
-            fixed_price_gbp = int((request.form.get("fixed_ticket_price_gbp") or "0").strip() or 0)
-        except ValueError:
-            fixed_price_gbp = 0
-        charity.fixed_ticket_price_pence = max(0, fixed_price_gbp * 100)
+        fixed_price_raw = request.form.get("fixed_ticket_price_gbp")
+        charity.fixed_ticket_price_pence = price_to_pence(fixed_price_raw, charity.fixed_ticket_price_pence or 0)
 
         # Commit at the end so toggles persist
         if not msg:
@@ -5376,9 +5387,9 @@ def edit_charity(slug):
             • Users are charged immediately in Stripe (no temporary hold).<br>
             • Users will NOT see a number reveal.<br>
             • After Stripe Checkout they go straight to the final success page.<br>
-            {% set p = (charity.fixed_ticket_price_pence or 0) // 100 %}
-            • Current fixed price: <strong>£{{ p }}</strong>
-            {% if p < 1 %}<br><span style="color:#b14a00;"><strong>Price is invalid</strong> — set it to at least £1 or users will be blocked.</span>{% endif %}
+            {% set p = (charity.fixed_ticket_price_pence or 0) %}
+            • Current fixed price: <strong>£{{ p|pounds }}</strong>
+            {% if p < 100 %}<br><span style="color:#b14a00;"><strong>Price is invalid</strong> — set it to at least £1 or users will be blocked.</span>{% endif %}
           </div>
         </div>
       {% endif %}
@@ -5397,8 +5408,8 @@ def edit_charity(slug):
 
       <label style="margin-top:10px;display:block;">
         Fixed ticket price (£) <span class="muted" style="font-size:12px;">(only required if Fixed Price Mode is enabled)</span>
-        <input type="number" min="0" step="1" name="fixed_ticket_price_gbp"
-               value="{{ (charity.fixed_ticket_price_pence or 0) // 100 }}">
+        <input type="number" min="0" step="0.01" name="fixed_ticket_price_gbp"
+               value="{{ (charity.fixed_ticket_price_pence or 0) }}">
       </label>
 
       <label style="display:flex;gap:10px;align-items:center;margin-top:6px">
