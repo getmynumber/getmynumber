@@ -3387,7 +3387,6 @@ def start_hold(slug):
         try:
             checkout = stripe.checkout.Session.create(
                 mode="payment",
-                payment_method_types=["card"],
                 customer_email=pending.get("email") or None,
                 line_items=[{
                     "price_data": {
@@ -3419,7 +3418,6 @@ def start_hold(slug):
         try:
             checkout = stripe.checkout.Session.create(
                 mode="payment",
-                payment_method_types=["card"],
                 customer_email=pending.get("email") or None,
                 line_items=[{
                     "price_data": {
