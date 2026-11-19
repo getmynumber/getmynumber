@@ -94,3 +94,19 @@ class PaymentSafetyTest(unittest.TestCase):
 
     def test_database_health_route(self):
         self.assertEqual(self.client.get("/healthz").status_code, 200)
+
+    def test_hold_return_reuses_entry_after_refresh(self):
+        intent = {"id": "pi_safety", "status": "requires_capture", "amount": 500}
+        url = "/payment-safety-test/hold-success?session_id=cs_test"
+        with patch("raffle_multi.stripe.checkout.Session.retrieve",
+                   return_value={"payment_intent": intent}):
+            self.assertEqual(self.client.get(url).status_code, 403)
+            with self.client.session_transaction() as session:
+                session["reveal_entry_id"] = self.entry_id
+            for _ in range(2):
+                self.assertEqual(self.client.get(url).status_code, 200)
+                reveal = self.client.get(f"/api/reveal-number/{self.entry_id}")
+                self.assertEqual(reveal.status_code, 200)
+                self.assertEqual(reveal.get_json()["ticket_number"], 2)
+        with app.app_context():
+            self.assertEqual(Entry.query.filter_by(payment_intent_id="pi_safety").count(), 1)
