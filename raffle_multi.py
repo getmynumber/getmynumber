@@ -1656,111 +1656,85 @@ LAYOUT = """
   }
 
 
-  /* Teal brand, with more distinct surfaces for browsing and checkout. */
-  :root{
-    --bg:#e7f3f3;
-    --bg-soft:#e0f1ef;
-    --card-2:#f0f8f7;
-    --text:#12343b;
-    --text-soft:#43636b;
-    --muted:#46636a;
-    --brand:#08746d;
-    --brand-2:#128b81;
-    --border:#cfe3e4;
-    --shadow:0 1px 2px #103f4510,0 12px 28px #103f450c;
+  /* Keep the live palette and give the campaign directory its own layout. */
+  .directory-page{
+    --brand:#00b8a9;
+    --brand-2:#27c6d6;
+    --directory-ink:#12313d;
+    --directory-teal:#006d66;
+    background:#fff;
+    color:var(--directory-ink);
   }
-  .nav{
-    min-height:76px;
-    border-top:0;
-    box-shadow:0 1px 0 #0d676b16;
-    background:#d8eeed;
+  .directory-page .wrap{max-width:1100px;padding-inline:clamp(16px,5vw,48px)}
+  .directory-page .nav{
+    width:auto;margin-inline:0;padding-inline:0;min-height:60px;
+    margin-bottom:0;background:#fff;box-shadow:none;backdrop-filter:none;
   }
-  .logo-badge-img{height:67px}
-  .nav-links a:hover{background:var(--bg-soft)}
-  .home-page.card{
-    background:transparent;
-    border:0;
-    box-shadow:none;
-    padding:0;
+  .directory-page .logo-badge-img{height:60px}
+  .directory-page .nav-links a{color:var(--directory-ink)}
+  .directory-page .home-page.card{
+    overflow:visible;padding:0;background:#fff;border:0;box-shadow:none;border-radius:0;
   }
-  .home-intro{
-    padding:clamp(16px,3vw,32px) 0 0;
-    text-align:left;
+  .directory-nav{
+    position:sticky;top:0;z-index:10;
+    display:flex;align-items:center;gap:clamp(12px,4vw,28px);
+    background:#fff;border-bottom:1px solid #dbeae9;
   }
-  .home-intro h1.section-title{
-    font-size:clamp(27px,4.4vw,46px);
-    margin:0;
-    line-height:1.1;
-    letter-spacing:-.045em;
-    text-align:left;
+  .directory-nav a{
+    display:flex;align-items:center;min-height:48px;
+    border-bottom:2px solid transparent;
+    color:#45626a;font-size:.875rem;font-weight:650;
+    transition:color 150ms ease,border-color 150ms ease;
   }
-  .home-intro p.section-subtitle,
-  .home-section-heading p.section-subtitle{
-    max-width:60ch;
-    margin:0;
-    text-align:left !important;
+  .directory-nav a:hover,.directory-nav a[aria-current="location"]{
+    color:var(--directory-teal);border-bottom-color:var(--brand);
   }
-  .home-section-heading{padding-top:4px}
-  .home-section-heading .section-title{text-align:left;margin:0}
-  .home-page .tiles-grid{
-    grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));
-    max-width:100%;
-    gap:16px;
-    margin-top:16px;
-    justify-content:start;
+  .directory-section{
+    scroll-margin-top:66px;
+    padding-block:clamp(26px,5vw,54px);
   }
-  .home-page .tiles-grid:has(> :only-child){max-width:480px}
-  .cause-tile{
-    border:1px solid #a9d5d2;
-    padding:20px;
-    min-height:0;
-    background:#e8f5f3;
+  .directory-section + .directory-section{border-top:1px solid #dbeae9}
+  .directory-section .hero{align-items:flex-start;text-align:left;gap:8px;padding:0;margin:0}
+  .directory-section .section-title{
+    margin:0;text-align:left;line-height:1.1;letter-spacing:-.04em;
+    font-size:clamp(26px,4vw,38px);color:var(--directory-ink);
   }
-  .cause-tile:hover{border-color:#78bdb9;box-shadow:0 10px 24px #085e5e16}
-  .home-page .step-card{background:#e3f1f1;border-color:#bddddd}
-  .home-divider{
-    margin:clamp(20px,4vw,34px) 0 14px;
-    border:0;
-    border-top:1px solid #b7d7d8;
+  #campaigns .section-title{font-size:clamp(32px,5vw,52px)}
+  .directory-section .section-subtitle{
+    color:#45626a;text-align:left!important;margin:0;max-width:60ch;
   }
-  .cause-name{font-size:19px}
-  .cause-img,.step-icon{background:#e5f5f3;border-color:var(--border)}
-  .progress-fill,.flow-progress-fill,.progress > i{
-    background:linear-gradient(90deg,#08746d,#22aa9a)
+  .directory-section .tiles-grid{
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,288px),1fr));
+    justify-content:start;gap:16px;margin-top:22px;max-width:none;
   }
-  .progress-track,.flow-progress-track,.progress{
-    background:#e1efef;border-color:var(--border)
+  .directory-section .tiles-grid:has(> :only-child){max-width:490px}
+  .directory-section .cause-tile{
+    min-height:0;padding:clamp(16px,3vw,24px);background:#fff;
+    border:1px solid #c8e3e0;border-radius:16px;
+    box-shadow:0 8px 24px #12313d0a;
   }
-  .step-card{padding:18px;border-radius:14px}
-  .step-title{font-size:15px}
-  .card.secondary,.soft-panel,.countdown-card{background:var(--card-2)}
-  .layout-narrow .main-card{
-    border-top:3px solid #49a99f;
-    box-shadow:0 10px 30px #0e484b11;
+  .directory-section .cause-tile:hover{border-color:#75c9c1;box-shadow:0 12px 30px #12313d13}
+  .directory-section .cause-name{font-size:1.125rem}
+  .directory-section .cause-about,.directory-section .muted{color:#45626a}
+  .directory-section .tile-cta .btn{min-height:44px;color:var(--directory-ink)}
+  .directory-section .steps-grid{margin-top:22px}
+  .directory-section .step-card{background:#f3fbfa;border-color:#dbeae9;box-shadow:none}
+  .directory-section .step-label,.directory-page .footer a{color:var(--directory-teal)}
+  @media (max-width:430px){
+    .directory-page .logo-badge-img{height:48px}
+    .directory-nav{justify-content:space-between}
+    .directory-nav a{font-size:.8125rem}
   }
-  .layout-narrow .main-card label{margin-top:5px}
-  .btn:not(.danger):not(.secondary):not(.outline):not(.link):not(.btn-discreet):hover{
-    background:#075951
-  }
-  .btn.big{min-height:48px}
-  input,select,textarea{background:#f8fbfb}
-  input:focus-visible,select:focus-visible,textarea:focus-visible,
-  :where(a,button,[tabindex]):focus-visible{outline-color:#0d8c81}
-  thead th{background:#e5f1f2;color:var(--text)}
-  th,td{border-bottom-color:#dcebec}
-  tbody tr:nth-child(even) td{background:#f5faf9}
-  tbody tr:hover td{background:#e9f6f3}
-  .badge:not(.warn):not(.danger):not(.ok){
-    background:#e2f3f0;border-color:#afd7d0;color:#175c56
-  }
-  .page-legal .stack{color:var(--text)}
-  .footer a:hover{text-decoration:underline}
-  @media(max-width:600px){
-    .nav{min-height:60px}
-    .logo-badge-img{height:50px}
-    .home-intro{padding-top:12px;gap:6px}
-    .home-page .tiles-grid{gap:12px;margin-top:14px}
-    .cause-tile{padding:16px}
+  @media (prefers-reduced-motion:no-preference){
+    html:has(.directory-page){scroll-behavior:smooth}
+    @supports (animation-timeline:view()){
+      #how-it-works .step-card{
+        animation:directory-rise linear both;
+        animation-timeline:view();
+        animation-range:entry 0% entry 65%;
+      }
+      @keyframes directory-rise{from{transform:translateY(10px)}to{transform:translateY(0)}}
+    }
   }
 </style>
    <script>
@@ -1819,7 +1793,7 @@ LAYOUT = """
    </script>
 
    </head>
-   <body class="{{ layout_mode }}">
+   <body class="{{ layout_mode }}{% if page_class == 'home-page' %} directory-page{% endif %}">
      <div class="wrap">
        <nav class="nav">
          <a class="logo" href="{{ url_for('home') }}">
@@ -2347,12 +2321,17 @@ def home():
       </div>
     {% endmacro %}
 
-    <div class="hero home-intro">
-      <h1 class="section-title">Choose a Charity to Support</h1>
-      <p class="muted section-subtitle">
-        Pick a campaign to support a cause you care about.
-      </p>
-    </div>
+    <nav class="directory-nav" aria-label="On this page">
+      <a href="#campaigns" aria-current="location">Campaigns</a>
+      {% if tiles_past %}<a href="#past-campaigns">Past campaigns</a>{% endif %}
+      <a href="#how-it-works">How it works</a>
+    </nav>
+
+    <section class="directory-section" id="campaigns" aria-labelledby="campaigns-title">
+      <div class="hero">
+        <h1 class="section-title" id="campaigns-title">Choose a Charity to Support</h1>
+        <p class="muted section-subtitle">Choose a campaign to support a cause you care about.</p>
+      </div>
 
     <div class="tiles-grid">
             {% for t in tiles_current %}
@@ -2364,14 +2343,13 @@ def home():
       {% endfor %}
     </div>
 
-    {% if tiles_past and (tiles_past|length) > 0 %}
-      <hr class="home-divider">
+    </section>
 
-      <div class="hero home-section-heading">
-        <h2 class="section-title">Past Campaigns</h2>
-        <p class="muted section-subtitle">
-          Some of the campaigns we have worked on in the past
-        </p>
+    {% if tiles_past %}
+    <section class="directory-section" id="past-campaigns" aria-labelledby="past-campaigns-title">
+      <div class="hero">
+        <h2 class="section-title" id="past-campaigns-title">Past Campaigns</h2>
+        <p class="muted section-subtitle">Explore campaigns we’ve supported in the past.</p>
       </div>
 
       <div class="tiles-grid">
@@ -2379,16 +2357,14 @@ def home():
           {{ render_campaign_tile(t) }}
         {% endfor %}
       </div>
+    </section>
     {% endif %}
 
-    <hr class="home-divider">
-
-    <div class="hero home-section-heading">
-      <h2 class="section-title">How Get My Number Works</h2>
-      <p class="muted section-subtitle">
-        A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
-      </p>
-    </div>
+    <section class="directory-section" id="how-it-works" aria-labelledby="how-it-works-title">
+      <div class="hero">
+        <h2 class="section-title" id="how-it-works-title">How Get My Number Works</h2>
+        <p class="muted section-subtitle">For campaigns that use a temporary card hold, here’s what to expect.</p>
+      </div>
 
     <div class="steps-grid">
       <!-- keep your existing step cards exactly as they were -->
@@ -2477,6 +2453,27 @@ def home():
         </div>
       </div>
     </div>
+    </section>
+
+    <script>
+      (() => {
+        if (!('IntersectionObserver' in window)) return;
+        const links = [...document.querySelectorAll('.directory-nav a')];
+        const sections = links.map(link => document.getElementById(link.hash.slice(1)));
+        const observer = new IntersectionObserver(() => {
+          const offset = document.querySelector('.directory-nav').getBoundingClientRect().bottom + 18;
+          let current = 0;
+          sections.forEach((section, index) => {
+            if (section.getBoundingClientRect().top <= offset) current = index;
+          });
+          links.forEach((link, index) => {
+            if (index === current) link.setAttribute('aria-current', 'location');
+            else link.removeAttribute('aria-current');
+          });
+        }, {rootMargin: '-66px 0px -75% 0px'});
+        sections.forEach(section => observer.observe(section));
+      })();
+    </script>
     """
     return render(
         body,
