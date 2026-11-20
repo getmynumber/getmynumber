@@ -1658,7 +1658,7 @@ LAYOUT = """
 
   /* Teal brand, with more distinct surfaces for browsing and checkout. */
   :root{
-    --bg:#f2f8f8;
+    --bg:#e7f3f3;
     --bg-soft:#e0f1ef;
     --card-2:#f0f8f7;
     --text:#12343b;
@@ -1673,53 +1673,56 @@ LAYOUT = """
     min-height:76px;
     border-top:0;
     box-shadow:0 1px 0 #0d676b16;
-    background:#fff;
+    background:#d8eeed;
   }
   .logo-badge-img{height:67px}
   .nav-links a:hover{background:var(--bg-soft)}
+  .home-page.card{
+    background:transparent;
+    border:0;
+    box-shadow:none;
+    padding:0;
+  }
   .home-intro{
-    position:relative;
-    isolation:isolate;
-    overflow:hidden;
-    padding:clamp(32px,7vw,76px) 18px;
-    border-radius:var(--radius);
-    color:white;
-    background:linear-gradient(118deg,#075055,#087b74 76%,#188d80);
+    padding:clamp(16px,3vw,32px) 0 0;
+    text-align:left;
   }
-  .home-intro::before,.home-intro::after{
-    content:"";
-    position:absolute;
-    z-index:-1;
-    pointer-events:none;
-    width:clamp(180px,37vw,420px);
-    aspect-ratio:1;
-    border:1px solid #ffffff29;
-    border-radius:50%;
-    right:-7%;
-    top:-104%;
-  }
-  .home-intro::after{transform:translate(-14%,16%) scale(1.24)}
   .home-intro h1.section-title{
-    font-size:clamp(30px,5.4vw,58px);
+    font-size:clamp(27px,4.4vw,46px);
     margin:0;
-    max-width:18ch;
-    line-height:1.02;
-    letter-spacing:-.055em;
+    line-height:1.1;
+    letter-spacing:-.045em;
+    text-align:left;
   }
-  .home-intro p.section-subtitle{
-    color:#e4f7f5;
-    max-width:54ch;
-    margin:4px auto 0;
-    font-size:clamp(14px,1.5vw,17px);
+  .home-intro p.section-subtitle,
+  .home-section-heading p.section-subtitle{
+    max-width:60ch;
+    margin:0;
+    text-align:left !important;
   }
-  .home-section-heading{padding-top:12px}
-  .tiles-grid{gap:20px;margin-top:22px}
+  .home-section-heading{padding-top:4px}
+  .home-section-heading .section-title{text-align:left;margin:0}
+  .home-page .tiles-grid{
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));
+    max-width:100%;
+    gap:16px;
+    margin-top:16px;
+    justify-content:start;
+  }
+  .home-page .tiles-grid:has(> :only-child){max-width:480px}
   .cause-tile{
-    border-top:3px solid #4fb7ad;
+    border:1px solid #a9d5d2;
     padding:20px;
-    min-height:265px;
+    min-height:0;
+    background:#e8f5f3;
   }
   .cause-tile:hover{border-color:#78bdb9;box-shadow:0 10px 24px #085e5e16}
+  .home-page .step-card{background:#e3f1f1;border-color:#bddddd}
+  .home-divider{
+    margin:clamp(20px,4vw,34px) 0 14px;
+    border:0;
+    border-top:1px solid #b7d7d8;
+  }
   .cause-name{font-size:19px}
   .cause-img,.step-icon{background:#e5f5f3;border-color:var(--border)}
   .progress-fill,.flow-progress-fill,.progress > i{
@@ -1755,9 +1758,9 @@ LAYOUT = """
   @media(max-width:600px){
     .nav{min-height:60px}
     .logo-badge-img{height:50px}
-    .home-intro{padding-inline:14px}
-    .tiles-grid{gap:14px;margin-top:16px}
-    .cause-tile{padding:16px;min-height:235px}
+    .home-intro{padding-top:12px;gap:6px}
+    .home-page .tiles-grid{gap:12px;margin-top:14px}
+    .cause-tile{padding:16px}
   }
 </style>
    <script>
@@ -2344,10 +2347,10 @@ def home():
       </div>
     {% endmacro %}
 
-    <div class="hero home-intro" style="text-align:center;align-items:center;">
+    <div class="hero home-intro">
       <h1 class="section-title">Choose a Charity to Support</h1>
       <p class="muted section-subtitle">
-        Your contribution matters. Select a charity below to ensure your ticket donation supports a cause you believe in.
+        Pick a campaign to support a cause you care about.
       </p>
     </div>
 
@@ -2362,9 +2365,9 @@ def home():
     </div>
 
     {% if tiles_past and (tiles_past|length) > 0 %}
-      <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
+      <hr class="home-divider">
 
-      <div class="hero home-section-heading" style="text-align:center;align-items:center;">
+      <div class="hero home-section-heading">
         <h2 class="section-title">Past Campaigns</h2>
         <p class="muted section-subtitle">
           Some of the campaigns we have worked on in the past
@@ -2378,9 +2381,9 @@ def home():
       </div>
     {% endif %}
 
-    <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
+    <hr class="home-divider">
 
-    <div class="hero home-section-heading" style="text-align:center;align-items:center;">
+    <div class="hero home-section-heading">
       <h2 class="section-title">How Get My Number Works</h2>
       <p class="muted section-subtitle">
         A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
@@ -2478,6 +2481,7 @@ def home():
     return render(
         body,
         title="Get My Number",
+        page_class="home-page",
         tiles_current=tiles_current,
         tiles_past=tiles_past,
         flow_progress_pct=None,
