@@ -1716,7 +1716,7 @@ LAYOUT = """
   .directory-section .cause-tile:hover{border-color:#75c9c1;box-shadow:0 12px 30px #12313d13}
   .directory-section .cause-name{font-size:1.125rem}
   .directory-section .cause-about,.directory-section .muted{color:#45626a}
-  .directory-section .tile-cta .btn{min-height:44px;color:var(--directory-ink)}
+  .directory-section .tile-cta .btn{min-height:44px;color:var(--directory-ink)!important}
   .directory-section .steps-grid{margin-top:22px}
   .directory-section .step-card{background:#f3fbfa;border-color:#dbeae9;box-shadow:none}
   .directory-section .step-label,.directory-page .footer a{color:var(--directory-teal)}
@@ -2457,21 +2457,40 @@ def home():
 
     <script>
       (() => {
-        if (!('IntersectionObserver' in window)) return;
-        const links = [...document.querySelectorAll('.directory-nav a')];
+        const nav = document.querySelector('.directory-nav');
+        const links = [...nav.querySelectorAll('a')];
         const sections = links.map(link => document.getElementById(link.hash.slice(1)));
-        const observer = new IntersectionObserver(() => {
-          const offset = document.querySelector('.directory-nav').getBoundingClientRect().bottom + 18;
-          let current = 0;
-          sections.forEach((section, index) => {
-            if (section.getBoundingClientRect().top <= offset) current = index;
-          });
-          links.forEach((link, index) => {
-            if (index === current) link.setAttribute('aria-current', 'location');
-            else link.removeAttribute('aria-current');
-          });
-        }, {rootMargin: '-66px 0px -75% 0px'});
-        sections.forEach(section => observer.observe(section));
+        let frame = 0;
+        let active = 0;
+
+        function updateActiveSection() {
+          frame = 0;
+          const offset = nav.getBoundingClientRect().bottom + 24;
+          const page = document.documentElement;
+          const atBottom = window.scrollY > 0 && window.scrollY + window.innerHeight >= page.scrollHeight - 2;
+          let next = atBottom ? sections.length - 1 : 0;
+
+          if (!atBottom) {
+            sections.forEach((section, index) => {
+              if (section.getBoundingClientRect().top <= offset) next = index;
+            });
+          }
+
+          if (next !== active) {
+            links[active].removeAttribute('aria-current');
+            links[next].setAttribute('aria-current', 'location');
+            active = next;
+          }
+        }
+
+        function scheduleUpdate() {
+          if (!frame) frame = requestAnimationFrame(updateActiveSection);
+        }
+
+        window.addEventListener('scroll', scheduleUpdate, {passive:true});
+        window.addEventListener('resize', scheduleUpdate);
+        window.addEventListener('pageshow', scheduleUpdate);
+        scheduleUpdate();
       })();
     </script>
     """
