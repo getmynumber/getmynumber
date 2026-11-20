@@ -337,25 +337,23 @@ LAYOUT = """
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary_large_image">
 {% endif %}
-<meta name="color-scheme" content="light">
-<meta name="theme-color" content="#f5f8f5">
+<meta name="color-scheme" content="light dark">
 <style>
   :root{
-    --bg:#f5f8f5;
-    --bg-soft:#e8f2eb;
+    --bg:#f3fafc;
+    --bg-soft:#e4f3f7;
     --card:#ffffff;
-    --card-2:#f5f9f6;
-    --text:#172e25;
-    --muted:#4f665b;
-    --text-soft:#4f665b;
-    --brand:#116344;
-    --brand-2:#32795b;
-    --ok:#18704e;
-    --warn:#a86211;
-    --danger:#a92f32;
-    --border:#d7e4da;
-    --shadow:0 2px 4px rgba(18,49,36,.035), 0 12px 32px rgba(18,49,36,.055);
-    --radius:16px;
+    --card-2:#f8feff;
+    --text:#12313d;
+    --muted:#6a8893;
+    --brand:#00b8a9;
+    --brand-2:#27c6d6;
+    --ok:#1ea97a;
+    --warn:#f5a623;
+    --danger:#e94f37;
+    --border:#cfe3ea;
+    --shadow:0 18px 45px rgba(3,46,66,0.16);
+    --radius:18px;
     --radius-sm:12px;
     --transition-fast:150ms ease-out;
   }
@@ -365,7 +363,10 @@ LAYOUT = """
   html,body{
     min-height:100%;
     font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:var(--bg);
+    background:
+      radial-gradient(900px 700px at 0% 0%, #e0f7fa 0, transparent 60%),
+      radial-gradient(900px 700px at 100% 0%, #d0f0f6 0, transparent 60%),
+      var(--bg);
     color:var(--text);
   }
 
@@ -404,7 +405,7 @@ LAYOUT = """
     background:#ffffff;
     border:0;
     border-bottom:1px solid var(--border);
-    box-shadow:0 16px 35px rgba(18,49,36,0.15);
+    box-shadow:0 16px 35px rgba(3,46,66,0.15);
     backdrop-filter:blur(12px);
   }
 
@@ -416,9 +417,9 @@ LAYOUT = """
   .flow-progress-track {
     height: 10px;
     border-radius: 999px;
-    background: rgba(215,228,218,0.75);
+    background: rgba(207,227,234,0.75);
     overflow: hidden;
-    border: 1px solid rgba(215,228,218,0.9);
+    border: 1px solid rgba(207,227,234,0.9);
   }
   .flow-progress-fill {
     height: 100%;
@@ -525,7 +526,7 @@ LAYOUT = """
 
   /* clean divider from form */
   border:0;
-  border-top:1px solid rgba(215,228,218,0.9);
+  border-top:1px solid rgba(207,227,234,0.9);
 }
 
   .banner-remaining{
@@ -585,15 +586,15 @@ LAYOUT = """
 
   .cause-tile{
     position:relative;
-    background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(245,249,246,0.95));
-    border:1px solid rgba(215,228,218,0.95);
+    background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,254,255,0.95));
+    border:1px solid rgba(207,227,234,0.95);
     border-radius:18px;
-    box-shadow:0 16px 40px rgba(18,49,36,0.10);
+    box-shadow:0 16px 40px rgba(3,46,66,0.10);
     overflow:hidden;
     padding:16px;
     display:flex;
     flex-direction:column;
-    min-height: 290px;
+    min-height: 360px;
   }
 
   .cause-top{
@@ -606,8 +607,8 @@ LAYOUT = """
   .cause-img{
     width:54px;height:54px;
     border-radius:14px;
-    border:1px solid rgba(215,228,218,0.95);
-    background:rgba(232,242,235,0.8);
+    border:1px solid rgba(207,227,234,0.95);
+    background:rgba(228,243,247,0.8);
     display:flex;align-items:center;justify-content:center;
     overflow:hidden;
     flex:0 0 auto;
@@ -639,7 +640,7 @@ LAYOUT = """
     border-radius:16px;
     overflow:hidden;
     border:0;
-    background:rgba(232,242,235,0.55);
+    background:rgba(228,243,247,0.55);
   }
 
   .cause-poster img{
@@ -656,9 +657,9 @@ LAYOUT = """
   .progress-track{
     height:8px;
     border-radius:999px;
-    background:rgba(215,228,218,0.75);
+    background:rgba(207,227,234,0.75);
     overflow:hidden;
-    border:1px solid rgba(215,228,218,0.9);
+    border:1px solid rgba(207,227,234,0.9);
   }
   .progress-fill{
     height:100%;
@@ -817,7 +818,7 @@ LAYOUT = """
   .nav-links a:hover{
     border-color:var(--border);
     color:var(--text);
-    background:rgba(17,99,68,0.06);
+    background:rgba(0,184,169,0.06);
   }
 
   .card{
@@ -899,10 +900,10 @@ LAYOUT = """
   }
 
   .pill:hover{
-    background:#f5f8f5;
-    border-color:#a7c4b4;
+    background:#f3fafc;
+    border-color:#9ad7e0;
     transform:translateY(-1px);
-    box-shadow:0 10px 24px rgba(18,49,36,0.16);
+    box-shadow:0 10px 24px rgba(3,46,66,0.16);
   }
 
   .btn{
@@ -939,7 +940,7 @@ LAYOUT = """
   }
 
   .btn:hover{
-    box-shadow:0 10px 24px rgba(17,99,68,0.35);
+    box-shadow:0 10px 24px rgba(0,184,169,0.35);
     transform:translateY(-1px);
   }
 
@@ -993,7 +994,7 @@ LAYOUT = """
     padding:11px 14px;
     border-radius:12px;
     border:1px solid var(--border);
-    background:#fafcfb;   /* lighter neutral grey */
+    background:#f8fafc;   /* lighter neutral grey */
     color:var(--text);
     outline:none;
     transition:border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
@@ -1007,7 +1008,7 @@ LAYOUT = """
 
   input:focus,select:focus,textarea:focus{
     border-color:var(--brand);
-    box-shadow:0 0 0 1px rgba(17,99,68,0.25);
+    box-shadow:0 0 0 1px rgba(0,184,169,0.25);
     background:#ffffff;
   }
 
@@ -1035,7 +1036,7 @@ LAYOUT = """
   }
 
   .btn.outline:hover{
-    background: rgba(17,99,68,0.08);
+    background: rgba(0,184,169,0.08);
     box-shadow: none;
   }
 
@@ -1054,24 +1055,24 @@ LAYOUT = """
   }
 
   thead th{
-    background:#eaf2ec;
+    background:#e8f5f7;
     color:var(--muted);
     font-weight:600;
   }
 
   th,td{
     padding:9px 10px;
-    border-bottom:1px solid #e1ebe3;
+    border-bottom:1px solid #e0edf2;
     text-align:left;
     vertical-align:top;
   }
 
   tbody tr:nth-child(even) td{
-    background:#f7faf7;
+    background:#f7fcfd;
   }
 
   tbody tr:hover td{
-    background:#edf5ef;
+    background:#eaf7f8;
   }
 
   .badge{
@@ -1079,44 +1080,44 @@ LAYOUT = """
     align-items:center;
     padding:4px 9px;
     border-radius:12px;
-    border:1px solid #a7c4b4;
-    color:#235540;
+    border:1px solid #9ad7e0;
+    color:#0f3f4a;
     font-size:12px;
-    background:#e8f3eb;
+    background:#e5f6f7;
   }
 
   .badge.ok{
     background:rgba(30,169,122,0.08);
-    border-color:#18704e;
+    border-color:#1ea97a;
     color:#0c6a4c;
   }
 
   .badge.warn{
     background:rgba(245,166,35,0.08);
-    border-color:#a86211;
+    border-color:#f5a623;
     color:#8a5c12;
   }
 
   .badge.danger{
     background:rgba(233,79,55,0.08);
-    border-color:#a92f32;
+    border-color:#e94f37;
     color:#7b2315;
   }
 
   .progress{
     height:10px;
-    background:#e4eee6;
-    border:1px solid #d7e4da;
+    background:#e4f2f6;
+    border:1px solid #cfe3ea;
     border-radius:999px;
     overflow:hidden;
-    box-shadow:inset 0 0 6px rgba(18,49,36,0.12);
+    box-shadow:inset 0 0 6px rgba(3,46,66,0.12);
   }
 
   .progress > i{
     display:block;
     height:100%;
     background:linear-gradient(90deg,var(--brand),var(--brand-2));
-    box-shadow:0 0 14px rgba(17,99,68,0.45);
+    box-shadow:0 0 14px rgba(0,184,169,0.45);
     transition:width 220ms ease-out;
   }
 
@@ -1142,8 +1143,8 @@ LAYOUT = """
    background:var(--card);
    border-radius:var(--radius);
    padding:14px 14px 16px;
-   border:1px solid rgba(215,228,218,0.8);
-   box-shadow:0 10px 30px rgba(18,49,36,0.08);
+   border:1px solid rgba(207,227,234,0.8);
+   box-shadow:0 10px 30px rgba(3,46,66,0.08);
    display:flex;
    flex-direction:column;
    gap:8px;
@@ -1196,7 +1197,7 @@ LAYOUT = """
  }
 
  .countdown-card{
-   border:1px solid rgba(215,228,218,0.9);
+   border:1px solid rgba(207,227,234,0.9);
    background: var(--card-2);
    display:flex;
    align-items:center;
@@ -1236,8 +1237,8 @@ LAYOUT = """
   .layout-narrow .countdown-card{
     margin-top:10px;
     margin-bottom:10px;
-    border-top:1px solid rgba(215,228,218,0.9);
-    border-bottom:1px solid rgba(215,228,218,0.9);
+    border-top:1px solid rgba(207,227,234,0.9);
+    border-bottom:1px solid rgba(207,227,234,0.9);
   }
 
   .countdown-label{
@@ -1261,7 +1262,7 @@ LAYOUT = """
     border-radius:14px;
     background:#ffffff;
     text-align:center;
-    box-shadow:0 4px 12px rgba(18,49,36,0.08);
+    box-shadow:0 4px 12px rgba(3,46,66,0.08);
   }
 
   .cd-value{
@@ -1349,8 +1350,8 @@ LAYOUT = """
     align-items:center;
     justify-content:center;
     font-weight:900;
-    background: rgba(17,99,68,0.04);
-    border: 1px solid rgba(17,99,68,0.08);
+    background: rgba(0,184,169,0.04);
+    border: 1px solid rgba(0,184,169,0.08);
     color: var(--ok);
   }
 
@@ -1367,11 +1368,11 @@ LAYOUT = """
   border-radius:999px;
 
   /* Premium outer ring */
-  border:10px solid rgba(17,99,68,.18);
+  border:10px solid rgba(0,184,169,.18);
 
   /* Depth without harsh contrast */
   box-shadow:
-    0 18px 40px rgba(18,49,36,.12),
+    0 18px 40px rgba(3,46,66,.12),
     inset 0 0 0 1px rgba(255,255,255,.35);
 
   /* Subtle casino-style surface (no harsh slices) */
@@ -1389,8 +1390,8 @@ LAYOUT = """
     /* very subtle segmented feel */
     repeating-conic-gradient(
       from -90deg,
-      rgba(17,99,68,.18) 0 12deg,
-      rgba(50,121,91,.10) 12deg 24deg
+      rgba(0,184,169,.18) 0 12deg,
+      rgba(39,198,214,.10) 12deg 24deg
     );
 
   overflow:hidden;
@@ -1435,10 +1436,10 @@ LAYOUT = """
   background:
     radial-gradient(circle at 30% 30%, #ffffff, #f2f6f8);
 
-  border:7px solid rgba(17,99,68,.22);
+  border:7px solid rgba(0,184,169,.22);
 
   box-shadow:
-    0 4px 10px rgba(18,49,36,.18),
+    0 4px 10px rgba(3,46,66,.18),
     inset 0 0 0 2px rgba(255,255,255,.6);
 }
 
@@ -1452,9 +1453,9 @@ LAYOUT = """
 
   border-left:14px solid transparent;
   border-right:14px solid transparent;
-  border-bottom:26px solid rgba(17,99,68,.55);
+  border-bottom:26px solid rgba(0,184,169,.55);
 
-  filter: drop-shadow(0 6px 10px rgba(18,49,36,.18));
+  filter: drop-shadow(0 6px 10px rgba(3,46,66,.18));
   z-index:5;
 }
 
@@ -1537,7 +1538,7 @@ LAYOUT = """
     width:100%;
     height:1px;
     border:0;
-    background:rgba(215,228,218,0.95);
+    background:rgba(207,227,234,0.95);
     margin:16px 0;
   }
 
@@ -1559,184 +1560,14 @@ LAYOUT = """
 
   .legal-breadcrumb a:hover{
     color:var(--text);
-    border-bottom-color:rgba(17,99,68,0.35);
+    border-bottom-color:rgba(0,184,169,0.35);
   }
 
   .legal-breadcrumb .sep{
     opacity:0.6;
   }
 
- 
-  /* Shared finish for public pages, checkout, and management views. */
-  html{overflow-x:clip}
-  body{line-height:1.5}
-  .nav{
-    border-top:3px solid var(--brand);
-    box-shadow:0 2px 8px rgba(18,49,36,.035);
-    backdrop-filter:none;
-    margin-bottom:16px;
-  }
-  .logo{gap:8px}
-  .logo-badge-img{height:70px}
-  .logo strong{letter-spacing:-.035em;font-weight:750}
-  .nav-links a{font-size:14px;font-weight:650;padding:8px 12px}
-  .hero h1,.section-title{
-    font-size:clamp(25px,4vw,36px);
-    font-weight:750;
-    letter-spacing:-.04em;
-    line-height:1.15;
-  }
-  h2,h3,.cause-name{letter-spacing:-.025em}
-  .hero p,.section-subtitle,.cause-about,.step-body{line-height:1.6}
-  .cause-tile,.step-card{
-    background:var(--card);
-    border-color:var(--border);
-    border-radius:var(--radius);
-    box-shadow:var(--shadow);
-  }
-  .cause-name{font-size:17px;font-weight:750}
-  .card.secondary,.soft-panel,.countdown-card{background:var(--card-2)}
-  .btn,.pill{font-family:inherit;font-weight:650;line-height:1.25}
-  .btn:not(.danger):not(.secondary):not(.outline):not(.link):not(.btn-discreet){
-    background:var(--brand);
-    color:white;
-  }
-  .btn:not(.danger):not(.secondary):not(.outline):not(.link):not(.btn-discreet):hover{
-    background:#0b5037;
-    color:white;
-  }
-  .btn:hover,.pill:hover{
-    box-shadow:0 3px 8px rgba(18,49,36,.12);
-    transform:none;
-  }
-  .btn-discreet{color:var(--brand);border-color:#a7c4b4;opacity:1}
-  .btn-discreet:hover{background:var(--bg-soft)}
-  :where(a,button,input,select,textarea,[tabindex]):focus-visible{
-    outline:2px solid #158454;
-    outline-offset:3px;
-  }
-  input:focus-visible,select:focus-visible,textarea:focus-visible{
-    outline:2px solid #158454;
-    outline-offset:2px;
-  }
-  input:not([type="hidden"]),select,textarea{max-width:100%}
-  label{font-weight:600}
-  input::placeholder,textarea::placeholder{color:#637b6e}
-  .flow-progress-track,.progress-track,.progress{
-    background:var(--bg-soft);
-    border-color:var(--border);
-    box-shadow:none;
-  }
-  .flow-progress-fill,.progress-fill,.progress > i{box-shadow:none}
-  .banner-soldout{background:#edf0eb;color:#37483d}
-  .banner-comingsoon,.banner-remaining{background:var(--bg-soft);border-color:var(--border)}
-  .footer{
-    border-top:1px solid var(--border);
-    padding:16px 0 0;
-    margin-top:28px;
-    opacity:1;
-  }
-  .page-legal p,.page-legal li{line-height:1.65}
-  .table-scroll{max-width:100%;overflow-x:auto}
-  .form-message{margin:8px 0;color:#793e08;font-weight:600}
-  @media (max-width:600px){
-    .nav{margin-bottom:12px}
-    .logo-badge-img{height:52px;max-width:62px}
-    .logo strong{font-size:16px}
-    .nav-links{gap:0}
-    .nav-links a{font-size:13px;padding:8px 7px}
-    .tiles-grid{grid-template-columns:minmax(0,320px)}
-    input:not([type="checkbox"]):not([type="radio"]),select,textarea{font-size:16px}
-    .table-scroll table{min-width:560px}
-  }
-  @media (prefers-reduced-motion:reduce){
-    *,*::before,*::after{transition-duration:.01ms !important;scroll-behavior:auto !important}
-    .hold-ok{animation:none;opacity:1;transform:none}
-    .wheel.wheel-spinning{animation:none}
-  }
-
-
-  /* Keep the live palette and give the campaign directory its own layout. */
-  .directory-page{
-    --brand:#00b8a9;
-    --brand-2:#27c6d6;
-    --directory-ink:#12313d;
-    --directory-teal:#006d66;
-    background:#fff;
-    color:var(--directory-ink);
-  }
-  .directory-page .wrap{max-width:1100px;padding-inline:clamp(16px,5vw,48px)}
-  .directory-page .nav{
-    width:auto;margin-inline:0;padding-inline:0;min-height:60px;
-    margin-bottom:0;background:#fff;box-shadow:none;backdrop-filter:none;
-  }
-  .directory-page .logo-badge-img{height:60px}
-  .directory-page .nav-links a{color:var(--directory-ink)}
-  .directory-page .home-page.card{
-    overflow:visible;padding:0;background:#fff;border:0;box-shadow:none;border-radius:0;
-  }
-  .directory-nav{
-    position:sticky;top:0;z-index:10;
-    display:flex;align-items:center;gap:clamp(12px,4vw,28px);
-    background:#fff;border-bottom:1px solid #dbeae9;
-  }
-  .directory-nav a{
-    display:flex;align-items:center;min-height:48px;
-    border-bottom:2px solid transparent;
-    color:#45626a;font-size:.875rem;font-weight:650;
-    transition:color 150ms ease,border-color 150ms ease;
-  }
-  .directory-nav a:hover,.directory-nav a[aria-current="location"]{
-    color:var(--directory-teal);border-bottom-color:var(--brand);
-  }
-  .directory-section{
-    scroll-margin-top:66px;
-    padding-block:clamp(26px,5vw,54px);
-  }
-  .directory-section + .directory-section{border-top:1px solid #dbeae9}
-  .directory-section .hero{align-items:flex-start;text-align:left;gap:8px;padding:0;margin:0}
-  .directory-section .section-title{
-    margin:0;text-align:left;line-height:1.1;letter-spacing:-.04em;
-    font-size:clamp(26px,4vw,38px);color:var(--directory-ink);
-  }
-  #campaigns .section-title{font-size:clamp(32px,5vw,52px)}
-  .directory-section .section-subtitle{
-    color:#45626a;text-align:left!important;margin:0;max-width:60ch;
-  }
-  .directory-section .tiles-grid{
-    grid-template-columns:repeat(auto-fit,minmax(min(100%,288px),1fr));
-    justify-content:start;gap:16px;margin-top:22px;max-width:none;
-  }
-  .directory-section .tiles-grid:has(> :only-child){max-width:490px}
-  .directory-section .cause-tile{
-    min-height:0;padding:clamp(16px,3vw,24px);background:#fff;
-    border:1px solid #c8e3e0;border-radius:16px;
-    box-shadow:0 8px 24px #12313d0a;
-  }
-  .directory-section .cause-tile:hover{border-color:#75c9c1;box-shadow:0 12px 30px #12313d13}
-  .directory-section .cause-name{font-size:1.125rem}
-  .directory-section .cause-about,.directory-section .muted{color:#45626a}
-  .directory-section .tile-cta .btn{min-height:44px;color:var(--directory-ink)!important}
-  .directory-section .steps-grid{margin-top:22px}
-  .directory-section .step-card{background:#f3fbfa;border-color:#dbeae9;box-shadow:none}
-  .directory-section .step-label,.directory-page .footer a{color:var(--directory-teal)}
-  @media (max-width:430px){
-    .directory-page .logo-badge-img{height:48px}
-    .directory-nav{justify-content:space-between}
-    .directory-nav a{font-size:.8125rem}
-  }
-  @media (prefers-reduced-motion:no-preference){
-    html:has(.directory-page){scroll-behavior:smooth}
-    @supports (animation-timeline:view()){
-      #how-it-works .step-card{
-        animation:directory-rise linear both;
-        animation-timeline:view();
-        animation-range:entry 0% entry 65%;
-      }
-      @keyframes directory-rise{from{transform:translateY(10px)}to{transform:translateY(0)}}
-    }
-  }
-</style>
+ </style>
    <script>
      document.addEventListener('DOMContentLoaded', () => {
        document.querySelectorAll('form[data-safe-submit]').forEach(f => {
@@ -1793,7 +1624,7 @@ LAYOUT = """
    </script>
 
    </head>
-   <body class="{{ layout_mode }}{% if page_class == 'home-page' %} directory-page{% endif %}">
+   <body class="{{ layout_mode }}">
      <div class="wrap">
        <nav class="nav">
          <a class="logo" href="{{ url_for('home') }}">
@@ -2321,17 +2152,12 @@ def home():
       </div>
     {% endmacro %}
 
-    <nav class="directory-nav" aria-label="On this page">
-      <a href="#campaigns" aria-current="location">Campaigns</a>
-      {% if tiles_past %}<a href="#past-campaigns">Past campaigns</a>{% endif %}
-      <a href="#how-it-works">How it works</a>
-    </nav>
-
-    <section class="directory-section" id="campaigns" aria-labelledby="campaigns-title">
-      <div class="hero">
-        <h1 class="section-title" id="campaigns-title">Choose a Charity to Support</h1>
-        <p class="muted section-subtitle">Choose a campaign to support a cause you care about.</p>
-      </div>
+    <div class="hero" style="text-align:center;align-items:center;">
+      <h1 class="section-title">Choose a Charity to Support</h1>
+      <p class="muted section-subtitle">
+        Your contribution matters. Select a charity below to ensure your ticket donation supports a cause you believe in.
+      </p>
+    </div>
 
     <div class="tiles-grid">
             {% for t in tiles_current %}
@@ -2343,13 +2169,14 @@ def home():
       {% endfor %}
     </div>
 
-    </section>
+    {% if tiles_past and (tiles_past|length) > 0 %}
+      <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
-    {% if tiles_past %}
-    <section class="directory-section" id="past-campaigns" aria-labelledby="past-campaigns-title">
-      <div class="hero">
-        <h2 class="section-title" id="past-campaigns-title">Past Campaigns</h2>
-        <p class="muted section-subtitle">Explore campaigns we’ve supported in the past.</p>
+      <div class="hero" style="text-align:center;align-items:center;">
+        <h1 class="section-title">Past Campaigns</h1>
+        <p class="muted section-subtitle">
+          Some of the campaigns we have worked on in the past
+        </p>
       </div>
 
       <div class="tiles-grid">
@@ -2357,14 +2184,16 @@ def home():
           {{ render_campaign_tile(t) }}
         {% endfor %}
       </div>
-    </section>
     {% endif %}
 
-    <section class="directory-section" id="how-it-works" aria-labelledby="how-it-works-title">
-      <div class="hero">
-        <h2 class="section-title" id="how-it-works-title">How Get My Number Works</h2>
-        <p class="muted section-subtitle">For campaigns that use a temporary card hold, here’s what to expect.</p>
-      </div>
+    <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
+
+    <div class="hero" style="text-align:center;align-items:center;">
+      <h1 class="section-title">How Get My Number Works</h1>
+      <p class="muted section-subtitle">
+        A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
+      </p>
+    </div>
 
     <div class="steps-grid">
       <!-- keep your existing step cards exactly as they were -->
@@ -2453,51 +2282,10 @@ def home():
         </div>
       </div>
     </div>
-    </section>
-
-    <script>
-      (() => {
-        const nav = document.querySelector('.directory-nav');
-        const links = [...nav.querySelectorAll('a')];
-        const sections = links.map(link => document.getElementById(link.hash.slice(1)));
-        let frame = 0;
-        let active = 0;
-
-        function updateActiveSection() {
-          frame = 0;
-          const offset = nav.getBoundingClientRect().bottom + 24;
-          const page = document.documentElement;
-          const atBottom = window.scrollY > 0 && window.scrollY + window.innerHeight >= page.scrollHeight - 2;
-          let next = atBottom ? sections.length - 1 : 0;
-
-          if (!atBottom) {
-            sections.forEach((section, index) => {
-              if (section.getBoundingClientRect().top <= offset) next = index;
-            });
-          }
-
-          if (next !== active) {
-            links[active].removeAttribute('aria-current');
-            links[next].setAttribute('aria-current', 'location');
-            active = next;
-          }
-        }
-
-        function scheduleUpdate() {
-          if (!frame) frame = requestAnimationFrame(updateActiveSection);
-        }
-
-        window.addEventListener('scroll', scheduleUpdate, {passive:true});
-        window.addEventListener('resize', scheduleUpdate);
-        window.addEventListener('pageshow', scheduleUpdate);
-        scheduleUpdate();
-      })();
-    </script>
     """
     return render(
         body,
         title="Get My Number",
-        page_class="home-page",
         tiles_current=tiles_current,
         tiles_past=tiles_past,
         flow_progress_pct=None,
@@ -4997,7 +4785,7 @@ def admin_charities():
 
     body = """
     <h2>Manage Charities</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     {% if not ok %}
       <form method="post">
         <label>Username <input type="text" name="username" required></label>
@@ -5034,7 +4822,7 @@ def admin_charities():
         </label>
         <div style="margin-top:8px"><button class="btn">Add / Save</button></div>
       </form>
-      <div class="table-scroll"><table>
+      <table>
         <thead><tr><th>Slug</th><th>Name</th><th>Status</th><th>Max</th><th>Remaining</th><th>Actions</th></tr></thead>
         <tbody>
           {% for c in charities %}
@@ -5097,7 +4885,7 @@ def admin_charities():
             </tr>
           {% endfor %}
         </tbody>
-      </table></div>
+      </table>
     {% endif %}
     """
     return render(
@@ -5424,7 +5212,7 @@ def edit_charity(slug):
 
     body = """
     <h2>Edit Charity</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
     <form id="edit_charity_form" method="post" enctype="multipart/form-data" data-safe-submit>
@@ -5976,7 +5764,7 @@ def admin_charity_entries(slug):
                 onclick="return confirm('Delete selected entries?')">Delete</button>
       </div>
 
-      <div class="table-scroll"><table>
+      <table>
         <thead>
           <tr>
             <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
@@ -6029,7 +5817,7 @@ def admin_charity_entries(slug):
             </tr>
           {% endfor %}
         </tbody>
-      </table></div>
+      </table>
     </form>
     """
     return render(
@@ -6120,7 +5908,7 @@ def admin_new_entry(slug):
 
     body = """
     <h2>Add Entry — {{ charity.name }}</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" data-safe-submit>
       <label>Name <input type="text" name="name" required></label>
       <label>Email <input type="email" name="email" required></label>
@@ -6190,7 +5978,7 @@ def admin_edit_entry(slug, entry_id):
 
     body = """
     <h2>Edit Entry — {{ charity.name }}</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ e.name }}" required></label>
       <label>Email <input type="email" name="email" value="{{ e.email }}" required></label>
@@ -6498,13 +6286,13 @@ def admin_charity_users(slug):
     users = CharityUser.query.filter_by(charity_id=charity.id).order_by(CharityUser.username.asc()).all()
     body = """
     <h2>Users — {{ charity.name }}</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" style="margin-bottom:12px" data-safe-submit>
       <label>Username <input type="text" name="username" required></label>
       <label>Password <input type="password" name="password" required></label>
       <div style="margin-top:8px"><button class="btn">Create User</button></div>
     </form>
-    <div class="table-scroll"><table>
+    <table>
       <thead><tr><th>Username</th><th>Actions</th></tr></thead>
       <tbody>
         {% for u in users %}
@@ -6518,7 +6306,7 @@ def admin_charity_users(slug):
           </tr>
         {% endfor %}
       </tbody>
-    </table></div>
+    </table>
     <p><a class="pill" href="{{ url_for('admin_charities') }}">← Back</a></p>
     """
     return render(body, charity=charity, users=users, msg=msg, title=f"Users – {charity.name}")
@@ -6557,7 +6345,7 @@ def partner_login():
                 msg = "Invalid username or password."
     body = """
     <h2>Partner Login</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" data-safe-submit>
       <label>Charity <input type="text" name="slug" placeholder="thekehilla" required></label>
       <label>Username <input type="text" name="username" required></label>
@@ -6670,7 +6458,7 @@ def partner_entries(slug):
                 onclick="return confirm('Delete selected entries?')">Delete</button>
       </div>
 
-      <div class="table-scroll"><table>
+      <table>
         <thead><tr>
           <th><input type="checkbox" onclick="for(const cb of document.querySelectorAll('.rowcb')) cb.checked=this.checked"></th>
           <th>ID</th><th>Name</th><th>Email</th><th>Phone</th><th>Earmark</th>
@@ -6721,7 +6509,7 @@ def partner_entries(slug):
           </tr>
         {% endfor %}
         </tbody>
-      </table></div>
+      </table>
     </form>
     """
     return render(
@@ -6789,7 +6577,7 @@ def partner_new_entry(slug):
                     db.session.rollback(); msg = "That number is already taken."
     body = """
     <h2>Add Entry — {{ charity.name }}</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" data-safe-submit>
       <label>Name <input type="text" name="name" required></label>
       <label>Email <input type="email" name="email" required></label>
@@ -6853,7 +6641,7 @@ def partner_edit_entry(slug, entry_id):
             db.session.rollback(); msg = "That number is already taken."
     body = """
     <h2>Edit Entry — {{ charity.name }}</h2>
-    {% if msg %}<div class="form-message" role="status">{{ msg }}</div>{% endif %}
+    {% if msg %}<div style="margin:6px 0;color:#ffd29f">{{ msg }}</div>{% endif %}
     <form method="post" data-safe-submit>
       <label>Name <input type="text" name="name" value="{{ e.name }}" required></label>
       <label>Email <input type="email" name="email" value="{{ e.email }}" required></label>
