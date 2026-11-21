@@ -810,6 +810,11 @@ LAYOUT = """
     white-space:nowrap;
   }
 
+  @media (max-width:420px){
+    .nav{flex-wrap:wrap;column-gap:6px}
+    .nav-links a{padding-inline:6px;font-size:14px}
+  }
+
   .nav-links a:hover{
     border-color:var(--border);
     color:var(--text);
