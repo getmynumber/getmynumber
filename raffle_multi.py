@@ -391,11 +391,6 @@ LAYOUT = """
     align-items:center;
     justify-content:space-between;
 
-    /* FULL WIDTH BAR */
-    width:100vw;
-    margin-left:calc(50% - 50vw);
-    margin-right:calc(50% - 50vw);
-
     margin-top:0;
 
     margin-bottom:7px;
@@ -1625,7 +1620,6 @@ LAYOUT = """
 
    </head>
    <body class="{{ layout_mode }}">
-     <div class="wrap">
        <nav class="nav">
          <a class="logo" href="{{ url_for('home') }}">
            {% if SITE_LOGO_DATA_URI %}
@@ -1640,6 +1634,7 @@ LAYOUT = """
            <a href="{{ url_for('partner_login') }}">Partner</a>
          </div>
        </nav>
+     <div class="wrap">
 
        {% if flow_progress_pct is defined and flow_progress_pct is not none %}
          <div class="flow-progress">
@@ -1655,10 +1650,12 @@ LAYOUT = """
        {% endif %}
  
     <section class="card {{ page_class or '' }}">
-      {% with messages = get_flashed_messages() %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="stack" style="margin-bottom:10px">
-            {% for m in messages %}<span class="badge warn">{{ m }}</span>{% endfor %}
+            {% for category, message in messages %}
+              <span class="badge warn">{{ message }}{% if category == "confirmation_help" %} If you’ve already paid, <a href="mailto:getmynumberfundraise@gmail.com">email us</a> before trying again.{% endif %}</span>
+            {% endfor %}
           </div>
         {% endif %}
       {% endwith %}
@@ -2027,6 +2024,97 @@ def compute_hold_amount_pence(charity) -> int:
 
 # ====== PUBLIC ================================================================
 
+HOW_IT_WORKS = """
+    <div class="hero" style="text-align:center;align-items:center;">
+      <{{ heading_tag }} class="section-title">How Get My Number Works</{{ heading_tag }}>
+      <p class="muted section-subtitle">
+        Some campaigns have a fixed ticket price. Others place a temporary hold on your card before revealing your ticket number.
+      </p>
+    </div>
+
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-header">
+          <div class="step-icon">👤</div>
+          <div>
+            <div class="step-label">Step 1</div>
+            <div class="step-title">Enter your details</div>
+          </div>
+        </div>
+        <div class="step-body">
+          Choose your charity and enter your name, email and phone number.
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header">
+          <div class="step-icon">🧠</div>
+          <div>
+            <div class="step-label">Step 2</div>
+            <div class="step-title">Answer a question if asked</div>
+          </div>
+        </div>
+        <div class="step-body">
+          Some campaigns include a multiple-choice question before you proceed.
+          When enabled, you will be required to answer the question correctly before continuing.
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header">
+          <div class="step-icon">💳</div>
+          <div>
+            <div class="step-label">Step 3</div>
+            <div class="step-title">Review your entry options</div>
+          </div>
+        </div>
+        <div class="step-body">
+          Check the payment details for your campaign. If this campaign offers free postal entry, you’ll find the instructions before checkout.
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header">
+          <div class="step-icon">🏷️</div>
+          <div>
+            <div class="step-label">Step 4</div>
+            <div class="step-title">Continue to Stripe</div>
+          </div>
+        </div>
+        <div class="step-body">
+          For a fixed-price campaign, pay the stated ticket price. For a card-hold campaign, Stripe temporarily reserves an amount on your card.
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header">
+          <div class="step-icon">✅</div>
+          <div>
+            <div class="step-label">Step 5</div>
+            <div class="step-title">Reveal your number and confirm</div>
+          </div>
+        </div>
+        <div class="step-body">
+          If your campaign uses a card hold, return to reveal your ticket number and follow the campaign’s instructions to confirm your donation.
+        </div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-header">
+          <div class="step-icon">💷</div>
+          <div>
+            <div class="step-label">Step 6</div>
+            <div class="step-title">See your confirmation</div>
+          </div>
+        </div>
+        <div class="step-body">
+          After you complete your entry, you’ll see a confirmation. If a card hold was used, your bank releases any unused amount.
+        </div>
+      </div>
+    </div>
+"""
+
+
 @app.route("/")
 def home():
     charities = Charity.query.order_by(Charity.home_rank.asc(), Charity.name.asc()).all()
@@ -2123,7 +2211,7 @@ def home():
           {% if t.about %}
             {{ t.about|safe }}
           {% else %}
-            Support this campaign by taking part and confirming your donation after your number is revealed.
+            View the campaign to see how to enter and support this cause.
           {% endif %}
         </div>
 
@@ -2173,7 +2261,7 @@ def home():
       <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
       <div class="hero" style="text-align:center;align-items:center;">
-        <h1 class="section-title">Past Campaigns</h1>
+        <h2 class="section-title">Past Campaigns</h2>
         <p class="muted section-subtitle">
           Some of the campaigns we have worked on in the past
         </p>
@@ -2188,104 +2276,11 @@ def home():
 
     <hr style="margin:28px 0 20px; border:none; border-top:1px solid rgba(207,227,234,0.9);">
 
-    <div class="hero" style="text-align:center;align-items:center;">
-      <h1 class="section-title">How Get My Number Works</h1>
-      <p class="muted section-subtitle">
-        A simple, transparent flow where a temporary hold is first taken, then you confirm your donation amount.
-      </p>
-    </div>
-
-    <div class="steps-grid">
-      <!-- keep your existing step cards exactly as they were -->
-      """ + """
-      <div class="step-card">
-        <div class="step-header">
-          <div class="step-icon">👤</div>
-          <div>
-            <div class="step-label">Step 1</div>
-            <div class="step-title">Enter your Details</div>
-          </div>
-        </div>
-        <div class="step-body">
-          Choose your charity and enter your name, email and phone number.
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="step-header">
-          <div class="step-icon">🧠</div>
-          <div>
-            <div class="step-label">Step 2</div>
-            <div class="step-title">Multiple-Choice Question</div>
-          </div>
-        </div>
-        <div class="step-body">
-          Some campaigns include a multiple-choice question before you proceed.
-          When enabled, you will be required to answer the question correctly before continuing.
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="step-header">
-          <div class="step-icon">💳</div>
-          <div>
-            <div class="step-label">Step 3</div>
-            <div class="step-title">Temporary Card Hold</div>
-          </div>
-        </div>
-        <div class="step-body">
-          You will be redirected to our secure Stripe checkout where a temporary hold
-          is placed on your card. This is an authorisation only – no money is taken at this point.
-          There is a free postal route option at this step.
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="step-header">
-          <div class="step-icon">🏷️</div>
-          <div>
-            <div class="step-label">Step 4</div>
-            <div class="step-title">Receive your Ticket Number</div>
-          </div>
-        </div>
-        <div class="step-body">
-          Once the hold is confirmed, you are redirected back to Get My Number and assigned
-          a unique ticket number for your chosen charity.
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="step-header">
-          <div class="step-icon">✅</div>
-          <div>
-            <div class="step-label">Step 5</div>
-            <div class="step-title">Confirm your Donation</div>
-          </div>
-        </div>
-        <div class="step-body">
-          You confirm your donation for an amount equal to your ticket number to support the charity.
-          We capture only this amount from the original card hold.
-        </div>
-      </div>
-
-      <div class="step-card">
-        <div class="step-header">
-          <div class="step-icon">💷</div>
-          <div>
-            <div class="step-label">Step 6</div>
-            <div class="step-title">Remaining Hold is Released</div>
-          </div>
-        </div>
-        <div class="step-body">
-          Any difference between the original hold and your ticket amount is released
-          by your bank. It may take a few days to release depending on your bank. 
-        </div>
-      </div>
-    </div>
-    """
+    """ + HOW_IT_WORKS
     return render(
         body,
         title="Get My Number",
+        heading_tag="h2",
         tiles_current=tiles_current,
         tiles_past=tiles_past,
         flow_progress_pct=None,
@@ -2297,8 +2292,8 @@ def home():
 def terms():
     body = """
     <div class="hero" style="text-align:left;align-items:flex-start;">
-      <h1 class="section-title">GetMyNumber Website Terms and Conditions</h1>
-      <p class="muted section-subtitle">Last updated: {{ datetime.utcnow().strftime('%Y-%m-%d') }}</p>
+      <h1 class="section-title">Get My Number Website Terms and Conditions</h1>
+      <p class="muted section-subtitle">Last updated: 1 February 2026</p>
     </div>
 
     <hr class="legal-divider">
@@ -2337,7 +2332,7 @@ def terms():
       <hr class="legal-divider">
       <h1 class="legal-title">Campaign Terms & Conditions</h1>
 
-      <p>1. The T&amp;Cs shall apply to all the campaigns advertised on Our Website. Our campaigns are intended to raise funds for charities. GetMyNumber, also known as &ldquo;We&rdquo; or &ldquo;Us&rdquo;, will act as the administrator of all campaigns unless otherwise stated. Each campaign will have its own donation amount to donate to the charity and a closing date and time. Each campaign will state the maximum number of entries GetMyNumber will accept.</p>
+      <p>1. The T&amp;Cs shall apply to all the campaigns advertised on Our Website. Our campaigns are intended to raise funds for charities. Get My Number, also known as &ldquo;We&rdquo; or &ldquo;Us&rdquo;, will act as the administrator of all campaigns unless otherwise stated. Each campaign will have its own donation amount to donate to the charity and a closing date and time. Each campaign will state the maximum number of entries Get My Number will accept.</p>
 
       <p><strong>How To Enter:</strong><br>
       2. The campaign will be open until the date and time specified on Our Website for each campaign.<br>
@@ -2369,20 +2364,20 @@ def terms():
       You may enter by post by following the requirements set out in Annex 1. Postal entries must be received before the closing date and time. Postal entries have the same chance of winning as paid entries.</p>
 
       <p><strong>The Prize:</strong><br>
-      13. GetMyNumber does not take any responsibility for the Prize. This is arranged by the Campaign Partner.</p>
+      13. Get My Number does not take any responsibility for the Prize. This is arranged by the Campaign Partner.</p>
 
       <p><strong>Winners:</strong><br>
-      14. GetMyNumber decision as to all matters where we have discretion is final and no correspondence will be entered into.<br>
+      14. Get My Number’s decision as to all matters where we have discretion is final and no correspondence will be entered into.<br>
       15. The Winner must provide any additional information requested, including proof of identity and age.<br>
-      16. GetMyNumber does not take any responsibility for the delivery of the prize. This is arranged by the Campaign Partner.</p>
+      16. Get My Number does not take any responsibility for the delivery of the prize. This is arranged by the Campaign Partner.</p>
 
       <p><strong>Limitation Of Liability:</strong><br>
-      17. GetMyNumber excludes all liability for any loss or damage arising out of or in connection with the campaign, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, including but not limited to indirect or consequential loss.<br>
+      17. Get My Number excludes all liability for any loss or damage arising out of or in connection with the campaign, whether in contract, tort (including negligence), breach of statutory duty, or otherwise, including but not limited to indirect or consequential loss.<br>
       18. We do not accept responsibility for entries not successfully completed due to a technical fault, technical malfunction, computer hardware or software failure, satellite, network or server failure of any kind.<br>
       19. We shall not be liable for any loss or damage suffered by you as a result of any act or omission of any third party, including but not limited to the Campaign Partner. Subject to that, your statutory rights are not affected.</p>
 
       <p><strong>Ownership Of Campaign Entries and Intellectual Property Rights:</strong><br>
-      20. All content on this website, including text, branding, design, graphics, and campaign mechanics, are owned by GetMyNumber or licensed to us. You may not reproduce, scrape, mirror, copy, or otherwise use any part of the website or campaign content without our permission. This includes use of automated tools, AI, or scraping systems to recreate our content or processes. All rights are reserved under applicable intellectual property legislation from time to time in force, anywhere in the world.</p>
+      20. All content on this website, including text, branding, design, graphics, and campaign mechanics, are owned by Get My Number or licensed to us. You may not reproduce, scrape, mirror, copy, or otherwise use any part of the website or campaign content without our permission. This includes use of automated tools, AI, or scraping systems to recreate our content or processes. All rights are reserved under applicable intellectual property legislation from time to time in force, anywhere in the world.</p>
 
       <p><strong>Data Protection And Publicity:</strong><br>
       21. We will process your personal data in accordance with our Privacy Policy. By entering, you agree that we may use your details to administer the campaign, contact you, and (if you win) publish your name and general location (e.g. town/city) on Our Website and/or social media, unless you object on reasonable grounds. We may share your information with the Campaign Partner and third parties involved in administering the campaign, including payment providers (e.g. Stripe). We have no liability for the acts or omissions of any third-party.</p>
@@ -2432,14 +2427,14 @@ def privacy():
     body = """
     <div class="hero" style="text-align:left;align-items:flex-start;">
       <h1 class="section-title">Privacy Policy</h1>
-      <p class="muted section-subtitle">Last updated: {{ datetime.utcnow().strftime('%Y-%m-%d') }}</p>
+      <p class="muted section-subtitle">Last updated: 1 February 2026</p>
     </div>
 
     <hr class="legal-divider">
 
     <div class="stack">
 
-      <p><strong>1. What We collect</strong><br>
+      <p><strong>1. What we collect</strong><br>
       When you enter a Campaign, we collect your name, email address, phone number,
       and your assigned ticket number.</p>
 
@@ -2963,7 +2958,7 @@ def skill_gate(slug):
         </style>
 
         <div class="hero">
-          <h1>Quick question before you continue to hold</h1>
+          <h1>Answer a quick question</h1>
           <p class="muted" style="margin-top:6px;line-height:1.45;">
             Please answer this multiple-choice question correctly to proceed.
           </p>
@@ -4111,7 +4106,7 @@ def success(slug):
     reservation = db.session.get(FixedCheckout, token) if token else None
     if (not session_id or not reservation or not reservation.entry
             or reservation.entry.charity_id != charity.id):
-        flash("This confirmation is unavailable. If you paid, please contact support.")
+        flash("This confirmation is unavailable.", "confirmation_help")
         return redirect(url_for("charity_page", slug=charity.slug))
 
     acct = reservation.stripe_account_id
@@ -4129,7 +4124,7 @@ def success(slug):
     payment_intent = stripe_field(checkout_session, "payment_intent")
     entry = reconcile_fixed_checkout(reservation, acct, payment_intent)
     if not entry:
-        flash("Payment is not yet confirmed. If you paid, please contact support.")
+        flash("Payment is not yet confirmed.", "confirmation_help")
         return redirect(url_for("charity_page", slug=charity.slug))
     session["confirmed_fixed_checkout"] = token
 
@@ -4790,7 +4785,7 @@ def admin_charities():
       <form method="post">
         <label>Username <input type="text" name="username" required></label>
         <label>Password <input type="password" name="password" required></label>
-        <div style="margin-top:8px"><button class="btn">Enter</button></div>
+        <div style="margin-top:8px"><button class="btn">Log in</button></div>
       </form>
     {% else %}
       <div class="row" style="margin-bottom:10px">
@@ -6350,7 +6345,7 @@ def partner_login():
       <label>Charity <input type="text" name="slug" placeholder="thekehilla" required></label>
       <label>Username <input type="text" name="username" required></label>
       <label>Password <input type="password" name="password" required></label>
-      <div style="margin-top:8px"><button class="btn">Login</button></div>
+      <div style="margin-top:8px"><button class="btn">Log in</button></div>
     </form>
     <p class="muted"><a href="{{ url_for('home') }}">Back to home</a></p>
     """
@@ -6872,21 +6867,18 @@ def healthz():
 
 @app.route("/how-it-works", methods=["GET"])
 def how_it_works():
-    body = """
+    return render(HOW_IT_WORKS, title="How it works", heading_tag="h1")
+
+
+@app.errorhandler(404)
+def page_not_found(_error):
+    return render("""
     <div class="hero">
-      <h1>How it works</h1>
-      <p class="muted">A simple, transparent way to run charity raffles.</p>
-      <ol style="padding-left:18px;font-size:14px;margin-top:10px;display:flex;flex-direction:column;gap:6px;">
-        <li>Choose a charity raffle page (for example, <code>/thekehilla</code>).</li>
-        <li>Enter your details and click <strong>“Get my number”</strong> to draw a random number.</li>
-        <li>Donate exactly that amount to the charity’s donation page to complete your entry.</li>
-      </ol>
-      <p class="muted" style="font-size:12px;margin-top:16px;">
-        Numbers are unique and random; donations are handled securely via your existing flow.
-      </p>
+      <h1>Page not found</h1>
+      <p class="muted">Check the address or return to the homepage.</p>
+      <a class="btn" href="{{ url_for('home') }}">Back to home</a>
     </div>
-    """
-    return render(body, title="How it works")
+    """, title="Page not found"), 404
 
 
 @app.route("/admin", methods=["GET"])
